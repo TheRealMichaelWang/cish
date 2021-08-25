@@ -1,2 +1,2 @@
 # superforth
-A powerful, strongly-typed, functional programming language.
+A performant, strongly-typed, and functional programming language.
