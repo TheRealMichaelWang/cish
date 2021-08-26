@@ -15,9 +15,12 @@ typedef struct typecheck_type {
 		TYPE_PRIMATIVE_CHAR,
 		TYPE_PRIMATIVE_LONG,
 		TYPE_PRIMATIVE_FLOAT,
+		
 		TYPE_SUPER_ARRAY,
 		TYPE_SUPER_PROC,
-		TYPE_AUTO
+
+		TYPE_AUTO,
+		TYPE_NOTHING
 	} type;
 
 	typecheck_type_t* sub_types;

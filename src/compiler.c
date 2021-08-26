@@ -116,7 +116,7 @@ static void alloc_ast_code_block(compiler_t* compiler, machine_t* machine, ast_c
 			}
 			break;
 		}
-		case AST_TOP_LEVEL_RETURN:
+		case AST_TOP_LEVEL_RETURN_VALUE:
 		case AST_TOP_LEVEL_VALUE:
 			alloc_ast_prim(compiler, machine, &code_block->instructions[i].data.value, current_prim_reg);
 			break;
@@ -125,8 +125,8 @@ static void alloc_ast_code_block(compiler_t* compiler, machine_t* machine, ast_c
 }
 
 const int init_compiler(compiler_t* compiler, const char* source) {
-	PANIC_ON_NULL(init_ast(&compiler->ast, source), compiler, compiler->ast.last_err);
 	compiler->last_err = ERROR_NONE;
+	PANIC_ON_NULL(init_ast(&compiler->ast, source), compiler, compiler->ast.last_err);
 	return 1;
 }
 
@@ -288,14 +288,15 @@ static const int compile_code_block(compiler_t* compiler, ins_builder_t* ins_bui
 		case AST_TOP_LEVEL_COND:
 			ESCAPE_ON_NULL(compile_conditional(compiler, ins_builder, code_block->instructions[i].data.conditional, temp_regs, procedure, break_jump, continue_jump));
 			break;
-		case AST_TOP_LEVEL_RETURN: {
-			PANIC_ON_NULL(procedure, compiler, ERROR_CANNOT_RETURN);
+		case AST_TOP_LEVEL_RETURN_VALUE: {
+			if (procedure->return_type.type == TYPE_SUPER_ARRAY)
+				PUSH_INS(INS1(OP_CODE_HEAP_TRACE, TEMPREG(0)));
 			ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &code_block->instructions[i].data.value, TEMPREG(0), temp_regs));
+		}
+		case AST_TOP_LEVEL_RETURN: {
 			for (uint_fast8_t i = 0; i < procedure->param_count; i++)
 				if (procedure->params[i].var_info.type.type == TYPE_SUPER_ARRAY)
 					PUSH_INS(INS1(OP_CODE_HEAP_TRACE, procedure->params[i].var_info.alloced_reg));
-			if (procedure->return_type.type == TYPE_SUPER_ARRAY)
-				PUSH_INS(INS1(OP_CODE_HEAP_TRACE, TEMPREG(0)));
 			PUSH_INS(INS0(OP_CODE_HEAP_CLEAN));
 			PUSH_INS(INS0(OP_CODE_JUMP_BACK)); 
 			break;

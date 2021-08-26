@@ -7,7 +7,7 @@ int main() {
 
 	machine_t machine;
 	compiler_t* compiler = malloc(sizeof(compiler_t));
-	init_compiler(compiler, "global array<int> arr = new int[10]; auto alloc = int(int n) { if(n == 0) { return 0; } arr = new int[n]; return thisproc(n - 1); }; alloc(5);");
+	init_compiler(compiler, "auto func = nothing(int n) { while(n >= 0) { n = n - 1; } return; }; func(10);");
 
 	machine_ins_t* instructions;
 	uint64_t instruction_count;

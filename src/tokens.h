@@ -15,6 +15,7 @@ typedef enum token_type {
 	TOK_TYPECHECK_ARRAY,
 	TOK_TYPECHECK_PROC,
 	TOK_AUTO,
+	TOK_NOTHING,
 	TOK_GLOBAL,
 
 	TOK_IF,
