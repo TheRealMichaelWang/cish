@@ -102,7 +102,7 @@ typedef struct machine {
 
 	heap_alloc_t* heap_reset_stack[64];
 	heap_alloc_t** heap_allocs;
-	uint64_t* heap_frame_bounds;
+	uint64_t *heap_frame_bounds, *heap_reset_bounds;
 
 	error_t last_err;
 	

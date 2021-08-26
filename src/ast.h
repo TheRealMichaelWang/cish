@@ -27,6 +27,7 @@ typedef struct ast_register {
 typedef struct ast_var_info {
 	ast_register_t alloced_reg;
 	typecheck_type_t type;
+	int is_global;
 } ast_var_info_t;
 
 typedef struct ast_id {
@@ -92,6 +93,7 @@ typedef struct ast_decl_var {
 
 typedef struct ast_set_var {
 	ast_id_t id;
+	int set_global;
 	ast_value_t set_value;
 } set_var_t;
 

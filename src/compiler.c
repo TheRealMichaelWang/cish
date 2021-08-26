@@ -150,8 +150,11 @@ static const int compile_ast_proc(compiler_t* compiler, ins_builder_t* ins_build
 static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_builder, ast_value_t* value, ast_register_t out_reg, uint64_t temp_regs) {
 	switch (value->value_type)
 	{
-	case AST_VALUE_SET_VAR:
-		ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &value->data.set_var->set_value, value->alloced_reg, temp_regs));
+	case AST_VALUE_SET_VAR: {
+		ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &value->data.set_var->set_value, value->alloced_reg, temp_regs)); 
+		if (value->data.set_var->set_global && value->type.type == TYPE_SUPER_ARRAY)
+			PUSH_INS(INS1(OP_CODE_HEAP_TRACE, value->alloced_reg));
+	}
 	case AST_VALUE_BOOL:
 	case AST_VALUE_CHAR:
 	case AST_VALUE_LONG:

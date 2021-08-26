@@ -130,8 +130,8 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 	case OP_CODE_HEAP_NEW_FRAME: {
 		if (machine->heap_frame == machine->frame_limit)
 			PANIC(machine, ERROR_STACK_OVERFLOW);
-		machine->heap_frame_bounds[machine->heap_frame++] = machine->heap_count;
-		machine->heap_reset_count = 0;
+		machine->heap_frame_bounds[machine->heap_frame] = machine->heap_count;
+		machine->heap_reset_bounds[machine->heap_frame++] = machine->heap_reset_count;
 		break;
 	}
 	case OP_CODE_HEAP_TRACE: {
@@ -140,18 +140,19 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 	}
 	case OP_CODE_HEAP_CLEAN: {
 		uint64_t kept_allocs = 0;
-		for(uint_fast64_t i = machine->heap_frame_bounds[--machine->heap_frame]; i < machine->heap_count; i++)
+		uint64_t bound_start = machine->heap_frame_bounds[--machine->heap_frame];
+		for(uint_fast64_t i = bound_start; i < machine->heap_count; i++)
 			if ((*machine->heap_allocs[i]).gc_flag)
-				machine->heap_allocs[kept_allocs++] = machine->heap_allocs[i];
+				machine->heap_allocs[bound_start + kept_allocs++] = machine->heap_allocs[i];
 			else {
 				free(machine->heap_allocs[i]->registers);
 				free(machine->heap_allocs[i]->init_stat);
 				free(machine->heap_allocs[i]);
 			}
-		machine->heap_count = machine->heap_frame_bounds[machine->heap_frame] + kept_allocs;
-		for (uint_fast64_t i = 0; i < machine->heap_reset_count; i++)
+		machine->heap_count = bound_start + kept_allocs;
+		for (uint_fast64_t i = machine->heap_reset_bounds[machine->heap_frame]; i < machine->heap_reset_count; i++)
 			machine->heap_reset_stack[i]->gc_flag = 0;
-		machine->heap_reset_count = 0;
+		machine->heap_reset_count = machine->heap_reset_bounds[machine->heap_frame];
 		break;
 	}
 	case OP_CODE_AND:
@@ -259,11 +260,13 @@ const int init_machine(machine_t* machine, uint64_t stack_size, uint64_t heap_al
 	machine->position_count = 0;
 	machine->heap_frame = 0;
 	machine->heap_count = 0;
+	machine->heap_reset_count = 0;
 
 	ESCAPE_ON_NULL(machine->stack = malloc(stack_size * sizeof(register_t)));
 	ESCAPE_ON_NULL(machine->positions = malloc(machine->frame_limit * sizeof(machine_ins_t*)));
 	ESCAPE_ON_NULL(machine->heap_allocs = malloc(machine->heap_alloc_limit * sizeof(heap_alloc_t*)));
 	ESCAPE_ON_NULL(machine->heap_frame_bounds = malloc(machine->frame_limit * sizeof(uint64_t)));
+	ESCAPE_ON_NULL(machine->heap_reset_bounds = malloc(machine->frame_limit * sizeof(uint64_t)));
 	return 1;
 }
 
@@ -272,6 +275,7 @@ void free_machine(machine_t* machine) {
 	free(machine->positions);
 	free(machine->heap_allocs);
 	free(machine->heap_frame_bounds);
+	free(machine->heap_reset_bounds);
 }
 
 const int machine_execute(machine_t* machine, machine_ins_t* instructions, uint64_t instruction_count) {
