@@ -249,7 +249,7 @@ static const int parse_type_decl(ast_t* ast, typecheck_type_t* typecheck_type, i
 		if (type == TYPE_SUPER_ARRAY && found_sub_types != 1)
 			PANIC(ast, ERROR_TO_MANY_SUB_TYPES);
 	}
-	else if (type == TYPE_SUPER_ARRAY || type == TYPE_SUPER_PROC)
+	else if (type >= TYPE_SUPER_ARRAY)
 		PANIC(ast, ERROR_EXPECTED_SUB_TYPES)
 	else {
 		init_typecheck_type(typecheck_type, 0);
