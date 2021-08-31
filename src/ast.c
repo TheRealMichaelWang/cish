@@ -786,12 +786,14 @@ static const int parse_value(ast_t* ast, ast_value_t* value) {
 			ast_value_t proc_call_val = {
 				.value_type = AST_VALUE_PROC_CALL,
 			};
-			copy_typecheck_type(&proc_call_val.type, value->type.sub_types[0]);
 			PANIC_ON_NULL(proc_call_val.data.proc_call = malloc(sizeof(ast_call_proc_t)), ast, ERROR_OUT_OF_MEMORY);
 			
 			ast_call_proc_t* proc_call = proc_call_val.data.proc_call;
 			proc_call->procedure = *value;
 			proc_call->argument_count = 0;
+
+			type_matcher_t matcher;
+			init_type_matcher(&matcher, value->type);
 
 			do {
 				READ_TOK;
@@ -801,8 +803,7 @@ static const int parse_value(ast_t* ast, ast_value_t* value) {
 					PANIC(ast, ERROR_UNEXPECTED_ARGUMENT_LENGTH);
 				
 				ESCAPE_ON_NULL(parse_expression(ast, &proc_call->arguments[proc_call->argument_count++], 0));
-				if (!typecheck_type_compatible(value->type.sub_types[proc_call->argument_count], proc_call->arguments[proc_call->argument_count - 1].type))
-					PANIC(ast, ERROR_UNEXPECTED_TYPE);
+				PANIC_ON_NULL(type_matcher_add(&matcher, &matcher.out_type.sub_types[proc_call->argument_count], proc_call->arguments[proc_call->argument_count - 1].type), ast, ERROR_UNEXPECTED_TYPE);
 			} while (ast->scanner.last_tok.type == TOK_COMMA);
 			
 			if (proc_call->argument_count != value->type.sub_type_count - 1)
@@ -810,6 +811,10 @@ static const int parse_value(ast_t* ast, ast_value_t* value) {
 			
 			MATCH_TOK(TOK_CLOSE_PAREN);
 			READ_TOK;
+
+			type_matcher_finalize(&matcher);
+			PANIC_ON_NULL(copy_typecheck_type(&proc_call_val.type, matcher.out_type.sub_types[0]), ast, ERROR_OUT_OF_MEMORY);
+			free_type_matcher(&matcher);
 
 			*value = proc_call_val;
 			continue;

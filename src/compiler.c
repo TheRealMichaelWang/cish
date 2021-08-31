@@ -167,7 +167,7 @@ static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_buil
 		PUSH_INS(INS3(OP_CODE_HEAP_ALLOC, out_reg, out_reg, GLOBREG(value->data.alloc_array->elem_type.type == TYPE_SUPER_ARRAY)));
 		break;
 	case AST_VALUE_ARRAY_LITERAL: {
-		PUSH_INS(INS3(OP_CODE_HEAP_ALLOC_I, out_reg, GLOBREG(value->data.array_literal.element_count), GLOBREG(value->data.array_literal.elem_type.sub_types[0].type == TYPE_SUPER_ARRAY)));
+		PUSH_INS(INS3(OP_CODE_HEAP_ALLOC_I, out_reg, GLOBREG(value->data.array_literal.element_count), GLOBREG(value->data.array_literal.elem_type.type == TYPE_SUPER_ARRAY)));
 		for (uint_fast32_t i = 0; i < value->data.array_literal.element_count; i++) {
 			ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &value->data.array_literal.elements[i], TEMPREG(temp_regs), temp_regs + 1));
 			PUSH_INS(INS3(OP_CODE_STORE_HEAP_I, out_reg, GLOBREG(i), TEMPREG(temp_regs)));

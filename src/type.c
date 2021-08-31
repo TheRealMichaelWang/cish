@@ -53,16 +53,22 @@ void free_type_matcher(type_matcher_t* type_matcher) {
 
 const int type_matcher_add(type_matcher_t* matcher, typecheck_type_t* param, typecheck_type_t arg) {
 	if (param->type == TYPE_TYPEARG) {
-		if (matcher->match_flags[param->match])
-			return typecheck_type_compatible(matcher->match_types[param->match], arg);
-		matcher->match_flags[param->match] = 1;
+		uint8_t match = param->match;
+		if (matcher->match_flags[match])
+			return typecheck_type_compatible(matcher->match_types[match], arg);
+		matcher->match_flags[match] = 1;
 		free_typecheck_type(param);
 		ESCAPE_ON_NULL(copy_typecheck_type(param, arg));
-		matcher->match_types[param->match] = *param;
+		matcher->match_types[match] = *param;
 		return 1;
 	}
-	else
-		return typecheck_type_compatible(*param, arg);
+	ESCAPE_ON_NULL(param->type == arg.type);
+	if (param->type >= TYPE_SUPER_ARRAY) {
+		ESCAPE_ON_NULL(param->sub_type_count == arg.sub_type_count);
+		for (uint_fast8_t i = 0; i < param->sub_type_count; i++)
+			ESCAPE_ON_NULL(type_matcher_add(matcher, &param->sub_types[0], arg.sub_types[0]));
+	}
+	return 1;
 }
 
 static const int finalize_param(type_matcher_t* type_matcher, typecheck_type_t* param) {
