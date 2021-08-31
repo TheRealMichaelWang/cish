@@ -29,23 +29,21 @@ typedef struct typecheck_type {
 } typecheck_type_t;
 
 typedef struct type_matcher {
-	typecheck_type_t param_type;
-	typecheck_type_t* arg_type;
+	typecheck_type_t out_type;
 
 	int* match_flags;
 	typecheck_type_t* match_types;
 } type_matcher_t;
-
-#define DECL_PRIM_TYPE(TYPE) (typecheck_type_t){ .type = TYPE, .sub_types = NULL, .sub_type_count = 0};
 
 void free_typecheck_type(typecheck_type_t* typecheck_type);
 const int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src);
 
 const int typecheck_type_compatible(typecheck_type_t target_type, typecheck_type_t match_type);
 
-const int init_type_matcher(type_matcher_t* type_matcher, typecheck_type_t param_type, typecheck_type_t* arg_type);
+const int init_type_matcher(type_matcher_t* type_matcher, typecheck_type_t param_type);
 void free_type_matcher(type_matcher_t* type_matcher);
 
-const int type_matcher_add(typecheck_type_t*)
+const int type_matcher_add(type_matcher_t* matcher, typecheck_type_t* param, typecheck_type_t arg);
+const int type_matcher_finalize(type_matcher_t* type_matcher);
 
 #endif // !TYPE

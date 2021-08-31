@@ -38,16 +38,46 @@ const int typecheck_type_compatible(typecheck_type_t target_type, typecheck_type
 	}
 }
 
-const int init_type_matcher(type_matcher_t* type_matcher, typecheck_type_t param_type, typecheck_type_t* arg_type) {
-	type_matcher->param_type = param_type;
-	ESCAPE_ON_NULL(copy_typecheck_type(arg_type, param_type));
+const int init_type_matcher(type_matcher_t* type_matcher, typecheck_type_t param_type) {
+	ESCAPE_ON_NULL(copy_typecheck_type(&type_matcher->out_type, param_type));
 	ESCAPE_ON_NULL(type_matcher->match_flags = calloc(TYPE_MAX_SUBTYPES, sizeof(int)));
 	ESCAPE_ON_NULL(type_matcher->match_types = malloc(TYPE_MAX_SUBTYPES * sizeof(typecheck_type_t)));
 	return 1;
 }
 
 void free_type_matcher(type_matcher_t* type_matcher) {
+	free_typecheck_type(&type_matcher->out_type);
 	free(type_matcher->match_flags);
 	free(type_matcher->match_types);
 }
 
+const int type_matcher_add(type_matcher_t* matcher, typecheck_type_t* param, typecheck_type_t arg) {
+	if (param->type == TYPE_TYPEARG) {
+		if (matcher->match_flags[param->match])
+			return typecheck_type_compatible(matcher->match_types[param->match], arg);
+		matcher->match_flags[param->match] = 1;
+		free_typecheck_type(param);
+		ESCAPE_ON_NULL(copy_typecheck_type(param, arg));
+		matcher->match_types[param->match] = *param;
+		return 1;
+	}
+	else
+		return typecheck_type_compatible(*param, arg);
+}
+
+static const int finalize_param(type_matcher_t* type_matcher, typecheck_type_t* param) {
+	if (param->type == TYPE_TYPEARG) {
+		ESCAPE_ON_NULL(type_matcher->match_flags[param->match]);
+		ESCAPE_ON_NULL(copy_typecheck_type(param, type_matcher->match_types[param->match]));
+	}
+	else if (param->type >= TYPE_SUPER_ARRAY) {
+		for (uint_fast8_t i = 0; i < param->sub_type_count; i++)
+			ESCAPE_ON_NULL(finalize_param(type_matcher, &param->sub_types[i]));
+	}
+	return 1;
+}
+
+const int type_matcher_finalize(type_matcher_t* type_matcher) {
+	ESCAPE_ON_NULL(finalize_param(type_matcher, &type_matcher->out_type));
+	return 1;
+}
