@@ -12,6 +12,7 @@ typedef struct typecheck_type typecheck_type_t;
 typedef struct typecheck_type {
 	enum typecheck_type_type {
 		TYPE_AUTO,
+		TYPE_TYPEARG,
 		TYPE_NOTHING,
 
 		TYPE_PRIMATIVE_BOOL,
@@ -24,16 +25,27 @@ typedef struct typecheck_type {
 	} type;
 
 	typecheck_type_t* sub_types;
-	uint8_t sub_type_count;
+	uint8_t sub_type_count, match;
 } typecheck_type_t;
+
+typedef struct type_matcher {
+	typecheck_type_t param_type;
+	typecheck_type_t* arg_type;
+
+	int* match_flags;
+	typecheck_type_t* match_types;
+} type_matcher_t;
 
 #define DECL_PRIM_TYPE(TYPE) (typecheck_type_t){ .type = TYPE, .sub_types = NULL, .sub_type_count = 0};
 
-const int init_typecheck_type(typecheck_type_t* typecheck_type, const int has_sub_types);
 void free_typecheck_type(typecheck_type_t* typecheck_type);
 const int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src);
 
-const int type_decl_sub_type(typecheck_type_t* super_type, typecheck_type_t sub_type);
 const int typecheck_type_compatible(typecheck_type_t target_type, typecheck_type_t match_type);
+
+const int init_type_matcher(type_matcher_t* type_matcher, typecheck_type_t param_type, typecheck_type_t* arg_type);
+void free_type_matcher(type_matcher_t* type_matcher);
+
+const int type_matcher_add(typecheck_type_t*)
 
 #endif // !TYPE

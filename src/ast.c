@@ -47,7 +47,7 @@ static void ast_var_cache_close_frame(ast_t* ast) {
 
 static const int ast_var_cache_decl_var(ast_t* ast, uint64_t id_hash, ast_var_info_t var_info, int global) {
 	if (global) {
-		for (uint8_t i = 0; i < ast->var_cache.global_entry_count; i++)
+		for (uint_fast8_t i = 0; i < ast->var_cache.global_entry_count; i++)
 			if (ast->var_cache.global_entries[i].id_hash == id_hash)
 				return 0;
 		ast->var_cache.global_entries[ast->var_cache.global_entry_count++] = (ast_var_cache_entry_t){
@@ -56,7 +56,7 @@ static const int ast_var_cache_decl_var(ast_t* ast, uint64_t id_hash, ast_var_in
 		};
 	}
 	else {
-		for (int16_t i = ast->var_cache.current_entry - 1; i >= ast->var_cache.search_bounds[ast->var_cache.stack_top]; i--)
+		for (int_fast16_t i = ast->var_cache.current_entry - 1; i >= ast->var_cache.search_bounds[ast->var_cache.stack_top]; i--)
 			if (ast->var_cache.entries[i].id_hash == id_hash)
 				return 0;
 		ast->var_cache.entries[ast->var_cache.current_entry++] = (ast_var_cache_entry_t){
@@ -68,12 +68,12 @@ static const int ast_var_cache_decl_var(ast_t* ast, uint64_t id_hash, ast_var_in
 }
 
 static const int ast_var_cache_find_info(ast_t* ast, uint64_t id_hash, ast_var_info_t* info_out) {
-	for (int16_t i = ast->var_cache.current_entry - 1; i >= ast->var_cache.search_bounds[ast->var_cache.stack_top]; i--)
+	for (int_fast16_t i = ast->var_cache.current_entry - 1; i >= ast->var_cache.search_bounds[ast->var_cache.stack_top]; i--)
 		if (ast->var_cache.entries[i].id_hash == id_hash) {
 			*info_out = ast->var_cache.entries[i].var_info;
 			return 1;
 		}
-	for (uint8_t i = 0; i < ast->var_cache.global_entry_count; i++)
+	for (uint_fast8_t i = 0; i < ast->var_cache.global_entry_count; i++)
 		if (ast->var_cache.global_entries[i].id_hash == id_hash) {
 			*info_out = ast->var_cache.global_entries[i].var_info;
 			return 1;
@@ -190,80 +190,98 @@ static const int ast_code_block_append_ins(ast_code_block_t* code_block, ast_top
 	return 1;
 }
 
-static const int parse_type_decl(ast_t* ast, typecheck_type_t* typecheck_type, int allow_auto, int allow_nothing) {
-	enum typecheck_type_type type;
-	switch (ast->scanner.last_tok.type)
-	{
-	case TOK_TYPECHECK_BOOL:
-		type = TYPE_PRIMATIVE_BOOL;
-		break;
-	case TOK_TYPECHECK_CHAR:
-		type = TYPE_PRIMATIVE_CHAR;
-		break;
-	case TOK_TYPECHECK_LONG:
-		type = TYPE_PRIMATIVE_LONG;
-		break;
-	case TOK_TYPECHECK_FLOAT:
-		type = TYPE_PRIMATIVE_FLOAT;
-		break;
-	case TOK_TYPECHECK_ARRAY:
-		type = TYPE_SUPER_ARRAY;
-		break;
-	case TOK_TYPECHECK_PROC:
-		type = TYPE_SUPER_PROC;
-		break;
-	case TOK_AUTO:
-		if (allow_auto)
-			type = TYPE_AUTO;
-		else
-			PANIC(ast, ERROR_AUTO_NOT_ALLOWED);
-		break;
-	case TOK_NOTHING:
-		if (allow_nothing)
-			type = TYPE_NOTHING;
-		else
-			PANIC(ast, ERROR_NOTHING_NOT_ALLOWED);
-		break;
-	default:
-		PANIC(ast, ERROR_UNEXPECTED_TOK);
-	}
-
-	READ_TOK;
-	if (ast->scanner.last_tok.type == TOK_LESS) {
-		typecheck_type->type = type;
-		typecheck_type_t sub_types[TYPE_MAX_SUBTYPES];
-		uint8_t found_sub_types = 0;
-		do {
-			if (found_sub_types == TYPE_MAX_SUBTYPES)
-				PANIC(ast, ERROR_TO_MANY_SUB_TYPES);
-			READ_TOK;
-			ESCAPE_ON_NULL(parse_type_decl(ast, &sub_types[found_sub_types++], 0, type == TYPE_SUPER_PROC && found_sub_types == 0));
-		} while (ast->scanner.last_tok.type == TOK_COMMA);
-		MATCH_TOK(TOK_MORE);
-		READ_TOK;
-
-		init_typecheck_type(typecheck_type, 1);
-		for (uint_fast8_t i = 0; i < found_sub_types; i++)
-			PANIC_ON_NULL(type_decl_sub_type(typecheck_type, sub_types[i]), ast, ERROR_TO_MANY_SUB_TYPES);
-
-		if (type == TYPE_SUPER_ARRAY && found_sub_types != 1)
-			PANIC(ast, ERROR_TO_MANY_SUB_TYPES);
-	}
-	else if (type >= TYPE_SUPER_ARRAY)
-		PANIC(ast, ERROR_EXPECTED_SUB_TYPES)
-	else {
-		init_typecheck_type(typecheck_type, 0);
-		typecheck_type->type = type;
-	}
-	return 1;
-}
-
 static const int parse_id(ast_t* ast, ast_id_t* id) {
 	MATCH_TOK(TOK_IDENTIFIER);
 	id->c_str = ast->scanner.last_tok.str;
 	id->length = ast->scanner.last_tok.length;
 	id->hash = hash_s(id->c_str, id->length);
 	READ_TOK;
+	return 1;
+}
+
+static const int parse_type_decl(ast_t* ast, typecheck_type_t* typecheck_type, int allow_auto, int allow_nothing, int allow_define_typearg) {
+	switch (ast->scanner.last_tok.type)
+	{
+	case TOK_TYPECHECK_BOOL:
+		typecheck_type->type = TYPE_PRIMATIVE_BOOL;
+		break;
+	case TOK_TYPECHECK_CHAR:
+		typecheck_type->type = TYPE_PRIMATIVE_CHAR;
+		break;
+	case TOK_TYPECHECK_LONG:
+		typecheck_type->type = TYPE_PRIMATIVE_LONG;
+		break;
+	case TOK_TYPECHECK_FLOAT:
+		typecheck_type->type = TYPE_PRIMATIVE_FLOAT;
+		break;
+	case TOK_TYPECHECK_ARRAY:
+		typecheck_type->type = TYPE_SUPER_ARRAY;
+		break;
+	case TOK_TYPECHECK_PROC:
+		typecheck_type->type = TYPE_SUPER_PROC;
+		break;
+	case TOK_AUTO:
+		if (allow_auto)
+			typecheck_type->type = TYPE_AUTO;
+		else
+			PANIC(ast, ERROR_TYPE_NOT_ALLOWED);
+		break;
+	case TOK_NOTHING:
+		if (allow_nothing)
+			typecheck_type->type = TYPE_NOTHING;
+		else
+			PANIC(ast, ERROR_TYPE_NOT_ALLOWED);
+		break;
+	case TOK_TYPEARG: {
+		typecheck_type->type = TYPE_TYPEARG;
+		READ_TOK;
+		ast_id_t id;
+		ESCAPE_ON_NULL(parse_id(ast, &id));
+
+		for (int_fast16_t i = ast->generic_cache.decl_count - 1; i >= ast->generic_cache.search_bounds[ast->generic_cache.stack_top]; i--) {
+			if (ast->generic_cache.ids[i] == id.hash) {
+				typecheck_type->match = i;
+				goto escape;
+			}
+		}
+		PANIC_ON_NULL(allow_define_typearg, ast, ERROR_TYPE_NOT_ALLOWED);
+		typecheck_type->match = ast->generic_cache.decl_count;
+		ast->generic_cache.ids[ast->generic_cache.decl_count++] = id.hash;
+	escape:
+		typecheck_type->match -= ast->generic_cache.search_bounds[ast->generic_cache.stack_top];
+		break;
+	}
+	default:
+		PANIC(ast, ERROR_UNEXPECTED_TOK);
+	}
+	if(typecheck_type->type != TYPE_TYPEARG)
+		READ_TOK;
+	if (ast->scanner.last_tok.type == TOK_LESS) {
+		typecheck_type_t sub_types[TYPE_MAX_SUBTYPES];
+		uint8_t found_sub_types = 0;
+		do {
+			if (found_sub_types == TYPE_MAX_SUBTYPES)
+				PANIC(ast, ERROR_TO_MANY_SUB_TYPES);
+			READ_TOK;
+			ESCAPE_ON_NULL(parse_type_decl(ast, &sub_types[found_sub_types++], 0, typecheck_type->type == TYPE_SUPER_PROC && found_sub_types == 0, allow_define_typearg));
+		} while (ast->scanner.last_tok.type == TOK_COMMA);
+		MATCH_TOK(TOK_MORE);
+		READ_TOK;
+
+		if (typecheck_type->type == TYPE_SUPER_ARRAY && found_sub_types != 1)
+			PANIC(ast, ERROR_TO_MANY_SUB_TYPES);
+
+		typecheck_type->sub_types = malloc((typecheck_type->sub_type_count = found_sub_types) * sizeof(typecheck_type_t));
+
+		for (uint_fast8_t i = 0; i < found_sub_types; i++)
+			typecheck_type->sub_types[i] = sub_types[i];
+	}
+	else if (typecheck_type->type >= TYPE_SUPER_ARRAY)
+		PANIC(ast, ERROR_EXPECTED_SUB_TYPES)
+	else {
+		typecheck_type->sub_type_count = 0;
+		typecheck_type->sub_types = NULL;
+	}
 	return 1;
 }
 
@@ -274,7 +292,7 @@ static const int parse_var_decl(ast_t* ast, ast_decl_var_t* var_decl, uint64_t* 
 	}
 	else
 		var_decl->global_flag = 0;
-	ESCAPE_ON_NULL(parse_type_decl(ast, &var_decl->var_info.type, 1, 0));
+	ESCAPE_ON_NULL(parse_type_decl(ast, &var_decl->var_info.type, 1, 0, 0));
 	ESCAPE_ON_NULL(parse_id(ast, &var_decl->id));
 
 	MATCH_TOK(TOK_SET);
@@ -495,10 +513,9 @@ static const int parse_prim_value(ast_t* ast, ast_value_t* value) {
 		value->value_type = AST_VALUE_ALLOC_ARRAY;
 		READ_TOK;
 		PANIC_ON_NULL(value->data.alloc_array = malloc(sizeof(ast_alloc_t)), ast, ERROR_OUT_OF_MEMORY);
-		ESCAPE_ON_NULL(parse_type_decl(ast, &value->data.alloc_array->elem_type, 0, 0));
-		PANIC_ON_NULL(init_typecheck_type(&value->type, 1), ast, ERROR_OUT_OF_MEMORY);
+		ESCAPE_ON_NULL(parse_type_decl(ast, &value->data.alloc_array->elem_type, 0, 0, 0));
+		PANIC_ON_NULL(value->type.sub_types = malloc((value->type.sub_type_count = 1) * sizeof(typecheck_type_t)), ast, ERROR_OUT_OF_MEMORY);
 		PANIC_ON_NULL(copy_typecheck_type(&value->type.sub_types[0], value->data.alloc_array->elem_type), ast, ERROR_OUT_OF_MEMORY);
-		value->type.sub_type_count = 1;
 		value->type.type = TYPE_SUPER_ARRAY;
 
 		MATCH_TOK(TOK_OPEN_BRACKET);
@@ -520,13 +537,11 @@ static const int parse_proc_lit(ast_t* ast, ast_value_t* value) {
 	value->value_type = AST_VALUE_PROC;
 	PANIC_ON_NULL(value->data.procedure = malloc(sizeof(ast_proc_t)), ast, ERROR_OUT_OF_MEMORY);
 	value->data.procedure->param_count = 0;
-
-	ESCAPE_ON_NULL(parse_type_decl(ast, &value->data.procedure->return_type, 1, 1));
-	
 	MATCH_TOK(TOK_OPEN_PAREN);
 
 	uint64_t current_reg = 1;
 	value->data.procedure->exec_block.register_limit = 1;
+	ast->generic_cache.search_bounds[++ast->generic_cache.stack_top] = ast->generic_cache.decl_count;
 	ast_var_cache_new_frame(ast, NULL, 0);
 
 	do {
@@ -536,7 +551,7 @@ static const int parse_proc_lit(ast_t* ast, ast_value_t* value) {
 		if (value->data.procedure->param_count == TYPE_MAX_SUBTYPES - 1)
 			PANIC(ast, ERROR_TO_MANY_SUB_TYPES);
 		struct ast_proc_param* param = &value->data.procedure->params[value->data.procedure->param_count++];
-		ESCAPE_ON_NULL(parse_type_decl(ast, &param->var_info.type, 0, 0));
+		ESCAPE_ON_NULL(parse_type_decl(ast, &param->var_info.type, 0, 0, 1));
 		ESCAPE_ON_NULL(parse_id(ast, &param->id));
 
 		param->var_info.alloced_reg.index = current_reg++;
@@ -547,6 +562,9 @@ static const int parse_proc_lit(ast_t* ast, ast_value_t* value) {
 	MATCH_TOK(TOK_CLOSE_PAREN);
 	READ_TOK;
 
+	ESCAPE_ON_NULL(parse_type_decl(ast, &value->data.procedure->return_type, 1, 1, 0));
+	
+
 	value->type = (typecheck_type_t){
 		.type = TYPE_SUPER_PROC,
 		.sub_type_count = 1 + value->data.procedure->param_count
@@ -555,7 +573,7 @@ static const int parse_proc_lit(ast_t* ast, ast_value_t* value) {
 	PANIC_ON_NULL(value->type.sub_types = malloc(value->type.sub_type_count * sizeof(typecheck_type_t)), ast, ERROR_OUT_OF_MEMORY);
 	PANIC_ON_NULL(copy_typecheck_type(&value->type.sub_types[0], value->data.procedure->return_type), ast, ERROR_OUT_OF_MEMORY);
 	for (uint_fast8_t i = 0; i < value->data.procedure->param_count; i++)
-		PANIC_ON_NULL(copy_typecheck_type(&value->type.sub_types[i + 1], value->data.procedure->params[i].var_info.type), ast, ERROR_OUT_OF_MEMORY);
+		value->type.sub_types[i + 1] = value->data.procedure->params[i].var_info.type;
 	ast->var_cache.return_types[ast->var_cache.return_type_count - 1] = &value->type.sub_types[0];
 
 	PANIC_ON_NULL(ast_var_cache_decl_var(ast, 7572967076558961, (ast_var_info_t) { .alloced_reg = (ast_register_t){ .index = current_reg++, .offset_flag = 1 }, .type = value->type }, 0), ast, ERROR_OUT_OF_MEMORY);
@@ -566,6 +584,7 @@ static const int parse_proc_lit(ast_t* ast, ast_value_t* value) {
 	PANIC_ON_NULL(copy_typecheck_type(&value->data.procedure->return_type, value->type.sub_types[0]), ast, ERROR_OUT_OF_MEMORY);
 
 	ast_var_cache_close_frame(ast);
+	ast->generic_cache.stack_top--;
 
 	return 1;
 }
@@ -595,7 +614,7 @@ static const int parse_code_block(ast_t* ast, ast_code_block_t* code_block, uint
 			top_level_ins.type = AST_TOP_LEVEL_DECL_VAR;
 			break;
 		}
-		case TOK_IDENTIFIER: {
+		case TOK_IDENTIFIER: { 
 			ESCAPE_ON_NULL(parse_value(ast, &top_level_ins.data.value));
 			if (top_level_ins.data.value.value_type != AST_VALUE_SET_INDEX && top_level_ins.data.value.value_type != AST_VALUE_SET_VAR &&
 				top_level_ins.data.value.value_type != AST_VALUE_PROC_CALL)
@@ -658,15 +677,7 @@ static const int parse_code_block(ast_t* ast, ast_code_block_t* code_block, uint
 static const int parse_value(ast_t* ast, ast_value_t* value) {
 	switch (ast->scanner.last_tok.type)
 	{
-	case TOK_GLOBAL:
-	case TOK_AUTO:
-	case TOK_NOTHING:
-	case TOK_TYPECHECK_ARRAY:
-	case TOK_TYPECHECK_BOOL:
-	case TOK_TYPECHECK_CHAR:
-	case TOK_TYPECHECK_FLOAT:
-	case TOK_TYPECHECK_LONG:
-	case TOK_TYPECHECK_PROC: {
+	case TOK_OPEN_PAREN: {
 		ESCAPE_ON_NULL(parse_proc_lit(ast, value)); 
 		break;
 	}
@@ -867,11 +878,14 @@ static const int parse_expression(ast_t* ast, ast_value_t* value, int min_prec) 
 
 const int init_ast(ast_t* ast, const char* source) {
 	ast->last_err = ERROR_NONE;
+	ast->generic_cache.stack_top = 0;
+	ast->generic_cache.decl_count = 0;
 	ast->var_cache.stack_top = 0;
 	ast->var_cache.current_entry = 0;
 	ast->var_cache.global_entry_count = 0;
 	ast->var_cache.return_type_count = 0;
 	ast->global_registers = 0;
+	ast->generic_cache.search_bounds[0] = 0;
 	ast->var_cache.search_bounds[0] = 0;
 	ast->var_cache.pop_bounds[0] = 0;
 	
