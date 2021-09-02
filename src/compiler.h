@@ -7,10 +7,18 @@
 #include "ast.h"
 #include "machine.h"
 
+typedef struct ins_builder {
+	machine_ins_t* instructions;
+	uint64_t instruction_count, alloced_ins;
+} ins_builder_t;
+
 typedef struct compiler {
 	ast_t ast;
 	error_t last_err;
 } compiler_t;
+
+const int init_ins_builder(ins_builder_t* ins_builder);
+const int ins_builder_append_ins(ins_builder_t* ins_builder, machine_ins_t ins);
 
 const int init_compiler(compiler_t* compiler, const char* source);
 void free_compiler(compiler_t* compiler);

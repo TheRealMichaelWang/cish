@@ -256,6 +256,7 @@ const int init_machine(machine_t* machine, uint64_t stack_size, uint64_t heap_al
 	machine->heap_alloc_limit = heap_alloc_limit;
 	machine->frame_limit = frame_limit;
 
+	machine->last_err = ERROR_NONE;
 	machine->global_offset = 0;
 	machine->position_count = 0;
 	machine->heap_frame = 0;

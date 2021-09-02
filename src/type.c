@@ -2,15 +2,6 @@
 #include "error.h"
 #include "type.h"
 
-const int init_typecheck_type(typecheck_type_t* typecheck_type, const int has_sub_types) {
-	if (has_sub_types)
-		ESCAPE_ON_NULL(typecheck_type->sub_types = malloc(TYPE_MAX_SUBTYPES * sizeof(typecheck_type_t)))
-	else
-		typecheck_type->sub_types = NULL;
-	typecheck_type->sub_type_count = 0;
-	return 1;
-}
-
 void free_typecheck_type(typecheck_type_t* typecheck_type) {
 	for (uint_fast8_t i = 0; i < typecheck_type->sub_type_count; i++)
 		free_typecheck_type(&typecheck_type->sub_types[i]);
@@ -21,6 +12,7 @@ void free_typecheck_type(typecheck_type_t* typecheck_type) {
 const int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src) {
 	dest->type = src.type;
 	dest->sub_type_count = src.sub_type_count;
+	dest->match = src.match;
 	if (src.sub_type_count) {
 		ESCAPE_ON_NULL(dest->sub_types = malloc(src.sub_type_count * sizeof(typecheck_type_t)));
 		for (uint_fast8_t i = 0; i < src.sub_type_count; i++)
@@ -31,15 +23,9 @@ const int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src) {
 	return 1;
 }
 
-const int type_decl_sub_type(typecheck_type_t* super_type, typecheck_type_t sub_type) {
-	ESCAPE_ON_NULL(super_type->sub_types);
-	if (super_type->sub_type_count == TYPE_MAX_SUBTYPES)
-		return 0;
-	super_type->sub_types[super_type->sub_type_count++] = sub_type;
-	return 1;
-}
-
 const int typecheck_type_compatible(typecheck_type_t target_type, typecheck_type_t match_type) {
+	if (target_type.type == TYPE_TYPEARG && match_type.type == TYPE_TYPEARG)
+		return target_type.match == match_type.match;
 	if (target_type.type < TYPE_SUPER_ARRAY)
 		return target_type.type == match_type.type;
 	else {
@@ -50,4 +36,54 @@ const int typecheck_type_compatible(typecheck_type_t target_type, typecheck_type
 				return 0;
 		return 1;
 	}
+}
+
+const int init_type_matcher(type_matcher_t* type_matcher, typecheck_type_t param_type) {
+	ESCAPE_ON_NULL(copy_typecheck_type(&type_matcher->out_type, param_type));
+	ESCAPE_ON_NULL(type_matcher->match_flags = calloc(TYPE_MAX_SUBTYPES, sizeof(int)));
+	ESCAPE_ON_NULL(type_matcher->match_types = malloc(TYPE_MAX_SUBTYPES * sizeof(typecheck_type_t)));
+	return 1;
+}
+
+void free_type_matcher(type_matcher_t* type_matcher) {
+	free_typecheck_type(&type_matcher->out_type);
+	free(type_matcher->match_flags);
+	free(type_matcher->match_types);
+}
+
+const int type_matcher_add(type_matcher_t* matcher, typecheck_type_t* param, typecheck_type_t arg) {
+	if (param->type == TYPE_TYPEARG) {
+		uint8_t match = param->match;
+		if (matcher->match_flags[match])
+			return typecheck_type_compatible(matcher->match_types[match], arg);
+		matcher->match_flags[match] = 1;
+		free_typecheck_type(param);
+		ESCAPE_ON_NULL(copy_typecheck_type(param, arg));
+		matcher->match_types[match] = *param;
+		return 1;
+	}
+	ESCAPE_ON_NULL(param->type == arg.type);
+	if (param->type >= TYPE_SUPER_ARRAY) {
+		ESCAPE_ON_NULL(param->sub_type_count == arg.sub_type_count);
+		for (uint_fast8_t i = 0; i < param->sub_type_count; i++)
+			ESCAPE_ON_NULL(type_matcher_add(matcher, &param->sub_types[0], arg.sub_types[0]));
+	}
+	return 1;
+}
+
+static const int finalize_param(type_matcher_t* type_matcher, typecheck_type_t* param) {
+	if (param->type == TYPE_TYPEARG) {
+		ESCAPE_ON_NULL(type_matcher->match_flags[param->match]);
+		ESCAPE_ON_NULL(copy_typecheck_type(param, type_matcher->match_types[param->match]));
+	}
+	else if (param->type >= TYPE_SUPER_ARRAY) {
+		for (uint_fast8_t i = 0; i < param->sub_type_count; i++)
+			ESCAPE_ON_NULL(finalize_param(type_matcher, &param->sub_types[i]));
+	}
+	return 1;
+}
+
+const int type_matcher_finalize(type_matcher_t* type_matcher) {
+	ESCAPE_ON_NULL(finalize_param(type_matcher, &type_matcher->out_type));
+	return 1;
 }

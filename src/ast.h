@@ -132,6 +132,7 @@ typedef struct ast_top_level {
 		AST_TOP_LEVEL_DECL_VAR,
 		AST_TOP_LEVEL_COND,
 		AST_TOP_LEVEL_VALUE,
+		AST_TOP_LEVEL_RETURN_VALUE,
 		AST_TOP_LEVEL_RETURN,
 		AST_TOP_LEVEL_CONTINUE,
 		AST_TOP_LEVEL_BREAK
@@ -181,11 +182,16 @@ typedef struct ast_var_cache_entry {
 
 typedef struct ast {
 	struct ast_var_cache {
-		ast_var_cache_entry_t entries[256], global_entries[64];
-		typecheck_type_t* return_types[64];
-		uint8_t pop_bounds[64], search_bounds[64];
-		uint8_t stack_top, current_entry, global_entry_count, return_type_count;
+		ast_var_cache_entry_t entries[512], global_entries[64];
+		typecheck_type_t* return_types[32];
+		uint8_t pop_bounds[32], search_bounds[32], stack_top, global_entry_count, return_type_count;
+		uint16_t current_entry;
 	} var_cache;
+
+	struct ast_generic_cache {
+		uint64_t ids[64];
+		uint8_t search_bounds[32], stack_top, decl_count;
+	} generic_cache;
 
 	ast_code_block_t exec_block;
 	scanner_t scanner;
