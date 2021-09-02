@@ -7,7 +7,7 @@ int main() {
 
 	machine_t machine;
 	compiler_t* compiler = malloc(sizeof(compiler_t));
-	init_compiler(compiler, "auto index_at = (array<typearg elemType> arr, int index)typearg elemType { return arr[index]; }; array<int> ints = [1, 2, 3, 4]; global int elem = index_at(ints, 3);");
+	init_compiler(compiler, "auto index_at = (array<typearg elemType> arr, int index)typearg elemType { return arr[index]; }; array<int> ints = [1, 2, 3, 4]; global int elem = index_at(ints, 2);");
 
 	machine_ins_t* instructions;
 	uint64_t instruction_count;

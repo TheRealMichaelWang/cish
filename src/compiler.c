@@ -11,21 +11,16 @@
 
 #define PUSH_INS(INS) PANIC_ON_NULL(ins_builder_append_ins(ins_builder, INS), compiler, ERROR_OUT_OF_MEMORY)
 
-typedef struct ins_builder {
-	machine_ins_t* instructions;
-	uint64_t instruction_count, alloced_ins;
-} ins_builder_t;
-
 static void alloc_ast_code_block(compiler_t* compiler, machine_t* machine, ast_code_block_t* code_block, uint64_t* current_prim_reg);
 static const int compile_code_block(compiler_t* compiler, ins_builder_t* ins_builder, ast_code_block_t* code_block, uint64_t temp_regs, ast_proc_t* procedure, uint64_t break_jump, uint64_t continue_jump);
 
-static const int init_ins_builder(ins_builder_t* ins_builder) {
+const int init_ins_builder(ins_builder_t* ins_builder) {
 	ESCAPE_ON_NULL(ins_builder->instructions = malloc((ins_builder->alloced_ins = 64) * sizeof(machine_ins_t)));
 	ins_builder->instruction_count = 0;
 	return 1;
 }
 
-static const int ins_builder_append_ins(ins_builder_t* ins_builder, machine_ins_t ins) {
+const int ins_builder_append_ins(ins_builder_t* ins_builder, machine_ins_t ins) {
 	if (ins_builder->instruction_count == ins_builder->alloced_ins) {
 		machine_ins_t* new_ins = realloc(ins_builder->instructions, (ins_builder->alloced_ins *= 2) * sizeof(machine_ins_t));
 		ESCAPE_ON_NULL(new_ins);
