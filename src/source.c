@@ -1,25 +1,41 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "compiler.h"
 #include "debug.h"
 
-int main() {
+#define READ_ARG argv[current_arg++]
+#define EXPECT_FLAG(FLAG) if(strcmp(READ_ARG, FLAG)) { exit(EXIT_FAILURE); }
 
-	machine_t machine;
-	compiler_t* compiler = malloc(sizeof(compiler_t));
-	init_compiler(compiler, "auto index_at = (array<typearg elemType> arr, int index)typearg elemType { return arr[index]; }; array<int> ints = [1, 2, 3, 4]; global int elem = index_at(ints, 3);");
+int main(int argc, const char* argv[]) {
+	int current_arg = 0;
 
-	machine_ins_t* instructions;
-	uint64_t instruction_count;
-	compile(compiler, &machine, &instructions, &instruction_count);
+	while (current_arg < argc)
+	{
+		const char* flag = READ_ARG;
+
+		if (!strcmp(flag, "-info")) {
+			
+		}
+		else if (!strcmp(flag, "-help")) {
+
+		}
+		else if (!strcmp(flag, "-cr")) {
+			EXPECT_FLAG("-i");
+			FILE* source = fopen(READ_ARG, "rb");
+			
+		}
+		else if (!strcmp(flag, "-r")) {
+			
+		}
+		else if (!strcmp(flag, "-c")) {
+			
+		}
+		else {
+			printf("Unexpected flag \"%s\".", flag);
+			exit(EXIT_FAILURE);
+		}
+	}
 	
-	print_instructions(instructions, instruction_count);
-
-	machine_execute(&machine, instructions, instruction_count);
-
-	free(instructions);
-	free_machine(&machine);
-	free_compiler(compiler);
-	free(compiler);
-	return 0;
+	exit(EXIT_SUCCESS);
 }
