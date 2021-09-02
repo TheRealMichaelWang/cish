@@ -244,7 +244,7 @@ static const int parse_type_decl(ast_t* ast, typecheck_type_t* typecheck_type, i
 				goto escape;
 			}
 		}
-		PANIC_ON_NULL(allow_define_typearg, ast, ERROR_TYPE_NOT_ALLOWED);
+		PANIC_ON_NULL(allow_define_typearg, ast, ERROR_NO_TYPE_ARG);
 		typecheck_type->match = ast->generic_cache.decl_count;
 		ast->generic_cache.ids[ast->generic_cache.decl_count++] = id.hash;
 	escape:
@@ -560,6 +560,8 @@ static const int parse_proc_lit(ast_t* ast, ast_value_t* value) {
 		value->data.procedure->exec_block.register_limit++;
 	} while (ast->scanner.last_tok.type == TOK_COMMA);
 	MATCH_TOK(TOK_CLOSE_PAREN);
+	READ_TOK;
+	MATCH_TOK(TOK_RETURN);
 	READ_TOK;
 
 	ESCAPE_ON_NULL(parse_type_decl(ast, &value->data.procedure->return_type, 1, 1, 0));
