@@ -6,7 +6,7 @@
 
 typedef enum error {
 	ERROR_NONE,
-	ERROR_OUT_OF_MEMORY,
+	ERROR_MEMORY,
 
 	//compiler errors
 	ERROR_UNEXPECTED_TOK,
@@ -32,6 +32,8 @@ typedef enum error {
 	ERROR_READ_UNINIT,
 	
 	ERROR_ABORT,
+
+	ERROR_CANNOT_OPEN_FILE
 } error_t;
 
 #define PANIC(OBJ, ERROR){ OBJ->last_err = ERROR; return 0; }

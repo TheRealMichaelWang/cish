@@ -9,10 +9,10 @@
 #define INS2(OP, REGA, REGB) (machine_ins_t){.op_code = OP, .a = REGA.index, .a_flag = REGA.offset_flag, .b = REGB.index, .b_flag = REGB.offset_flag}
 #define INS3(OP, REGA, REGB, REGC) (machine_ins_t){.op_code = OP, .a = REGA.index, .a_flag = REGA.offset_flag, .b = REGB.index, .b_flag = REGB.offset_flag, .c = REGC.index, .c_flag = REGC.offset_flag}
 
-#define PUSH_INS(INS) PANIC_ON_NULL(ins_builder_append_ins(ins_builder, INS), compiler, ERROR_OUT_OF_MEMORY)
+#define PUSH_INS(INS) PANIC_ON_NULL(ins_builder_append_ins(ins_builder, INS), compiler, ERROR_MEMORY)
 
-static void alloc_ast_code_block(compiler_t* compiler, machine_t* machine, ast_code_block_t* code_block, uint64_t* current_prim_reg);
-static const int compile_code_block(compiler_t* compiler, ins_builder_t* ins_builder, ast_code_block_t* code_block, uint64_t temp_regs, ast_proc_t* procedure, uint64_t break_jump, uint64_t continue_jump);
+static void alloc_ast_code_block(compiler_t* compiler, machine_t* machine, ast_code_block_t* code_block, uint16_t* current_prim_reg);
+static const int compile_code_block(compiler_t* compiler, ins_builder_t* ins_builder, ast_code_block_t* code_block, uint16_t temp_regs, ast_proc_t* procedure, uint16_t break_jump, uint16_t continue_jump);
 
 const int init_ins_builder(ins_builder_t* ins_builder) {
 	ESCAPE_ON_NULL(ins_builder->instructions = malloc((ins_builder->alloced_ins = 64) * sizeof(machine_ins_t)));
@@ -30,7 +30,7 @@ const int ins_builder_append_ins(ins_builder_t* ins_builder, machine_ins_t ins) 
 	return 1;
 }
 
-static void alloc_ast_prim(compiler_t* compiler, machine_t* machine, ast_value_t* ast_value, uint64_t* current_prim_reg) {
+static void alloc_ast_prim(compiler_t* compiler, machine_t* machine, ast_value_t* ast_value, uint16_t* current_prim_reg) {
 	switch (ast_value->value_type)
 	{
 	case AST_VALUE_BOOL:
@@ -90,7 +90,7 @@ static void alloc_ast_prim(compiler_t* compiler, machine_t* machine, ast_value_t
 	}
 }
 
-static void alloc_ast_code_block(compiler_t* compiler, machine_t* machine, ast_code_block_t* code_block, uint64_t* current_prim_reg) {
+static void alloc_ast_code_block(compiler_t* compiler, machine_t* machine, ast_code_block_t* code_block, uint16_t* current_prim_reg) {
 	for (uint_fast32_t i = 0; i < code_block->instruction_count; i++) {
 		switch (code_block->instructions[i].type)
 		{
@@ -130,9 +130,9 @@ void free_compiler(compiler_t* compiler) {
 }
 
 static const int compile_ast_proc(compiler_t* compiler, ins_builder_t* ins_builder, ast_proc_t* procedure, ast_register_t out_reg) {
-	uint64_t label_ins_ip = ins_builder->instruction_count;
+	uint16_t label_ins_ip = ins_builder->instruction_count;
 	PUSH_INS(INS2(OP_CODE_LABEL, out_reg, GLOBREG(0)));
-	uint64_t jump_ins_ip = ins_builder->instruction_count;
+	uint16_t jump_ins_ip = ins_builder->instruction_count;
 	PUSH_INS(INS1(OP_CODE_JUMP, GLOBREG(0))); 
 	ins_builder->instructions[label_ins_ip].b = ins_builder->instruction_count;
 	PUSH_INS(INS0(OP_CODE_HEAP_NEW_FRAME));
@@ -142,7 +142,7 @@ static const int compile_ast_proc(compiler_t* compiler, ins_builder_t* ins_build
 	return 1;
 }
 
-static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_builder, ast_value_t* value, ast_register_t out_reg, uint64_t temp_regs) {
+static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_builder, ast_value_t* value, ast_register_t out_reg, uint16_t temp_regs) {
 	switch (value->value_type)
 	{
 	case AST_VALUE_SET_VAR: {
@@ -228,7 +228,7 @@ static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_buil
 			ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &value->data.proc_call->arguments[i], TEMPREG(temp_regs + i + 1), temp_regs + i + 2));
 		PUSH_INS(INS2(OP_CODE_MOVE, TEMPREG(temp_regs + value->data.proc_call->argument_count + 1), out_reg));
 		PUSH_INS(INS1(OP_CODE_STACK_OFFSET, GLOBREG(temp_regs)));
-		PUSH_INS(INS1(OP_CODE_JUMP_HIST, TEMPREG((uint64_t)value->data.proc_call->argument_count + 1)));
+		PUSH_INS(INS1(OP_CODE_JUMP_HIST, TEMPREG(value->data.proc_call->argument_count + 1)));
 		PUSH_INS(INS1(OP_CODE_STACK_DEOFFSET, GLOBREG(temp_regs)));
 		PUSH_INS(INS2(OP_CODE_MOVE, out_reg, TEMPREG(temp_regs)));
 		break;
@@ -236,12 +236,12 @@ static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_buil
 	return 1;
 }
 
-static const int compile_conditional(compiler_t* compiler, ins_builder_t* ins_builder, ast_cond_t* conditional, uint64_t temp_regs, ast_proc_t* procedure, uint64_t break_jump, uint64_t continue_jump) {
-	uint64_t this_begin = ins_builder->instruction_count;
+static const int compile_conditional(compiler_t* compiler, ins_builder_t* ins_builder, ast_cond_t* conditional, uint16_t temp_regs, ast_proc_t* procedure, uint16_t break_jump, uint16_t continue_jump) {
+	uint16_t this_begin = ins_builder->instruction_count;
 	if (conditional->has_cond_val) {
 		ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &conditional->cond_val, TEMPREG(temp_regs), temp_regs + 1));
 		PUSH_INS(INS1(OP_CODE_CHECK, TEMPREG(temp_regs)));
-		uint64_t body_jump_ip = ins_builder->instruction_count;
+		uint16_t body_jump_ip = ins_builder->instruction_count;
 
 		PUSH_INS(INS1(OP_CODE_JUMP, GLOBREG(0)));
 		
@@ -250,7 +250,7 @@ static const int compile_conditional(compiler_t* compiler, ins_builder_t* ins_bu
 			ins_builder->instructions[body_jump_ip].a = ins_builder->instruction_count;
 			PUSH_INS(INS2(OP_CODE_NOT, TEMPREG(temp_regs), TEMPREG(temp_regs)));
 			PUSH_INS(INS1(OP_CODE_CHECK, TEMPREG(temp_regs)));
-			uint64_t cond_begin_ip = ins_builder->instruction_count;
+			uint16_t cond_begin_ip = ins_builder->instruction_count;
 			PUSH_INS(INS1(OP_CODE_JUMP, GLOBREG(cond_begin_ip)));
 			ins_builder->instructions[cond_begin_ip].a = ins_builder->instruction_count;
 			ESCAPE_ON_NULL(compile_conditional(compiler, ins_builder, conditional->next_if_false, temp_regs, procedure, break_jump, continue_jump));
@@ -270,7 +270,7 @@ static const int compile_conditional(compiler_t* compiler, ins_builder_t* ins_bu
 	return 1;
 }
 
-static const int compile_code_block(compiler_t* compiler, ins_builder_t* ins_builder, ast_code_block_t* code_block, uint64_t temp_regs, ast_proc_t* procedure, uint64_t break_jump, uint64_t continue_jump) {
+static const int compile_code_block(compiler_t* compiler, ins_builder_t* ins_builder, ast_code_block_t* code_block, uint16_t temp_regs, ast_proc_t* procedure, uint16_t break_jump, uint16_t continue_jump) {
 	for (uint_fast32_t i = 0; i < code_block->instruction_count; i++) {
 		switch (code_block->instructions[i].type)
 		{
@@ -309,14 +309,15 @@ static const int compile_code_block(compiler_t* compiler, ins_builder_t* ins_bui
 	return 1;
 }
 
-const int compile(compiler_t* compiler, machine_t* machine, machine_ins_t** output_ins, uint64_t* output_count) {
-	PANIC_ON_NULL(init_machine(machine, UINT16_MAX, 1000, 1000), compiler, ERROR_OUT_OF_MEMORY);
+const int compile(compiler_t* compiler, machine_t* machine, machine_ins_t** output_ins, uint16_t* output_count) {
+	PANIC_ON_NULL(init_machine(machine, UINT16_MAX, 1000, 1000), compiler, ERROR_MEMORY);
 
-	uint64_t initial_offset = compiler->ast.global_registers;
+	uint16_t initial_offset = compiler->allocated_globals = compiler->ast.global_registers;
 	alloc_ast_code_block(compiler, machine, &compiler->ast.exec_block, &initial_offset);
+	compiler->allocated_constants = initial_offset - compiler->allocated_globals;
 
 	ins_builder_t ins_builder;
-	PANIC_ON_NULL(init_ins_builder(&ins_builder), compiler, ERROR_OUT_OF_MEMORY);
+	PANIC_ON_NULL(init_ins_builder(&ins_builder), compiler, ERROR_MEMORY);
 
 	ins_builder_append_ins(&ins_builder, (machine_ins_t) { .op_code = OP_CODE_STACK_OFFSET, .a = initial_offset, .a_flag = 0 });
 	ins_builder_append_ins(&ins_builder, (machine_ins_t) { .op_code = OP_CODE_HEAP_NEW_FRAME });

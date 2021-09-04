@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5,31 +7,88 @@
 #include "compiler.h"
 #include "file.h"
 
-#define READ(SIZE) *(current_src += SIZE)
-#define WRITE(SIZE) 
+#define MAGIC_NUM 2187
 
-static const char* read_ins(machine_ins_t* output, char* current_src) {
-	output->op_code = READ(sizeof(uint8_t));
-	output->a_flag = READ(sizeof(uint8_t));
-	output->b_flag = READ(sizeof(uint8_t));
-	output->c_flag = READ(sizeof(uint8_t));
-
-	output->a = READ(sizeof(uint64_t));
-	output->b = READ(sizeof(uint64_t));
-	output->c = READ(sizeof(uint64_t));
-	return current_src;
+static const int read_ins(machine_ins_t* output, FILE* infile) {
+	uint8_t op_code_buffer;
+	ESCAPE_ON_NULL(fread(&op_code_buffer, sizeof(uint8_t), 1, infile));
+	output->op_code = op_code_buffer;
+	ESCAPE_ON_NULL(fread(&output->a_flag, sizeof(uint8_t), 1, infile));
+	ESCAPE_ON_NULL(fread(&output->b_flag, sizeof(uint8_t), 1, infile));
+	ESCAPE_ON_NULL(fread(&output->c_flag, sizeof(uint8_t), 1, infile));
+	ESCAPE_ON_NULL(fread(&output->a, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_NULL(fread(&output->a, sizeof(uint16_t), 1, infile));
+	return 1;
 }
 
-static const char* write_ins(machine_ins_t ins, char* output_src) {
-
+static const int write_ins(machine_ins_t ins, FILE* infile) {
+	uint8_t op_code_buffer = ins.op_code;
+	ESCAPE_ON_NULL(fwrite(&op_code_buffer, sizeof(uint8_t), 1, infile));
+	ESCAPE_ON_NULL(fwrite(&ins.a_flag, sizeof(uint8_t), 1, infile));
+	ESCAPE_ON_NULL(fwrite(&ins.b_flag, sizeof(uint8_t), 1, infile));
+	ESCAPE_ON_NULL(fwrite(&ins.c_flag, sizeof(uint8_t), 1, infile));
+	ESCAPE_ON_NULL(fwrite(&ins.a, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_NULL(fwrite(&ins.b, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_NULL(fwrite(&ins.c, sizeof(uint16_t), 1, infile));
+	return 1;
 }
 
-static const char* read_reg(register_t* reg, char* current_src) {
-	memcpy(reg, current_src += sizeof(uint64_t), sizeof(uint64_t));
-	return current_src;
+static const int read_reg(register_t* reg, FILE* infile) {
+	ESCAPE_ON_NULL(fread(reg, sizeof(uint64_t), 1, infile));
+	return 1;
 }
 
-const int file_read_ins(const char* path, machine_t* machine, machine_ins_t** output_ins, uint64_t* output_count) {
+static const int write_reg(register_t reg, FILE* infile) {
+	ESCAPE_ON_NULL(fwrite(&reg, sizeof(uint64_t), 1, infile));
+	return 1;
+}
+
+machine_ins_t* file_load_ins(const char* path, machine_t* machine, uint16_t* instruction_count) {
+	FILE* infile = fopen(path, "rb");
+	ESCAPE_ON_NULL(infile);
+
+	uint16_t magic_num, global_allocs, const_allocs;
+	ESCAPE_ON_NULL(fread(&magic_num, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_NULL(magic_num == MAGIC_NUM);
+
+	ESCAPE_ON_NULL(fread(&global_allocs, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_NULL(fread(&const_allocs, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_NULL(fread(instruction_count, sizeof(uint16_t), 1, infile));
+
+	ESCAPE_ON_NULL(init_machine(machine, UINT16_MAX, 1000, 1000));
+	machine_ins_t* instructions = malloc(*instruction_count * sizeof(machine_ins_t));
+	ESCAPE_ON_NULL(instructions);
+
+	for (uint_fast16_t i = 0; i < const_allocs; i++)
+		ESCAPE_ON_NULL(read_reg(&machine->stack[global_allocs + i], infile));
+
+	for (uint_fast16_t i = 0; i < *instruction_count; i++)
+		ESCAPE_ON_NULL(read_ins(&instructions[i], infile));
+
+	fclose(infile);
+	return instructions;
+}
+
+const int file_save_compiled(const char* path, compiler_t* compiler, machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count){
+	FILE* infile = fopen(path, "wb+");
+	ESCAPE_ON_NULL(infile);
+
+	uint16_t magic_num = MAGIC_NUM; 
+	ESCAPE_ON_NULL(fwrite(&magic_num, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_NULL(fwrite(&compiler->allocated_globals, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_NULL(fwrite(&compiler->allocated_constants, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_NULL(fwrite(&instruction_count, sizeof(uint16_t), 1, infile));
+	
+	for (uint_fast16_t i = 0; i < compiler->allocated_constants; i++)
+		ESCAPE_ON_NULL(write_reg(machine->stack[compiler->allocated_globals + 1], infile));
+
+	for (uint_fast16_t i = 0; i < instruction_count; i++)
+		ESCAPE_ON_NULL(write_ins(instructions[i], infile));
+	fclose(infile);
+	return 1;
+}
+
+char* file_read_source(const char* path) {
 	FILE* infile = fopen(path, "rb");
 	ESCAPE_ON_NULL(infile);
 
@@ -37,34 +96,13 @@ const int file_read_ins(const char* path, machine_t* machine, machine_ins_t** ou
 	long size = ftell(infile);
 	fseek(infile, 0, SEEK_SET);
 
-	char* current_src = malloc((size_t)size + 1);
-	char* tofree = current_src;
-	ESCAPE_ON_NULL(current_src);
-	
-	fread(current_src, sizeof(char), size, infile);
-	current_src[size] = 0;
+	char* buffer = malloc((size + 1) * sizeof(char));
+	ESCAPE_ON_NULL(buffer);
 
-	uint32_t alloced_globals = READ(sizeof(uint32_t));
-	uint32_t alloced_consts = READ(sizeof(uint32_t));
+	ESCAPE_ON_NULL(fread(buffer, sizeof(char), size, infile));
+	buffer[size] = 0;
 
-	ESCAPE_ON_NULL(init_machine(machine, UINT16_MAX, 1000, 1000));
-
-	for (uint_fast32_t i = 0; i < alloced_consts; i++)
-		current_src = read_reg(&machine->stack[alloced_globals + i], current_src);
-
-	ins_builder_t ins_builder;
-	ESCAPE_ON_NULL(init_ins_builder(&ins_builder));
-
-	while (*current_src)
-	{
-		machine_ins_t ins;
-		current_src = read_ins(&ins, current_src);
-		ins_builder_append_ins(&ins_builder, ins);
-	}
-	*output_ins = ins_builder.instructions;
-	*output_count = ins_builder.instruction_count;
-
-	free(tofree);
 	fclose(infile);
-	return 1;
+
+	return buffer;
 }

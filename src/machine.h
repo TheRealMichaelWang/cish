@@ -73,14 +73,14 @@ typedef enum machine_op_code {
 
 typedef struct machine_instruction {
 	op_code_t op_code;
-	uint64_t a, b, c;
-	int a_flag, b_flag, c_flag;
+	uint16_t a, b, c;
+	uint8_t a_flag, b_flag, c_flag;
 } machine_ins_t;
 
 typedef struct machine_heap_alloc {
 	register_t* registers;
 	int* init_stat;
-	uint32_t limit;
+	uint16_t limit;
 
 	int gc_flag, trace_children;
 } heap_alloc_t;
@@ -102,16 +102,16 @@ typedef struct machine {
 
 	heap_alloc_t* heap_reset_stack[64];
 	heap_alloc_t** heap_allocs;
-	uint64_t *heap_frame_bounds, *heap_reset_bounds;
+	uint16_t*heap_frame_bounds, *heap_reset_bounds;
 
 	error_t last_err;
 	
-	uint64_t global_offset, position_count, heap_frame, heap_count, heap_reset_count, heap_alloc_limit, frame_limit;
+	uint16_t global_offset, position_count, heap_frame, heap_count, heap_reset_count, heap_alloc_limit, frame_limit;
 } machine_t;
 
-const int init_machine(machine_t* machine, uint64_t stack_size, uint64_t heap_alloc_limit, uint64_t frame_limit);
+const int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_limit, uint16_t frame_limit);
 void free_machine(machine_t* machine);
 
-const int machine_execute(machine_t* machine, machine_ins_t* instructions, uint64_t instruction_count);
+const int machine_execute(machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count);
 
 #endif // !OPCODE_H

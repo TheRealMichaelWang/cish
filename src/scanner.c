@@ -13,6 +13,11 @@ static const char scanner_peek_char(scanner_t* scanner) {
 static const char scanner_read_char(scanner_t* scanner) {
 	if (scanner->length == scanner->position)
 		return scanner->last_char = 0;
+	scanner->col++;
+	if (scanner->source[scanner->position] == '\n') {
+		scanner->col = 0;
+		scanner->row++;
+	}
 	return scanner->last_char = scanner->source[scanner->position++];
 }
 
@@ -20,6 +25,8 @@ void init_scanner(scanner_t* scanner, const char* source, const uint32_t length)
 	scanner->source = source;
 	scanner->length = length;
 	scanner->position = 0;
+	scanner->row = 0;
+	scanner->col = 0;
 	scanner->last_err = ERROR_NONE;
 	scanner_read_char(scanner);
 	scanner_read_tok(scanner);
@@ -84,6 +91,8 @@ const int scanner_read_tok(scanner_t* scanner) {
 			SET_TOK_TYPE(TOK_OR);
 		case 193500239:
 			SET_TOK_TYPE(TOK_NEW);
+		case 229469872107401:
+			SET_TOK_TYPE(TOK_INCLUDE);
 		case 193504585: //rem
 			do {
 				scanner_read_char(scanner);

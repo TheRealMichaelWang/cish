@@ -20,8 +20,8 @@ typedef struct ast_cond ast_cond_t;
 typedef struct ast_proc ast_proc_t;
 
 typedef struct ast_register {
-	uint64_t index;
-	int offset_flag;
+	uint16_t index;
+	uint8_t offset_flag;
 } ast_register_t;
 
 typedef struct ast_var_info {
@@ -149,7 +149,7 @@ typedef struct ast_top_level {
 typedef struct ast_code_block {
 	ast_top_level_t* instructions;
 	uint32_t instruction_count, allocated_instructions;
-	uint64_t register_limit;
+	uint16_t register_limit;
 } ast_code_block_t;
 
 typedef struct ast_cond {
@@ -194,11 +194,19 @@ typedef struct ast {
 	} generic_cache;
 
 	ast_code_block_t exec_block;
-	scanner_t scanner;
-	
-	uint64_t global_registers;
-
+	uint16_t global_registers;
 	error_t last_err;
+
+	struct ast_include_stack {
+		uint64_t visited_hashes[64];
+		uint8_t visited_files;
+
+		scanner_t scanners[32];
+		uint8_t current_scanner;
+
+		char* file_paths[32];
+		char* sources[32];
+	} include_stack;
 } ast_t;
 
 const int init_ast(ast_t* ast, const char* source);
