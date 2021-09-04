@@ -43,76 +43,70 @@ static uint16_t machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc,
 	return traced;
 }
 
-static void machine_ins_offset(machine_t* machine, machine_ins_t* instruction) {
-	uint16_t offset = machine->global_offset;
-	if (instruction->a_flag)
-		instruction->a += offset;
-	if (instruction->b_flag)
-		instruction->b += offset;
-	if (instruction->c_flag)
-		instruction->c += offset;
-}
+#define AREG ins.a_flag ? ins.a + machine->global_offset : ins.a
+#define BREG ins.b_flag ? ins.b + machine->global_offset : ins.b
+#define CREG ins.c_flag ? ins.c + machine->global_offset : ins.c
 
 static const int machine_execute_instruction(machine_t* machine, machine_ins_t* instructions) {
 	machine_ins_t ins = *machine->ip;
-	machine_ins_offset(machine, &ins);
 
    	switch (ins.op_code)
 	{
 	case OP_CODE_MOVE:
-		machine->stack[ins.a] = machine->stack[ins.b];
+		machine->stack[AREG] = machine->stack[BREG];
 		break;
 	case OP_CODE_CHECK:
-		if (machine->stack[ins.a].bool_flag)
+		if (machine->stack[AREG].bool_flag)
 			machine->ip++;
 		break;
 	case OP_CODE_JUMP:
-		machine->ip = &instructions[ins.a];
+		machine->ip = &instructions[AREG];
  		return 1;
 	case OP_CODE_JUMP_HIST: {
 		PANIC_ON_NULL(machine->position_count != machine->frame_limit, machine, ERROR_STACK_OVERFLOW);
 		machine->positions[machine->position_count++] = machine->ip;
-		machine->ip = machine->stack[ins.a].ip;
+		machine->ip = machine->stack[AREG].ip;
 		return 1;
 	}
 	case OP_CODE_LABEL:
-		machine->stack[ins.a].ip = &instructions[ins.b];
+		machine->stack[AREG].ip = &instructions[BREG];
 		break;
 	case OP_CODE_JUMP_BACK: {
-		PANIC_ON_NULL(machine->position_count, machine, ERROR_INSUFFICIENT_POSITIONS);
 		machine->ip = machine->positions[--machine->position_count];
 		break;
 	}
 	case OP_CODE_LOAD_HEAP: {
-		register_t array_register = machine->stack[ins.a];
-		register_t index_register = machine->stack[ins.b];
+		register_t array_register = machine->stack[AREG];
+		register_t index_register = machine->stack[BREG];
 		if (index_register.long_int < 0 || index_register.long_int >= array_register.heap_alloc->limit)
 			PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
 		if (!array_register.heap_alloc->init_stat[index_register.long_int])
 			PANIC(machine, ERROR_READ_UNINIT);
-		machine->stack[ins.c] = array_register.heap_alloc->registers[index_register.long_int];
+		machine->stack[CREG] = array_register.heap_alloc->registers[index_register.long_int];
 		break;
 	}
 	case OP_CODE_LOAD_HEAP_I: {
-		register_t array_register = machine->stack[ins.a];
-		if (!array_register.heap_alloc->init_stat[ins.a])
+		uint16_t a_reg = AREG;
+		register_t array_register = machine->stack[a_reg];
+		if (!array_register.heap_alloc->init_stat[a_reg])
 			PANIC(machine, ERROR_READ_UNINIT);
-		machine->stack[ins.c] = array_register.heap_alloc->registers[ins.b];
+		machine->stack[CREG] = array_register.heap_alloc->registers[BREG];
 		break;
 	}
 	case OP_CODE_STORE_HEAP: {
-		register_t array_register = machine->stack[ins.a];
-		register_t index_register = machine->stack[ins.b];
+		register_t array_register = machine->stack[AREG];
+		register_t index_register = machine->stack[BREG];
 		if (index_register.long_int < 0 || index_register.long_int >= array_register.heap_alloc->limit)
 			PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
-		array_register.heap_alloc->registers[index_register.long_int] = machine->stack[ins.c];
+		array_register.heap_alloc->registers[index_register.long_int] = machine->stack[CREG];
 		array_register.heap_alloc->init_stat[index_register.long_int] = 1;
 		break;
 	}
 	case OP_CODE_STORE_HEAP_I: {
-		register_t array_register = machine->stack[ins.a];
-		array_register.heap_alloc->registers[ins.b] = machine->stack[ins.c];
-		array_register.heap_alloc->init_stat[ins.b] = 1;
+		uint16_t b_reg = BREG;
+		register_t array_register = machine->stack[AREG];
+		array_register.heap_alloc->registers[b_reg] = machine->stack[CREG];
+		array_register.heap_alloc->init_stat[b_reg] = 1;
 		break;
 	}
 	case OP_CODE_STACK_OFFSET:
@@ -122,10 +116,10 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		machine->global_offset -= ins.a;
 		break;
 	case OP_CODE_HEAP_ALLOC:
-		ESCAPE_ON_NULL(machine->stack[ins.a].heap_alloc = machine_alloc(machine, machine->stack[ins.b].long_int, ins.c));
+		ESCAPE_ON_NULL(machine->stack[AREG].heap_alloc = machine_alloc(machine, machine->stack[BREG].long_int, ins.c));
 		break;
 	case OP_CODE_HEAP_ALLOC_I:
-		ESCAPE_ON_NULL(machine->stack[ins.a].heap_alloc = machine_alloc(machine, ins.b, ins.c));
+		ESCAPE_ON_NULL(machine->stack[AREG].heap_alloc = machine_alloc(machine, ins.b, ins.c));
 		break;
 	case OP_CODE_HEAP_NEW_FRAME: {
 		if (machine->heap_frame == machine->frame_limit)
@@ -135,7 +129,7 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		break;
 	}
 	case OP_CODE_HEAP_TRACE: {
-		machine->heap_reset_count += machine_heap_trace(machine, machine->stack[ins.a].heap_alloc, &machine->heap_reset_stack[machine->heap_reset_count]);
+		machine->heap_reset_count += machine_heap_trace(machine, machine->stack[AREG].heap_alloc, &machine->heap_reset_stack[machine->heap_reset_count]);
 		break;
 	}
 	case OP_CODE_HEAP_CLEAN: {
@@ -156,94 +150,94 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		break;
 	}
 	case OP_CODE_AND:
-		machine->stack[ins.c].bool_flag = machine->stack[ins.a].bool_flag && machine->stack[ins.b].bool_flag;
+		machine->stack[CREG].bool_flag = machine->stack[AREG].bool_flag && machine->stack[BREG].bool_flag;
 		break;
 	case OP_CODE_OR:
-		machine->stack[ins.c].bool_flag = machine->stack[ins.a].bool_flag || machine->stack[ins.b].bool_flag;
+		machine->stack[CREG].bool_flag = machine->stack[AREG].bool_flag || machine->stack[BREG].bool_flag;
 		break;
 	case OP_CODE_NOT:
-		machine->stack[ins.b].bool_flag = !machine->stack[ins.a].bool_flag;
+		machine->stack[BREG].bool_flag = !machine->stack[AREG].bool_flag;
 		break;
 	case OP_CODE_BOOL_EQUAL:
-		machine->stack[ins.c].bool_flag = machine->stack[ins.a].bool_flag == machine->stack[ins.b].bool_flag;
+		machine->stack[CREG].bool_flag = machine->stack[AREG].bool_flag == machine->stack[BREG].bool_flag;
 		break;
 	case OP_CODE_CHAR_EQUAL:
-		machine->stack[ins.c].bool_flag = machine->stack[ins.a].char_int == machine->stack[ins.b].char_int;
+		machine->stack[CREG].bool_flag = machine->stack[AREG].char_int == machine->stack[BREG].char_int;
 		break;
 	case OP_CODE_LONG_EQUAL:
-		machine->stack[ins.c].bool_flag = machine->stack[ins.a].long_int == machine->stack[ins.b].long_int;
+		machine->stack[CREG].bool_flag = machine->stack[AREG].long_int == machine->stack[BREG].long_int;
 		break;
 	case OP_CODE_LONG_MORE_EQUAL:
-		machine->stack[ins.c].bool_flag = machine->stack[ins.a].long_int >= machine->stack[ins.b].long_int;
+		machine->stack[CREG].bool_flag = machine->stack[AREG].long_int >= machine->stack[BREG].long_int;
 		break;
 	case OP_CODE_LONG_LESS_EQUAL:
-		machine->stack[ins.c].bool_flag = machine->stack[ins.a].long_int <= machine->stack[ins.b].long_int;
+		machine->stack[CREG].bool_flag = machine->stack[AREG].long_int <= machine->stack[BREG].long_int;
 		break;
 	case OP_CODE_FLOAT_EQUAL:
-		machine->stack[ins.c].bool_flag = machine->stack[ins.a].float_int == machine->stack[ins.b].float_int;
+		machine->stack[CREG].bool_flag = machine->stack[AREG].float_int == machine->stack[BREG].float_int;
 		break;
 	case OP_CODE_FLOAT_MORE_EQUAL:
-		machine->stack[ins.c].bool_flag = machine->stack[ins.a].float_int >= machine->stack[ins.b].float_int;
+		machine->stack[CREG].bool_flag = machine->stack[AREG].float_int >= machine->stack[BREG].float_int;
 		break;
 	case OP_CODE_FLOAT_LESS_EQUAL:
-		machine->stack[ins.c].bool_flag = machine->stack[ins.a].float_int <= machine->stack[ins.b].float_int;
+		machine->stack[CREG].bool_flag = machine->stack[AREG].float_int <= machine->stack[BREG].float_int;
 		break;
 	case OP_CODE_LONG_MORE:
-		machine->stack[ins.c].bool_flag = machine->stack[ins.a].long_int > machine->stack[ins.b].long_int;
+		machine->stack[CREG].bool_flag = machine->stack[AREG].long_int > machine->stack[BREG].long_int;
 		break;
 	case OP_CODE_FLOAT_MORE:
-		machine->stack[ins.c].bool_flag = machine->stack[ins.a].float_int > machine->stack[ins.b].float_int;
+		machine->stack[CREG].bool_flag = machine->stack[AREG].float_int > machine->stack[BREG].float_int;
 		break;
 	case OP_CODE_LONG_LESS:
-		machine->stack[ins.c].bool_flag = machine->stack[ins.a].long_int < machine->stack[ins.b].long_int;
+		machine->stack[CREG].bool_flag = machine->stack[AREG].long_int < machine->stack[BREG].long_int;
 		break;
 	case OP_CODE_FLOAT_LESS:
-		machine->stack[ins.c].bool_flag = machine->stack[ins.a].float_int < machine->stack[ins.b].float_int;
+		machine->stack[CREG].bool_flag = machine->stack[AREG].float_int < machine->stack[BREG].float_int;
 		break;
 	case OP_CODE_LONG_ADD:
-		machine->stack[ins.c].long_int = machine->stack[ins.a].long_int + machine->stack[ins.b].long_int;
+		machine->stack[CREG].long_int = machine->stack[AREG].long_int + machine->stack[BREG].long_int;
 		break;
 	case OP_CODE_LONG_SUBRACT:
-		machine->stack[ins.c].long_int = machine->stack[ins.a].long_int - machine->stack[ins.b].long_int;
+		machine->stack[CREG].long_int = machine->stack[AREG].long_int - machine->stack[BREG].long_int;
 		break;
 	case OP_CODE_LONG_MULTIPLY:
-		machine->stack[ins.c].long_int = machine->stack[ins.a].long_int * machine->stack[ins.b].long_int;
+		machine->stack[CREG].long_int = machine->stack[AREG].long_int * machine->stack[BREG].long_int;
 		break;
 	case OP_CODE_LONG_DIVIDE:
-		machine->stack[ins.c].long_int = machine->stack[ins.a].long_int / machine->stack[ins.b].long_int;
+		machine->stack[CREG].long_int = machine->stack[AREG].long_int / machine->stack[BREG].long_int;
 		break;
 	case OP_CODE_LONG_MODULO:
-		machine->stack[ins.c].long_int = machine->stack[ins.a].long_int % machine->stack[ins.b].long_int;
+		machine->stack[CREG].long_int = machine->stack[AREG].long_int % machine->stack[BREG].long_int;
 		break;
 	case OP_CODE_LONG_EXPONENTIATE:
-		machine->stack[ins.c].long_int = longpow(machine->stack[ins.a].long_int, machine->stack[ins.b].long_int);
+		machine->stack[CREG].long_int = longpow(machine->stack[AREG].long_int, machine->stack[BREG].long_int);
 		break;
 	case OP_CODE_FLOAT_ADD:
-		machine->stack[ins.c].float_int = machine->stack[ins.a].float_int + machine->stack[ins.b].float_int;
+		machine->stack[CREG].float_int = machine->stack[AREG].float_int + machine->stack[BREG].float_int;
 		break;
 	case OP_CODE_FLOAT_SUBTRACT:
-		machine->stack[ins.c].float_int = machine->stack[ins.a].float_int - machine->stack[ins.b].float_int;
+		machine->stack[CREG].float_int = machine->stack[AREG].float_int - machine->stack[BREG].float_int;
 		break;
 	case OP_CODE_FLOAT_MULTIPLY:
-		machine->stack[ins.c].float_int = machine->stack[ins.a].float_int * machine->stack[ins.b].float_int;
+		machine->stack[CREG].float_int = machine->stack[AREG].float_int * machine->stack[BREG].float_int;
 		break;
 	case OP_CODE_FLOAT_DIVIDE:
-		machine->stack[ins.c].float_int = machine->stack[ins.a].float_int / machine->stack[ins.b].float_int;
+		machine->stack[CREG].float_int = machine->stack[AREG].float_int / machine->stack[BREG].float_int;
 		break;
 	case OP_CODE_FLOAT_MODULO:
-		machine->stack[ins.c].float_int = fmod(machine->stack[ins.a].float_int, machine->stack[ins.b].float_int);
+		machine->stack[CREG].float_int = fmod(machine->stack[AREG].float_int, machine->stack[BREG].float_int);
 		break;
 	case OP_CODE_FLOAT_EXPONENTIATE:
-		machine->stack[ins.c].float_int = pow(machine->stack[ins.a].float_int, machine->stack[ins.b].float_int);
+		machine->stack[CREG].float_int = pow(machine->stack[AREG].float_int, machine->stack[BREG].float_int);
 		break;
 	case OP_CODE_LONG_TO_FLOAT:
-		machine->stack[ins.a].float_int = (double)machine->stack[ins.b].long_int;
+		machine->stack[AREG].float_int = (double)machine->stack[BREG].long_int;
 		break;
 	case OP_CODE_LONG_NEGATE:
-		machine->stack[ins.a].long_int = -machine->stack[ins.b].long_int;
+		machine->stack[AREG].long_int = -machine->stack[BREG].long_int;
 		break;
 	case OP_CODE_FLOAT_NEGATE:
-		machine->stack[ins.a].float_int = -machine->stack[ins.b].float_int;
+		machine->stack[AREG].float_int = -machine->stack[BREG].float_int;
 		break;
 	case OP_CODE_ABORT:
 		PANIC(machine, ERROR_ABORT);

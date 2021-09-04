@@ -17,7 +17,8 @@ static const int read_ins(machine_ins_t* output, FILE* infile) {
 	ESCAPE_ON_NULL(fread(&output->b_flag, sizeof(uint8_t), 1, infile));
 	ESCAPE_ON_NULL(fread(&output->c_flag, sizeof(uint8_t), 1, infile));
 	ESCAPE_ON_NULL(fread(&output->a, sizeof(uint16_t), 1, infile));
-	ESCAPE_ON_NULL(fread(&output->a, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_NULL(fread(&output->b, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_NULL(fread(&output->c, sizeof(uint16_t), 1, infile));
 	return 1;
 }
 
@@ -80,7 +81,7 @@ const int file_save_compiled(const char* path, compiler_t* compiler, machine_t* 
 	ESCAPE_ON_NULL(fwrite(&instruction_count, sizeof(uint16_t), 1, infile));
 	
 	for (uint_fast16_t i = 0; i < compiler->allocated_constants; i++)
-		ESCAPE_ON_NULL(write_reg(machine->stack[compiler->allocated_globals + 1], infile));
+		ESCAPE_ON_NULL(write_reg(machine->stack[compiler->allocated_globals + i], infile));
 
 	for (uint_fast16_t i = 0; i < instruction_count; i++)
 		ESCAPE_ON_NULL(write_ins(instructions[i], infile));
