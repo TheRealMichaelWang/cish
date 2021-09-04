@@ -1,0 +1,7 @@
+auto fib = (int n) return int {
+	if(n <= 1) {
+		return n;
+	}
+	return thisproc(n - 1) + thisproc(n - 2);
+};
+global auto res = fib(35);
