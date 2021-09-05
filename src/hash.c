@@ -11,7 +11,3 @@ const uint64_t hash_s(const char* str, const uint64_t len) {
 const uint64_t hash(const char* str) {
     return hash_s(str, strlen(str));
 }
-
-const uint64_t combine_hash(uint64_t a, uint64_t b) {
-    return (a << 5) + b;
-}

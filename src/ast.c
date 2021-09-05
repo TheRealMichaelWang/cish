@@ -528,7 +528,7 @@ static const int parse_prim_value(ast_t* ast, ast_value_t* value) {
 		MATCH_TOK(TOK_OPEN_BRACKET);
 		READ_TOK;
 		
-		ESCAPE_ON_NULL(parse_value(ast, &value->data.alloc_array->size));
+		ESCAPE_ON_NULL(parse_expression(ast, &value->data.alloc_array->size, 0));
 		if (value->data.alloc_array->size.type.type != TYPE_PRIMATIVE_LONG)
 			PANIC(ast, ERROR_UNEXPECTED_TYPE);
 

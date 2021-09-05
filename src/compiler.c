@@ -260,12 +260,13 @@ static const int compile_conditional(compiler_t* compiler, ins_builder_t* ins_bu
 			ESCAPE_ON_NULL(compile_conditional(compiler, ins_builder, conditional->next_if_false, temp_regs, procedure, break_jump, continue_jump));
 		}
 		else {
-			if(conditional->next_if_true)
+			if (conditional->next_if_true) {
 				ESCAPE_ON_NULL(compile_code_block(compiler, ins_builder, &conditional->exec_block, temp_regs + 1, procedure, body_jump_ip, this_begin))
+				PUSH_INS(INS1(OP_CODE_JUMP, GLOBREG(this_begin)));
+			}
 			else
 				ESCAPE_ON_NULL(compile_code_block(compiler, ins_builder, &conditional->exec_block, temp_regs + 1, procedure, break_jump, continue_jump));
 			
-			PUSH_INS(INS1(OP_CODE_JUMP, GLOBREG(this_begin)));
 			ins_builder->instructions[body_jump_ip].a = ins_builder->instruction_count;
 		}
 	}
