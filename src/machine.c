@@ -50,7 +50,7 @@ static uint16_t machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc,
 static const int machine_execute_instruction(machine_t* machine, machine_ins_t* instructions) {
 	machine_ins_t ins = *machine->ip;
 
-   	switch (ins.op_code)
+    switch (ins.op_code)
 	{
 	case OP_CODE_MOVE:
 		machine->stack[AREG] = machine->stack[BREG];
@@ -157,6 +157,9 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		break;
 	case OP_CODE_NOT:
 		machine->stack[BREG].bool_flag = !machine->stack[AREG].bool_flag;
+		break;
+	case OP_CODE_LENGTH:
+		machine->stack[BREG].long_int = machine->stack[AREG].heap_alloc->limit;
 		break;
 	case OP_CODE_BOOL_EQUAL:
 		machine->stack[CREG].bool_flag = machine->stack[AREG].bool_flag == machine->stack[BREG].bool_flag;

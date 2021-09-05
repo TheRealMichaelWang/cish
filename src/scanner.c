@@ -135,6 +135,8 @@ const int scanner_read_tok(scanner_t* scanner) {
 		
 		switch (scanner->last_char)
 		{
+		case '#':
+			SET_TOK_TYPE(TOK_HASHTAG);
 		case ';':
 			SET_TOK_TYPE(TOK_SEMICOLON);
 		case '+':

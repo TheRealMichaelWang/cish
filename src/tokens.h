@@ -58,6 +58,7 @@ typedef enum token_type {
 	TOK_AND,
 	TOK_OR,
 	TOK_NOT,
+	TOK_HASHTAG,
 
 	TOK_OPEN_BRACE,
 	TOK_CLOSE_BRACE,

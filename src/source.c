@@ -27,7 +27,7 @@ int main(int argc, const char* argv[]) {
 				"warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.");
 		}
 		else if (!strcmp(flag, "-help")) {
-			printf("Usage: [option flag] -s [source file] -o[output file]\n\n"
+			printf("Usage: [option flag] -s [source file] -o [output file]\n\n"
 				"Option Flags:\n"
 				"-cr  Compile and run.\n"
 				"-c   Compile and save.\n"

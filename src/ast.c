@@ -108,6 +108,7 @@ static void free_ast_value(ast_value_t* value) {
 	{
 	case AST_VALUE_ALLOC_ARRAY:
 		free_typecheck_type(&value->data.alloc_array->elem_type);
+		free_ast_value(&value->data.alloc_array->size);
 		free(value->data.alloc_array);
 		break;
 	case AST_VALUE_ARRAY_LITERAL:
@@ -141,6 +142,7 @@ static void free_ast_value(ast_value_t* value) {
 	case AST_VALUE_UNARY_OP:
 		free_ast_value(&value->data.unary_op->operand);
 		free(value->data.unary_op);
+		break;
 	case AST_VALUE_PROC_CALL:
 		free_ast_call_proc(value->data.proc_call);
 		free(value->data.proc_call);
@@ -728,16 +730,25 @@ static const int parse_value(ast_t* ast, ast_value_t* value) {
 	case TOK_NEW:
 		return parse_prim_value(ast, value);
 	case TOK_NOT:
-	case TOK_SUBTRACT: {
-		READ_TOK;
+	case TOK_SUBTRACT:
+	case TOK_HASHTAG: {
 		value->value_type = AST_VALUE_UNARY_OP;
 		PANIC_ON_NULL(value->data.unary_op = malloc(sizeof(ast_unary_op_t)), ast, ERROR_MEMORY);
+		value->data.unary_op->operator = LAST_TOK.type;
+		READ_TOK;
 		ESCAPE_ON_NULL(parse_value(ast, &value->data.unary_op->operand));
 		if ((LAST_TOK.type == TOK_NOT && value->data.unary_op->operand.type.type != TYPE_PRIMATIVE_BOOL) ||
+			(LAST_TOK.type == TOK_HASHTAG && value->data.unary_op->operand.type.type != TYPE_SUPER_ARRAY) ||
 			(LAST_TOK.type == TOK_SUBTRACT && value->data.unary_op->operand.type.type != TYPE_PRIMATIVE_FLOAT && value->data.unary_op->operand.type.type != TYPE_PRIMATIVE_LONG))
 			PANIC(ast, ERROR_UNEXPECTED_TYPE);
-		value->data.unary_op->operator = LAST_TOK.type;
-		copy_typecheck_type(&value->type, value->data.unary_op->operand.type);
+		if (value->data.unary_op->operator == TOK_HASHTAG)
+			value->type = (typecheck_type_t){
+				.type = TYPE_PRIMATIVE_LONG,
+				.sub_type_count = 0,
+				.sub_types = NULL
+			};
+		else
+			copy_typecheck_type(&value->type, value->data.unary_op->operand.type);
 		break;
 	}
 	case TOK_IDENTIFIER: {

@@ -36,6 +36,7 @@ typedef enum machine_op_code {
 	OP_CODE_AND,
 	OP_CODE_OR,
 	OP_CODE_NOT,
+	OP_CODE_LENGTH,
 	
 	OP_CODE_BOOL_EQUAL,
 	OP_CODE_CHAR_EQUAL,

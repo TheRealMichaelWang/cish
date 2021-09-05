@@ -56,6 +56,8 @@ const int type_matcher_add(type_matcher_t* matcher, typecheck_type_t* param, typ
 		uint8_t match = param->match;
 		if (matcher->match_flags[match])
 			return typecheck_type_compatible(matcher->match_types[match], arg);
+		if (arg.type == TYPE_NOTHING)
+			return 0;
 		matcher->match_flags[match] = 1;
 		free_typecheck_type(param);
 		ESCAPE_ON_NULL(copy_typecheck_type(param, arg));

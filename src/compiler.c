@@ -200,6 +200,8 @@ static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_buil
 		}
 		else if (value->data.binary_op->operator == TOK_AND)
 			PUSH_INS(INS3(OP_CODE_AND, out_reg, TEMPREG(temp_regs), out_reg))
+		else if (value->data.binary_op->operator == TOK_OR)
+			PUSH_INS(INS3(OP_CODE_OR, out_reg, TEMPREG(temp_regs), out_reg))
 		else {
 			if (target_type == TYPE_PRIMATIVE_LONG)
 				PUSH_INS(INS3(OP_CODE_LONG_MORE + (value->data.binary_op->operator - TOK_MORE), out_reg, TEMPREG(temp_regs), out_reg))
@@ -214,6 +216,8 @@ static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_buil
 		ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &value->data.unary_op->operand, out_reg, temp_regs));
 		if (value->data.unary_op->operator == TOK_NOT)
 			PUSH_INS(INS2(OP_CODE_NOT, out_reg, out_reg))
+		else if (value->data.unary_op->operator == TOK_HASHTAG)
+			PUSH_INS(INS2(OP_CODE_LENGTH, out_reg, out_reg))
 		else {
 			if (value->type.type == TOK_TYPECHECK_LONG)
 				PUSH_INS(INS2(OP_CODE_LONG_NEGATE, out_reg, out_reg))
@@ -284,9 +288,9 @@ static const int compile_code_block(compiler_t* compiler, ins_builder_t* ins_bui
 			ESCAPE_ON_NULL(compile_conditional(compiler, ins_builder, code_block->instructions[i].data.conditional, temp_regs, procedure, break_jump, continue_jump));
 			break;
 		case AST_TOP_LEVEL_RETURN_VALUE: {
+			ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &code_block->instructions[i].data.value, TEMPREG(0), temp_regs));
 			if (procedure->return_type.type == TYPE_SUPER_ARRAY)
 				PUSH_INS(INS1(OP_CODE_HEAP_TRACE, TEMPREG(0)));
-			ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &code_block->instructions[i].data.value, TEMPREG(0), temp_regs));
 		}
 		case AST_TOP_LEVEL_RETURN: {
 			for (uint_fast8_t i = 0; i < procedure->param_count; i++)
