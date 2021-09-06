@@ -1,0 +1,8 @@
+auto fact = proc (int n) return int {
+	if(n <= 1) {
+		return 1;
+	}
+	return n * thisproc(n - 1);
+};
+
+global int res = fact(50);

@@ -1,0 +1,5 @@
+include "buffer.txt"
+
+array<int> fizzbuzz = filter(range(0, 100, 1), proc(int i) return bool {
+	return i % 5 == 0 or i % 3 == 0;
+});
