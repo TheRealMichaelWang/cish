@@ -11,6 +11,8 @@
 
 #define PUSH_INS(INS) PANIC_ON_NULL(ins_builder_append_ins(ins_builder, INS), compiler, ERROR_MEMORY)
 
+#define ALLOC_REG {ast_value->alloced_reg.index = (*current_prim_reg)++; ast_value->alloced_reg.offset_flag = 0; break; }
+
 static void alloc_ast_code_block(compiler_t* compiler, machine_t* machine, ast_code_block_t* code_block, uint16_t* current_prim_reg);
 static const int compile_code_block(compiler_t* compiler, ins_builder_t* ins_builder, ast_code_block_t* code_block, uint16_t temp_regs, ast_proc_t* procedure, uint16_t break_jump, uint16_t continue_jump);
 
@@ -35,24 +37,16 @@ static void alloc_ast_prim(compiler_t* compiler, machine_t* machine, ast_value_t
 	{
 	case AST_VALUE_BOOL:
 		machine->stack[*current_prim_reg].bool_flag = ast_value->data.bool_flag;
-		ast_value->alloced_reg.index = (*current_prim_reg)++;
-		ast_value->alloced_reg.offset_flag = 0;
-		break;
+		ALLOC_REG;
 	case AST_VALUE_CHAR:
 		machine->stack[*current_prim_reg].char_int = ast_value->data.character;
-		ast_value->alloced_reg.index = (*current_prim_reg)++;
-		ast_value->alloced_reg.offset_flag = 0;
-		break;
+		ALLOC_REG;
 	case AST_VALUE_LONG:
 		machine->stack[*current_prim_reg].long_int = ast_value->data.long_int;
-		ast_value->alloced_reg.index = (*current_prim_reg)++;
-		ast_value->alloced_reg.offset_flag = 0;
-		break;
+		ALLOC_REG;
 	case AST_VALUE_FLOAT:
 		machine->stack[*current_prim_reg].float_int = ast_value->data.float_int;
-		ast_value->alloced_reg.index = (*current_prim_reg)++;
-		ast_value->alloced_reg.offset_flag = 0;
-		break;
+		ALLOC_REG;
 	case AST_VALUE_ALLOC_ARRAY:
 		alloc_ast_prim(compiler, machine, &ast_value->data.alloc_array->size, current_prim_reg);
 		break;

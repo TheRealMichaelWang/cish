@@ -25,7 +25,7 @@ void init_scanner(scanner_t* scanner, const char* source, const uint32_t length)
 	scanner->source = source;
 	scanner->length = length;
 	scanner->position = 0;
-	scanner->row = 0;
+	scanner->row = 1;
 	scanner->col = 0;
 	scanner->last_err = ERROR_NONE;
 	scanner_read_char(scanner);

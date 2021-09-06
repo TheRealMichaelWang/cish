@@ -10,11 +10,11 @@
 #define MATCH_TOK(TOK) if(LAST_TOK.type != TOK) PANIC(ast, ERROR_UNEXPECTED_TOK);
 
 static const int op_precs[] = {
-	1, 1, 1, 1, 1, 1,
+	2, 2, 2, 2, 2, 2,
 
 	3, 3, 4, 4, 4, 5,
 
-	2, 2
+	1, 1
 };
 
 static const int parse_value(ast_t* ast, ast_value_t* value);
@@ -667,16 +667,17 @@ static const int parse_code_block(ast_t* ast, ast_code_block_t* code_block, uint
 			MATCH_TOK(TOK_STRING);
 			
 			uint64_t check_hash = hash_s(LAST_TOK.str, LAST_TOK.length);
-			for(uint_fast8_t i = 0; i < ast->include_stack.visited_hashes; i++)
+			for(uint_fast8_t i = 0; i < ast->include_stack.visited_files; i++)
 				if (check_hash == ast->include_stack.visited_hashes[i]) {
 					READ_TOK;
 					goto escape;
 				}
 			ast->include_stack.visited_hashes[ast->include_stack.visited_files++] = check_hash;
 
-			ast->include_stack.file_paths[ast->include_stack.current_scanner] = malloc((LAST_TOK.length + 1) * sizeof(char));
+			ast->include_stack.file_paths[ast->include_stack.current_scanner] = malloc(LAST_TOK.length * sizeof(char));
 			PANIC_ON_NULL(ast->include_stack.file_paths[ast->include_stack.current_scanner], ast, ERROR_MEMORY);
 			memcpy(ast->include_stack.file_paths[ast->include_stack.current_scanner], LAST_TOK.str, LAST_TOK.length * sizeof(char));
+			ast->include_stack.file_paths[ast->include_stack.current_scanner][LAST_TOK.length - 1] = 0;
 			READ_TOK;
 			
 			ast->include_stack.sources[ast->include_stack.current_scanner] = file_read_source(ast->include_stack.file_paths[ast->include_stack.current_scanner]);
@@ -717,7 +718,8 @@ static const int parse_code_block(ast_t* ast, ast_code_block_t* code_block, uint
 static const int parse_value(ast_t* ast, ast_value_t* value) {
 	switch (LAST_TOK.type)
 	{
-	case TOK_OPEN_PAREN: {
+	case TOK_TYPECHECK_PROC: {
+		READ_TOK;
 		ESCAPE_ON_NULL(parse_proc_lit(ast, value)); 
 		break;
 	}
@@ -781,6 +783,12 @@ static const int parse_value(ast_t* ast, ast_value_t* value) {
 		}
 		break;
 	}
+	case TOK_OPEN_PAREN:
+		READ_TOK;
+		parse_expression(ast, value, 0);
+		MATCH_TOK(TOK_CLOSE_PAREN);
+		READ_TOK;
+		break;
 	default:
 		PANIC(ast, ERROR_UNEXPECTED_TOK);
 	}
@@ -802,7 +810,7 @@ static const int parse_value(ast_t* ast, ast_value_t* value) {
 				READ_TOK;
 
 				ast_value_t set_val;
-				ESCAPE_ON_NULL(parse_value(ast, &set_val));
+				ESCAPE_ON_NULL(parse_expression(ast, &set_val, 0));
 
 				if (!typecheck_type_compatible(array_value.type.sub_types[0], set_val.type))
 					PANIC(ast, ERROR_UNEXPECTED_TYPE);
@@ -884,16 +892,15 @@ static const int parse_expression(ast_t* ast, ast_value_t* value, int min_prec) 
 
 		ast_value_t rhs;
 		ESCAPE_ON_NULL(parse_expression(ast, &rhs, op_precs[op_tok - TOK_EQUALS]));
-
-		if (op_tok > TOK_NOT_EQUAL) {
-			if ((lhs.type.type != TYPE_PRIMATIVE_FLOAT && lhs.type.type != TYPE_PRIMATIVE_LONG) ||
-				(rhs.type.type != TYPE_PRIMATIVE_FLOAT && rhs.type.type != TYPE_PRIMATIVE_LONG))
-				PANIC(ast, ERROR_UNEXPECTED_TYPE);
-		}
-		else if (op_tok == TOK_AND || op_tok == TOK_OR) {
+		if (op_tok == TOK_AND || op_tok == TOK_OR) {
 			if (lhs.type.type != TYPE_PRIMATIVE_BOOL || rhs.type.type != TYPE_PRIMATIVE_BOOL)
 				PANIC(ast, ERROR_UNEXPECTED_TYPE);
 		}
+		else if (op_tok > TOK_NOT_EQUAL) {
+			if ((lhs.type.type != TYPE_PRIMATIVE_FLOAT && lhs.type.type != TYPE_PRIMATIVE_LONG) ||
+				(rhs.type.type != TYPE_PRIMATIVE_FLOAT && rhs.type.type != TYPE_PRIMATIVE_LONG))
+				PANIC(ast, ERROR_UNEXPECTED_TYPE);
+		} 
 		else if(lhs.type.type != TYPE_SUPER_PROC && lhs.type.type != TYPE_SUPER_ARRAY &&
 			rhs.type.type != TYPE_SUPER_PROC && rhs.type.type != TYPE_SUPER_ARRAY && !typecheck_type_compatible(lhs.type, rhs.type))
 			PANIC(ast, ERROR_UNEXPECTED_TYPE);
