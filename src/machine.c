@@ -21,7 +21,7 @@ static heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, int tr
 		PANIC(machine, ERROR_STACK_OVERFLOW);
 	heap_alloc_t* heap_alloc = malloc(sizeof(heap_alloc_t));
 	PANIC_ON_NULL(heap_alloc, machine, ERROR_MEMORY);
-	PANIC_ON_NULL(heap_alloc->registers = malloc(req_size * sizeof(register_t)), machine, ERROR_MEMORY);
+	PANIC_ON_NULL(heap_alloc->registers = malloc(req_size * sizeof(machine_reg_t)), machine, ERROR_MEMORY);
 	PANIC_ON_NULL(heap_alloc->init_stat = calloc(req_size, sizeof(int)), machine, ERROR_MEMORY);
 	heap_alloc->limit = req_size;
 	heap_alloc->gc_flag = 0;
@@ -76,8 +76,8 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		break;
 	}
 	case OP_CODE_LOAD_HEAP: {
-		register_t array_register = machine->stack[AREG];
-		register_t index_register = machine->stack[BREG];
+		machine_reg_t array_register = machine->stack[AREG];
+		machine_reg_t index_register = machine->stack[BREG];
 		if (index_register.long_int < 0 || index_register.long_int >= array_register.heap_alloc->limit)
 			PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
 		if (!array_register.heap_alloc->init_stat[index_register.long_int])
@@ -87,15 +87,15 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 	}
 	case OP_CODE_LOAD_HEAP_I: {
 		uint16_t a_reg = AREG;
-		register_t array_register = machine->stack[a_reg];
+		machine_reg_t array_register = machine->stack[a_reg];
 		if (!array_register.heap_alloc->init_stat[a_reg])
 			PANIC(machine, ERROR_READ_UNINIT);
 		machine->stack[CREG] = array_register.heap_alloc->registers[BREG];
 		break;
 	}
 	case OP_CODE_STORE_HEAP: {
-		register_t array_register = machine->stack[AREG];
-		register_t index_register = machine->stack[BREG];
+		machine_reg_t array_register = machine->stack[AREG];
+		machine_reg_t index_register = machine->stack[BREG];
 		if (index_register.long_int < 0 || index_register.long_int >= array_register.heap_alloc->limit)
 			PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
 		array_register.heap_alloc->registers[index_register.long_int] = machine->stack[CREG];
@@ -104,7 +104,7 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 	}
 	case OP_CODE_STORE_HEAP_I: {
 		uint16_t b_reg = BREG;
-		register_t array_register = machine->stack[AREG];
+		machine_reg_t array_register = machine->stack[AREG];
 		array_register.heap_alloc->registers[b_reg] = machine->stack[CREG];
 		array_register.heap_alloc->init_stat[b_reg] = 1;
 		break;
@@ -260,7 +260,7 @@ const int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_al
 	machine->heap_count = 0;
 	machine->heap_reset_count = 0;
 
-	ESCAPE_ON_NULL(machine->stack = malloc(stack_size * sizeof(register_t)));
+	ESCAPE_ON_NULL(machine->stack = malloc(stack_size * sizeof(machine_reg_t)));
 	ESCAPE_ON_NULL(machine->positions = malloc(machine->frame_limit * sizeof(machine_ins_t*)));
 	ESCAPE_ON_NULL(machine->heap_allocs = malloc(machine->heap_alloc_limit * sizeof(heap_alloc_t*)));
 	ESCAPE_ON_NULL(machine->heap_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));

@@ -5,6 +5,10 @@
 #include "file.h"
 #include "ast.h"
 
+#ifndef max
+#define max(a,b) (((a) > (b)) ? (a) : (b))
+#endif // !max
+
 #define READ_TOK ESCAPE_ON_NULL(scanner_read_tok(&ast->include_stack.scanners[ast->include_stack.current_scanner]))
 #define LAST_TOK ast->include_stack.scanners[ast->include_stack.current_scanner].last_tok
 #define MATCH_TOK(TOK) if(LAST_TOK.type != TOK) PANIC(ast, ERROR_UNEXPECTED_TOK);
@@ -585,7 +589,7 @@ static const int parse_proc_lit(ast_t* ast, ast_value_t* value) {
 		value->type.sub_types[i + 1] = value->data.procedure->params[i].var_info.type;
 	ast->var_cache.return_types[ast->var_cache.return_type_count - 1] = &value->type.sub_types[0];
 
-	PANIC_ON_NULL(ast_var_cache_decl_var(ast, 7572967076558961, (ast_var_info_t) { .alloced_reg = (ast_register_t){ .index = current_reg++, .offset_flag = 1 }, .type = value->type }, 0), ast, ERROR_MEMORY);
+	PANIC_ON_NULL(ast_var_cache_decl_var(ast, 7572967076558961, (ast_var_info_t) { .alloced_reg = (ast_machine_reg_t){ .index = current_reg++, .offset_flag = 1 }, .type = value->type }, 0), ast, ERROR_MEMORY);
 	value->data.procedure->exec_block.register_limit++;
 
 	init_ast_code_block(&value->data.procedure->exec_block);

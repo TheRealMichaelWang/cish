@@ -34,12 +34,12 @@ static const int write_ins(machine_ins_t ins, FILE* infile) {
 	return 1;
 }
 
-static const int read_reg(register_t* reg, FILE* infile) {
+static const int read_reg(machine_reg_t* reg, FILE* infile) {
 	ESCAPE_ON_NULL(fread(reg, sizeof(uint64_t), 1, infile));
 	return 1;
 }
 
-static const int write_reg(register_t reg, FILE* infile) {
+static const int write_reg(machine_reg_t reg, FILE* infile) {
 	ESCAPE_ON_NULL(fwrite(&reg, sizeof(uint64_t), 1, infile));
 	return 1;
 }

@@ -22,10 +22,10 @@ typedef struct ast_proc ast_proc_t;
 typedef struct ast_register {
 	uint16_t index;
 	uint8_t offset_flag;
-} ast_register_t;
+} ast_machine_reg_t;
 
 typedef struct ast_var_info {
-	ast_register_t alloced_reg;
+	ast_machine_reg_t alloced_reg;
 	typecheck_type_t type;
 	int is_global;
 } ast_var_info_t;
@@ -81,7 +81,7 @@ typedef struct ast_value {
 		ast_call_proc_t* proc_call;
 	} data;
 
-	ast_register_t alloced_reg;
+	ast_machine_reg_t alloced_reg;
 } ast_value_t;
 
 typedef struct ast_decl_var {

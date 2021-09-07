@@ -12,8 +12,8 @@ typedef struct typecheck_type typecheck_type_t;
 typedef struct typecheck_type {
 	enum typecheck_type_type {
 		TYPE_AUTO,
-		TYPE_TYPEARG,
 		TYPE_NOTHING,
+		TYPE_TYPEARG,
 
 		TYPE_PRIMATIVE_BOOL,
 		TYPE_PRIMATIVE_CHAR,

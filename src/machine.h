@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include "error.h"
 
-typedef union machine_register register_t;
+typedef union machine_register machine_reg_t;
 
 typedef enum machine_op_code {
 	OP_CODE_ABORT,
@@ -79,7 +79,7 @@ typedef struct machine_instruction {
 } machine_ins_t;
 
 typedef struct machine_heap_alloc {
-	register_t* registers;
+	machine_reg_t* registers;
 	int* init_stat;
 	uint16_t limit;
 
@@ -93,10 +93,10 @@ typedef union machine_register {
 	char char_int;
 	int bool_flag;
 	machine_ins_t* ip;
-} register_t;
+} machine_reg_t;
 
 typedef struct machine {
-	register_t* stack;
+	machine_reg_t* stack;
 
 	machine_ins_t* ip;
 	machine_ins_t** positions;
