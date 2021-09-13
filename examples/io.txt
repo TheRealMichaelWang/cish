@@ -1,0 +1,30 @@
+global auto print = proc(array<char> msg) return nothing {
+	int i = 0;
+	while(i < #msg){
+		foreign 8 msg;
+		i = i + 1;
+	}
+	return;
+};
+
+global auto input = proc() return array<char> {
+	array<char> buffer = new char[4096];
+	int i = 0;
+	char scanned = '\0';
+	while(scanned != '\n') {
+		foreign 9 0 scanned;
+		buffer[i] = scanned;
+		i = i + 1;
+	}
+	i = i - 1;
+	array<char> output = new char[i];
+	int j = 0;
+	while(j < i - 1) {
+		output[j] = buffer[i];
+		j = j + 1;
+	}
+	return output;
+};
+
+array<char> inp = input();
+print(inp);
