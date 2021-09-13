@@ -1,7 +1,7 @@
 global auto print = proc(array<char> msg) return nothing {
 	int i = 0;
-	while(i < #msg){
-		foreign 8 msg;
+	while(i < #msg) {
+		foreign 8 msg[i];
 		i = i + 1;
 	}
 	return;
@@ -19,8 +19,8 @@ global auto input = proc() return array<char> {
 	i = i - 1;
 	array<char> output = new char[i];
 	int j = 0;
-	while(j < i - 1) {
-		output[j] = buffer[i];
+	while(j < i) {
+		output[j] = buffer[j];
 		j = j + 1;
 	}
 	return output;

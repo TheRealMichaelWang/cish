@@ -1,0 +1,11 @@
+global auto itos = proc(int n) return array<char> {
+	array<char> buf = new char[0];
+	foreign 6 n buf;
+	return buf;
+};
+
+global auto stoi = proc(array<char> buffer) return int {
+	int n = 0;
+	foreign 7 buffer n;
+	return n;
+};
