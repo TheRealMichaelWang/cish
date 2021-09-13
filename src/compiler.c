@@ -317,7 +317,7 @@ static const int compile_code_block(compiler_t* compiler, ins_builder_t* ins_bui
 			ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &code_block->instructions[i].data.foreign.id_t, TEMPREG(temp_regs), temp_regs + 1))
 			if (code_block->instructions[i].data.foreign.has_input) {
 				ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &code_block->instructions[i].data.foreign.input, TEMPREG(temp_regs + 1), temp_regs + 2));
-				PUSH_INS(INS3(OP_CODE_FOREIGN, TEMPREG(temp_regs), TEMPREG(temp_regs + 1), (code_block->instructions[i].data.foreign.has_input ? code_block->instructions[i].data.foreign.output : GLOBREG(UINT16_MAX))));
+				PUSH_INS(INS3(OP_CODE_FOREIGN, TEMPREG(temp_regs), TEMPREG(temp_regs + 1), (code_block->instructions[i].data.foreign.has_output ? code_block->instructions[i].data.foreign.output : GLOBREG(UINT16_MAX))));
 			}
 			else
 				PUSH_INS(INS3(OP_CODE_FOREIGN, TEMPREG(temp_regs), GLOBREG(UINT16_MAX), GLOBREG(UINT16_MAX)));

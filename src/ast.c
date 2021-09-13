@@ -700,10 +700,10 @@ static const int parse_code_block(ast_t* ast, ast_code_block_t* code_block, uint
 				}
 			ast->include_stack.visited_hashes[ast->include_stack.visited_files++] = check_hash;
 
-			ast->include_stack.file_paths[ast->include_stack.current_scanner] = malloc(LAST_TOK.length * sizeof(char));
+			ast->include_stack.file_paths[ast->include_stack.current_scanner] = malloc((LAST_TOK.length + 1)* sizeof(char));
 			PANIC_ON_NULL(ast->include_stack.file_paths[ast->include_stack.current_scanner], ast, ERROR_MEMORY);
-			memcpy(ast->include_stack.file_paths[ast->include_stack.current_scanner], LAST_TOK.str, LAST_TOK.length * sizeof(char));
-			ast->include_stack.file_paths[ast->include_stack.current_scanner][LAST_TOK.length - 1] = 0;
+			memcpy(ast->include_stack.file_paths[ast->include_stack.current_scanner], LAST_TOK.str, (LAST_TOK.length + 1) * sizeof(char));
+			ast->include_stack.file_paths[ast->include_stack.current_scanner][LAST_TOK.length] = 0;
 			READ_TOK;
 			
 			ast->include_stack.sources[ast->include_stack.current_scanner] = file_read_source(ast->include_stack.file_paths[ast->include_stack.current_scanner]);
