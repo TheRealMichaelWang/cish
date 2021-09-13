@@ -30,6 +30,7 @@ typedef enum token_type {
 	TOK_BREAK,
 	TOK_SET,
 	TOK_INCLUDE,
+	TOK_FOREIGN,
 
 	TOK_TRUE,
 	TOK_FALSE,

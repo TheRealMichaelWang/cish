@@ -5,11 +5,13 @@
 
 #include <stdint.h>
 #include "error.h"
+#include "ffi.h"
 
 typedef union machine_register machine_reg_t;
 
 typedef enum machine_op_code {
 	OP_CODE_ABORT,
+	OP_CODE_FOREIGN,
 
 	OP_CODE_MOVE,
 	OP_CODE_CHECK,
@@ -108,6 +110,8 @@ typedef struct machine {
 	error_t last_err;
 	
 	uint16_t global_offset, position_count, heap_frame, heap_count, heap_reset_count, heap_alloc_limit, frame_limit;
+
+	ffi_t ffi_table;
 } machine_t;
 
 const int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_limit, uint16_t frame_limit);

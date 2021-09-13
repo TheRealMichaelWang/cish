@@ -32,6 +32,7 @@ typedef enum error {
 	ERROR_READ_UNINIT,
 	
 	ERROR_ABORT,
+	ERROR_FOREIGN,
 
 	ERROR_CANNOT_OPEN_FILE
 } error_t;

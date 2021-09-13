@@ -244,6 +244,9 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		break;
 	case OP_CODE_ABORT:
 		PANIC(machine, ERROR_ABORT);
+	case OP_CODE_FOREIGN:
+		PANIC_ON_NULL(ffi_invoke(&machine->ffi_table, &machine->stack[AREG], &machine->stack[BREG], &machine->stack[CREG]), machine, ERROR_FOREIGN);
+		break;
 	}
 	machine->ip++;
 	return 1;
@@ -265,6 +268,7 @@ const int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_al
 	ESCAPE_ON_NULL(machine->heap_allocs = malloc(machine->heap_alloc_limit * sizeof(heap_alloc_t*)));
 	ESCAPE_ON_NULL(machine->heap_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
 	ESCAPE_ON_NULL(machine->heap_reset_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
+	ESCAPE_ON_NULL(init_ffi(&machine->ffi_table));
 	return 1;
 }
 
@@ -274,6 +278,7 @@ void free_machine(machine_t* machine) {
 	free(machine->heap_allocs);
 	free(machine->heap_frame_bounds);
 	free(machine->heap_reset_bounds);
+	free_ffi(&machine->ffi_table);
 }
 
 const int machine_execute(machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count) {

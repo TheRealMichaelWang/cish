@@ -2,8 +2,6 @@
 #include "hash.h"
 #include "scanner.h"
 
-#define SET_TOK_TYPE(TYPE) {scanner->last_tok.type = TYPE; break;}
-
 static const char scanner_peek_char(scanner_t* scanner) {
 	if (scanner->length == scanner->position)
 		return 0;
@@ -21,18 +19,51 @@ static const char scanner_read_char(scanner_t* scanner) {
 	return scanner->last_char = scanner->source[scanner->position++];
 }
 
-void init_scanner(scanner_t* scanner, const char* source, const uint32_t length) {
+void init_scanner(scanner_t* scanner, const char* source, const uint32_t length, int init_scan) {
 	scanner->source = source;
 	scanner->length = length;
 	scanner->position = 0;
 	scanner->row = 1;
 	scanner->col = 0;
 	scanner->last_err = ERROR_NONE;
-	scanner_read_char(scanner);
-	scanner_read_tok(scanner);
+	if (init_scan) {
+		scanner_read_char(scanner);
+		scanner_scan_tok(scanner);
+	}
 }
 
-const int scanner_read_tok(scanner_t* scanner) {
+#define SET_CHAR_TYPE(TYPE) { scanner->last_char = TYPE; break; }
+const int scanner_scan_char(scanner_t* scanner) {
+	scanner_read_char(scanner);
+	if (scanner->last_char == '\\') {
+		scanner_read_char(scanner);
+		switch (scanner->last_char)
+		{
+		case 'b':
+			SET_CHAR_TYPE('\b');
+		case 'e':
+			SET_CHAR_TYPE('\e');
+		case 'n':
+			SET_CHAR_TYPE('\n');
+		case 'r':
+			SET_CHAR_TYPE('\r');
+		case 't':
+			SET_CHAR_TYPE('\t');
+		case '\\':
+			SET_CHAR_TYPE('\\');
+		case '\"':
+			SET_CHAR_TYPE('\"');
+		case '0':
+			SET_CHAR_TYPE(0);
+		default:
+			PANIC(scanner, ERROR_UNEXPECTED_TOK);
+		}
+	}
+	return 1;
+}
+
+#define SET_TOK_TYPE(TYPE) {scanner->last_tok.type = TYPE; break;}
+const int scanner_scan_tok(scanner_t* scanner) {
 	while (scanner->last_char == ' ' || scanner->last_char == '\t' || scanner->last_char == '\r' || scanner->last_char == '\n')
 		scanner_read_char(scanner);
 
@@ -47,6 +78,8 @@ const int scanner_read_tok(scanner_t* scanner) {
 		uint64_t id_hash = hash_s(scanner->last_tok.str, scanner->last_tok.length);
 		switch (id_hash)
 		{
+		case 229466054363183:
+			SET_TOK_TYPE(TOK_FOREIGN);
 		case 7572251799911306: //continue
 			SET_TOK_TYPE(TOK_CONTINUE);
 		case 210707980106: //break
@@ -97,7 +130,7 @@ const int scanner_read_tok(scanner_t* scanner) {
 			do {
 				scanner_read_char(scanner);
 			} while (scanner->last_char != '\n');
-			return scanner_read_tok(scanner);
+			return scanner_scan_tok(scanner);
 		default:
 			SET_TOK_TYPE(TOK_IDENTIFIER);
 		}
@@ -112,20 +145,23 @@ const int scanner_read_tok(scanner_t* scanner) {
 	else if (scanner->last_char == '\"') {
 		scanner->last_tok.type = TOK_STRING;
 		scanner->last_tok.str++;
-		do {
-			scanner_read_char(scanner);
-			scanner->last_tok.length++;
-			if (!scanner->last_char)
+		uint32_t old_pos = scanner->position;
+		while (scanner_peek_char(scanner) != '\"')
+		{
+			if (!scanner_scan_char(scanner) || !scanner_peek_char(scanner))
 				PANIC(scanner, ERROR_UNEXPECTED_TOK);
-		} while (scanner->last_char != '\"');
+		}
+		scanner->last_tok.length = scanner->position - old_pos;
+		scanner_read_char(scanner);
 		scanner_read_char(scanner);
 	}
 	else if (scanner->last_char == '\'') {
 		scanner->last_tok.type = TOK_CHAR;
 		scanner->last_tok.str++;
-		scanner->last_tok.length = 1;
-		if(!scanner_read_char(scanner))
+		uint32_t old_pos = scanner->position;
+		if(!scanner_scan_char(scanner) || !scanner_peek_char(scanner))
 			PANIC(scanner, ERROR_UNEXPECTED_TOK);
+		scanner->last_tok.length = scanner->position - old_pos;
 		if (!scanner_read_char(scanner) || scanner->last_char != '\'')
 			PANIC(scanner, ERROR_UNEXPECTED_TOK);
 		scanner_read_char(scanner);

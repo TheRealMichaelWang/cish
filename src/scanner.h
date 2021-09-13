@@ -17,8 +17,9 @@ typedef struct scanner {
 	error_t last_err;
 } scanner_t;
 
-void init_scanner(scanner_t* scanner, const char* source, const uint32_t length);
+void init_scanner(scanner_t* scanner, const char* source, const uint32_t length, int init_scan);
 
-const int scanner_read_tok(scanner_t* scanner);
+const int scanner_scan_char(scanner_t* scanner);
+const int scanner_scan_tok(scanner_t* scanner);
 
 #endif // !SCANNER_H

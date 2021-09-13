@@ -4,12 +4,13 @@
 #include "compiler.h"
 #include "machine.h"
 #include "file.h"
+#include "stdlib.h"
 #include "debug.h"
 
-#define PANIC(MSG) {printf MSG ; exit(EXIT_FAILURE);}
+#define ABORT(MSG) {printf MSG ; exit(EXIT_FAILURE);}
 
 #define READ_ARG argv[current_arg++]
-#define EXPECT_FLAG(FLAG) if(strcmp(READ_ARG, FLAG)) { PANIC(("Unexpected flag %s.", FLAG)); }
+#define EXPECT_FLAG(FLAG) if(strcmp(READ_ARG, FLAG)) { ABORT(("Unexpected flag %s.", FLAG)); }
 
 int main(int argc, const char* argv[]) {
 	int current_arg = 0;
@@ -39,11 +40,12 @@ int main(int argc, const char* argv[]) {
 
 			EXPECT_FLAG("-s");
 			machine_ins_t* instructions = file_load_ins(READ_ARG, &machine, &instruction_count);
+			install_stdlib(&machine, 2);
 			if (!instructions)
-				PANIC(("Error reading instructions."));
+				ABORT(("Error reading instructions."));
 
 			if (!machine_execute(&machine, instructions, instruction_count))
-				PANIC(("A runtime error occured(%s).", get_err_msg(machine.last_err)));
+				ABORT(("A runtime error occured(%s).", get_err_msg(machine.last_err)));
 
 			free_machine(&machine);
 			free(instructions);
@@ -51,12 +53,12 @@ int main(int argc, const char* argv[]) {
 		else if (!strcmp(flag, "-c") || !strcmp(flag, "-cr")) {
 			compiler_t* compiler = malloc(sizeof(compiler_t));
 			if (!compiler)
-				PANIC(("Error allocating memory for the compiler."));
+				ABORT(("Error allocating memory for the compiler."));
 
 			EXPECT_FLAG("-s");
 			char* source = file_read_source(READ_ARG);
 			if (!source)
-				PANIC(("Error reading input source file(-s)."));
+				ABORT(("Error reading input source file(-s)."));
 
 			if (!init_compiler(compiler, source)) {
 				print_compiler_err(compiler);
@@ -73,18 +75,19 @@ int main(int argc, const char* argv[]) {
 				free_machine(&machine);
 				free(instructions);
 				free(compiler);
-				PANIC(("A compiler error occured(%s).", get_err_msg(compiler->last_err)))
+				ABORT(("A compiler error occured(%s).", get_err_msg(compiler->last_err)))
 			}
 
 			if (!strcmp(flag, "-c")) {
 				EXPECT_FLAG("-o");
 				if (!file_save_compiled(READ_ARG, compiler, &machine, instructions, instruction_count))
-					PANIC(("Error writing instructions to output."));
+					ABORT(("Error writing instructions to output."));
 				printf("Success!");
 			}
 			else {
+				install_stdlib(&machine, 2);
 				if(!machine_execute(&machine, instructions, instruction_count))
-					PANIC(("A runtime error occured(%s)", get_err_msg(machine.last_err)))
+					ABORT(("A runtime error occured(%s)", get_err_msg(machine.last_err)))
 			}
 			free_compiler(compiler);
 			free_machine(&machine);
@@ -92,7 +95,7 @@ int main(int argc, const char* argv[]) {
 			free(compiler);
 		}
 		else
-			PANIC(("Unexpected flag \"%s\".", flag));
+			ABORT(("Unexpected flag \"%s\".", flag));
 	}
 	
 	exit(EXIT_SUCCESS);

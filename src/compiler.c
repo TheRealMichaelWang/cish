@@ -5,8 +5,8 @@
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #endif // !max
 
-#define TEMPREG(INDEX) (ast_machine_reg_t){.index = INDEX, .offset_flag = 1}
-#define GLOBREG(INDEX) (ast_machine_reg_t){.index = INDEX, .offset_flag = 0}
+#define TEMPREG(INDEX) (ast_reg_t){.index = INDEX, .offset_flag = 1}
+#define GLOBREG(INDEX) (ast_reg_t){.index = INDEX, .offset_flag = 0}
 
 #define INS0(OP) (machine_ins_t) {.op_code = OP}
 #define INS1(OP, REGA) (machine_ins_t){.op_code = OP, .a = REGA.index, .a_flag = REGA.offset_flag}
@@ -113,6 +113,12 @@ static void alloc_ast_code_block(compiler_t* compiler, machine_t* machine, ast_c
 		case AST_TOP_LEVEL_VALUE:
 			alloc_ast_prim(compiler, machine, &code_block->instructions[i].data.value, current_prim_reg);
 			break;
+		case AST_TOP_LEVEL_FOREIGN: {
+			alloc_ast_prim(compiler, machine, &code_block->instructions[i].data.foreign.id_t, current_prim_reg); 
+			if (code_block->instructions[i].data.foreign.has_input)
+				alloc_ast_prim(compiler, machine, &code_block->instructions[i].data.foreign.input, current_prim_reg);
+			break;
+		}
 		}
 	}
 }
@@ -127,7 +133,7 @@ void free_compiler(compiler_t* compiler) {
 	free_ast(&compiler->ast);
 }
 
-static const int compile_ast_proc(compiler_t* compiler, ins_builder_t* ins_builder, ast_proc_t* procedure, ast_machine_reg_t out_reg) {
+static const int compile_ast_proc(compiler_t* compiler, ins_builder_t* ins_builder, ast_proc_t* procedure, ast_reg_t out_reg) {
 	uint16_t label_ins_ip = ins_builder->instruction_count;
 	PUSH_INS(INS2(OP_CODE_LABEL, out_reg, GLOBREG(0)));
 	uint16_t jump_ins_ip = ins_builder->instruction_count;
@@ -140,7 +146,7 @@ static const int compile_ast_proc(compiler_t* compiler, ins_builder_t* ins_build
 	return 1;
 }
 
-static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_builder, ast_value_t* value, ast_machine_reg_t out_reg, uint16_t temp_regs) {
+static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_builder, ast_value_t* value, ast_reg_t out_reg, uint16_t temp_regs) {
 	switch (value->value_type)
 	{
 	case AST_VALUE_SET_VAR: {
@@ -296,7 +302,7 @@ static const int compile_code_block(compiler_t* compiler, ins_builder_t* ins_bui
 				if (procedure->params[i].var_info.type.type == TYPE_SUPER_ARRAY)
 					PUSH_INS(INS1(OP_CODE_HEAP_TRACE, procedure->params[i].var_info.alloced_reg));
 			PUSH_INS(INS0(OP_CODE_HEAP_CLEAN));
-			PUSH_INS(INS0(OP_CODE_JUMP_BACK)); 
+			PUSH_INS(INS0(OP_CODE_JUMP_BACK));
 			break;
 		}
 		case AST_TOP_LEVEL_BREAK:
@@ -307,6 +313,16 @@ static const int compile_code_block(compiler_t* compiler, ins_builder_t* ins_bui
 			PANIC_ON_NULL(continue_jump, compiler, ERROR_CANNOT_CONTINUE);
 			PUSH_INS(INS1(OP_CODE_JUMP, GLOBREG(continue_jump)));
 			break;
+		case AST_TOP_LEVEL_FOREIGN: {
+			ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &code_block->instructions[i].data.foreign.id_t, TEMPREG(temp_regs), temp_regs + 1))
+			if (code_block->instructions[i].data.foreign.has_input) {
+				ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &code_block->instructions[i].data.foreign.input, TEMPREG(temp_regs + 1), temp_regs + 2));
+				PUSH_INS(INS3(OP_CODE_FOREIGN, TEMPREG(temp_regs), TEMPREG(temp_regs + 1), (code_block->instructions[i].data.foreign.has_input ? code_block->instructions[i].data.foreign.output : GLOBREG(UINT16_MAX))));
+			}
+			else
+				PUSH_INS(INS3(OP_CODE_FOREIGN, TEMPREG(temp_regs), GLOBREG(UINT16_MAX), GLOBREG(UINT16_MAX)));
+			break;
+		}
 		}
 	}
 	return 1;

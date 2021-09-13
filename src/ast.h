@@ -22,10 +22,10 @@ typedef struct ast_proc ast_proc_t;
 typedef struct ast_register {
 	uint16_t index;
 	uint8_t offset_flag;
-} ast_machine_reg_t;
+} ast_reg_t;
 
 typedef struct ast_var_info {
-	ast_machine_reg_t alloced_reg;
+	ast_reg_t alloced_reg;
 	typecheck_type_t type;
 	int is_global;
 } ast_var_info_t;
@@ -81,7 +81,7 @@ typedef struct ast_value {
 		ast_call_proc_t* proc_call;
 	} data;
 
-	ast_machine_reg_t alloced_reg;
+	ast_reg_t alloced_reg;
 } ast_value_t;
 
 typedef struct ast_decl_var {
@@ -127,6 +127,12 @@ typedef struct ast_call_proc {
 	uint8_t argument_count;
 } ast_call_proc_t;
 
+typedef struct ast_foreign_call {
+	ast_value_t id_t, input;
+	ast_reg_t output;
+	int has_input, has_output;
+} ast_foreign_call_t;
+
 typedef struct ast_top_level {
 	enum ast_top_level_type {
 		AST_TOP_LEVEL_DECL_VAR,
@@ -135,7 +141,8 @@ typedef struct ast_top_level {
 		AST_TOP_LEVEL_RETURN_VALUE,
 		AST_TOP_LEVEL_RETURN,
 		AST_TOP_LEVEL_CONTINUE,
-		AST_TOP_LEVEL_BREAK
+		AST_TOP_LEVEL_BREAK,
+		AST_TOP_LEVEL_FOREIGN
 	} type;
 
 	union ast_top_level_data
@@ -143,6 +150,7 @@ typedef struct ast_top_level {
 		ast_decl_var_t var_decl;
 		ast_cond_t* conditional;
 		ast_value_t value;
+		ast_foreign_call_t foreign;
 	} data;
 } ast_top_level_t;
 
