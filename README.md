@@ -5,4 +5,6 @@ A minimal, performant, strongly-typed, and functional programming language focus
 ## Important Links
 * [Documentation](https://github.com/TheRealMichaelWang/superforth/wiki)
   * [Installation](https://github.com/TheRealMichaelWang/superforth/wiki/Installation)
+  * [CLI Usage](https://github.com/TheRealMichaelWang/superforth/wiki/Command-Line-Usage)
 * [Examples](https://github.com/TheRealMichaelWang/superforth/tree/main/examples)
+* [Release](https://github.com/TheRealMichaelWang/superforth/releases/tag/0.1)
