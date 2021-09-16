@@ -126,7 +126,7 @@ static void free_ast_value(ast_value_t* value) {
 	case AST_VALUE_GET_INDEX:
 		free_ast_value(&value->data.get_index->array);
 		free_ast_value(&value->data.get_index->index);
-		free(value->data.procedure);
+		free(value->data.get_index);
 		break;
 	case AST_VALUE_SET_VAR:
 		free_ast_value(&value->data.set_var->set_value);
@@ -179,9 +179,8 @@ static void free_ast_top_lvl(ast_top_level_t top_level_ins) {
 		free_ast_conditional(top_level_ins.data.conditional);
 		break;
 	case AST_TOP_LEVEL_FOREIGN: {
+		free_ast_value(&top_level_ins.data.foreign.id_t);
 		if (top_level_ins.data.foreign.has_input)
-			free_ast_value(&top_level_ins.data.foreign.id_t);
-		else if (top_level_ins.data.foreign.has_output)
 			free_ast_value(&top_level_ins.data.foreign.input);
 		break; 
 	}

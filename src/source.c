@@ -25,16 +25,17 @@ int main(int argc, const char* argv[]) {
 			printf("SuperForth 0.1\n"
 				"written by Michael Wang, 2020-2021\n"
 				"This is free software; see the source for copying conditions. There is NO\n"
-				"warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.");
+				"warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n");
 		}
 		else if (!strcmp(flag, "-help")) {
 			printf("Usage: [option flag] -s [source file] -o [output file]\n\n"
 				"Option Flags:\n"
 				"-cr  Compile and run.\n"
 				"-c   Compile and save.\n"
-				"-r   Load and run.");
+				"-r   Load and run.\n"
+				"-d   Print instruction dump");
 		}
-		else if (!strcmp(flag, "-r")) {
+		else if (!strcmp(flag, "-r") || !strcmp(flag, "-d")) {
 			machine_t machine;
 			uint16_t instruction_count;
 
@@ -44,9 +45,13 @@ int main(int argc, const char* argv[]) {
 			if (!instructions)
 				ABORT(("Error reading instructions."));
 
-			if (!machine_execute(&machine, instructions, instruction_count))
-				ABORT(("A runtime error occured(%s).", get_err_msg(machine.last_err)));
-
+			if (strcmp(flag, "-d")) {
+				if (!machine_execute(&machine, instructions, instruction_count))
+					ABORT(("A runtime error occured(%s).", get_err_msg(machine.last_err)));
+			}
+			else {
+				print_instructions(instructions, instruction_count);
+			}
 			free_machine(&machine);
 			free(instructions);
 		}

@@ -5,6 +5,8 @@
 
 static const char* opcode_names[] = {
 	"abort      ",
+	"foreign    ",
+
 	"mov        ",
 	"check      ",
 
@@ -30,6 +32,7 @@ static const char* opcode_names[] = {
 	"and        ",
 	"or         ",
 	"not        ",
+	"len        ",
 
 	"bequal     ",
 	"cequal     ",
@@ -89,8 +92,11 @@ static const char* error_names[] = {
 	"insufficient position stack",
 	"index out of range",
 	"stack overflow",
+	"read unitialized memory",
 	
-	"program aborted"
+	"program aborted",
+	"foreign error",
+	"cannot open file"
 };
 
 static void print_instruction(machine_ins_t ins){

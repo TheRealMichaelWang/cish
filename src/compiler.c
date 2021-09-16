@@ -162,6 +162,18 @@ static const int compile_ast_value_reg(compiler_t* compiler, ins_builder_t* ins_
 	case AST_VALUE_VAR:
 		*dest_reg = value->alloced_reg;
 		break;
+	case AST_VALUE_PROC_CALL: {
+		ast_reg_t proc_reg;
+		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.proc_call->procedure, &proc_reg, TEMPREG(temp_regs), temp_regs));
+		for (uint8_t i = 0; i < value->data.proc_call->argument_count; i++)
+			ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &value->data.proc_call->arguments[i], TEMPREG(temp_regs + i + 1), temp_regs + i + 2));
+		PUSH_INS(INS2(OP_CODE_MOVE, TEMPREG(temp_regs + value->data.proc_call->argument_count + 1), proc_reg));
+		PUSH_INS(INS1(OP_CODE_STACK_OFFSET, GLOBREG(temp_regs)));
+		PUSH_INS(INS1(OP_CODE_JUMP_HIST, TEMPREG(value->data.proc_call->argument_count + 1)));
+		PUSH_INS(INS1(OP_CODE_STACK_DEOFFSET, GLOBREG(temp_regs)));
+		*dest_reg = TEMPREG(temp_regs);
+		break;
+	}
 	default:
 		compile_ast_value(compiler, ins_builder, value, set_regs, temp_regs);
 		*dest_reg = set_regs;
@@ -178,7 +190,8 @@ static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_buil
 	case AST_VALUE_CHAR:
 	case AST_VALUE_LONG:
 	case AST_VALUE_FLOAT:
-	case AST_VALUE_VAR: {
+	case AST_VALUE_VAR:
+	case AST_VALUE_PROC_CALL: {
 		ast_reg_t reg;
 		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, value, &reg, out_reg, temp_regs));
 		PUSH_INS(INS2(OP_CODE_MOVE, out_reg, reg));
@@ -220,8 +233,8 @@ static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_buil
 	case AST_VALUE_BINARY_OP: {
 		ast_reg_t lhs_reg, rhs_reg;
 		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.binary_op->lhs, &lhs_reg, out_reg, temp_regs));
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.binary_op->rhs, &rhs_reg, out_reg, temp_regs));
-;
+		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.binary_op->rhs, &rhs_reg, TEMPREG(temp_regs), temp_regs + 1));
+
 		enum typecheck_type_type target_type = max(value->data.binary_op->lhs.type.type, value->data.binary_op->rhs.type.type);
 		if (value->data.binary_op->lhs.type.type != target_type) {
 			PUSH_INS(INS2(OP_CODE_LONG_TO_FLOAT, lhs_reg, out_reg));
@@ -265,18 +278,6 @@ static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_buil
 				PUSH_INS(INS2(OP_CODE_FLOAT_NEGATE, op_reg, out_reg))
 		}
 		break;
-	}
-	case AST_VALUE_PROC_CALL: {
-		ast_reg_t proc_reg;
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.proc_call->procedure, &proc_reg, out_reg, temp_regs));
-		for (uint8_t i = 0; i < value->data.proc_call->argument_count; i++)
-			ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &value->data.proc_call->arguments[i], TEMPREG(temp_regs + i + 1), temp_regs + i + 2));
-		PUSH_INS(INS2(OP_CODE_MOVE, TEMPREG(temp_regs + value->data.proc_call->argument_count + 1), proc_reg));
-		PUSH_INS(INS1(OP_CODE_STACK_OFFSET, GLOBREG(temp_regs)));
-		PUSH_INS(INS1(OP_CODE_JUMP_HIST, TEMPREG(value->data.proc_call->argument_count + 1)));
-		PUSH_INS(INS1(OP_CODE_STACK_DEOFFSET, GLOBREG(temp_regs)));
-		PUSH_INS(INS2(OP_CODE_MOVE, out_reg, TEMPREG(temp_regs)));
-		break; 
 	}
 	}
 	return 1;
