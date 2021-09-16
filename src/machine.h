@@ -15,6 +15,7 @@ typedef enum machine_op_code {
 
 	OP_CODE_MOVE,
 	OP_CODE_CHECK,
+	OP_CODE_NCHECK,
 
 	OP_CODE_JUMP,
 	OP_CODE_JUMP_HIST,

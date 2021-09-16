@@ -9,6 +9,7 @@ static const char* opcode_names[] = {
 
 	"mov        ",
 	"check      ",
+	"ncheck     ",
 
 	"jmp        ",
 	"jmphist    ",

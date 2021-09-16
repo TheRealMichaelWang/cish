@@ -59,6 +59,10 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		if (machine->stack[AREG].bool_flag)
 			machine->ip++;
 		break;
+	case OP_CODE_NCHECK:
+		if (!machine->stack[AREG].bool_flag)
+			machine->ip++;
+		break;
 	case OP_CODE_JUMP:
 		machine->ip = &instructions[AREG];
  		return 1;

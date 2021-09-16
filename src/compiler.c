@@ -284,8 +284,8 @@ static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_buil
 }
 
 static const int compile_conditional(compiler_t* compiler, ins_builder_t* ins_builder, ast_cond_t* conditional, uint16_t temp_regs, ast_proc_t* procedure, uint16_t break_jump, uint16_t continue_jump) {
-	uint16_t this_begin = ins_builder->instruction_count;
 	if (conditional->has_cond_val) {
+		uint16_t this_begin = ins_builder->instruction_count;
 		ast_reg_t cond_reg;
 		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &conditional->cond_val, &cond_reg, TEMPREG(temp_regs), temp_regs + 1));
 
@@ -297,12 +297,12 @@ static const int compile_conditional(compiler_t* compiler, ins_builder_t* ins_bu
 		if (conditional->next_if_false) {
 			ESCAPE_ON_NULL(compile_code_block(compiler, ins_builder, &conditional->exec_block, temp_regs + 1, procedure, break_jump, continue_jump));
 			ins_builder->instructions[body_jump_ip].a = ins_builder->instruction_count;
-			PUSH_INS(INS2(OP_CODE_NOT, TEMPREG(temp_regs), TEMPREG(temp_regs)));
-			PUSH_INS(INS1(OP_CODE_CHECK, TEMPREG(temp_regs)));
+
+			PUSH_INS(INS1(OP_CODE_NCHECK, cond_reg));
 			uint16_t cond_begin_ip = ins_builder->instruction_count;
 			PUSH_INS(INS1(OP_CODE_JUMP, GLOBREG(cond_begin_ip)));
-			ins_builder->instructions[cond_begin_ip].a = ins_builder->instruction_count;
 			ESCAPE_ON_NULL(compile_conditional(compiler, ins_builder, conditional->next_if_false, temp_regs, procedure, break_jump, continue_jump));
+			ins_builder->instructions[cond_begin_ip].a = ins_builder->instruction_count;
 		}
 		else {
 			if (conditional->next_if_true) {
@@ -311,7 +311,6 @@ static const int compile_conditional(compiler_t* compiler, ins_builder_t* ins_bu
 			}
 			else
 				ESCAPE_ON_NULL(compile_code_block(compiler, ins_builder, &conditional->exec_block, temp_regs + 1, procedure, break_jump, continue_jump));
-			
 			ins_builder->instructions[body_jump_ip].a = ins_builder->instruction_count;
 		}
 	}
