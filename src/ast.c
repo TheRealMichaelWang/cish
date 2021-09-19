@@ -707,8 +707,9 @@ static const int parse_code_block(ast_t* ast, ast_code_block_t* code_block, uint
 			
 			ast->include_stack.sources[ast->include_stack.current_scanner] = file_read_source(ast->include_stack.file_paths[ast->include_stack.current_scanner]);
 			PANIC_ON_NULL(ast->include_stack.sources[ast->include_stack.current_scanner], ast, ERROR_CANNOT_OPEN_FILE);
+			++ast->include_stack.current_scanner;
 
-			init_scanner(&ast->include_stack.scanners[++ast->include_stack.current_scanner], ast->include_stack.sources[ast->include_stack.current_scanner - 1], strlen(ast->include_stack.sources[ast->include_stack.current_scanner - 1]), 1);
+			init_scanner(&ast->include_stack.scanners[ast->include_stack.current_scanner], ast->include_stack.sources[ast->include_stack.current_scanner - 1], strlen(ast->include_stack.sources[ast->include_stack.current_scanner - 1]), 1);
 			ESCAPE_ON_NULL(parse_code_block(ast, code_block, current_reg, register_limit, 0, 1));
 			--ast->include_stack.current_scanner;
 

@@ -277,12 +277,12 @@ const int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_al
 }
 
 void free_machine(machine_t* machine) {
+	free_ffi(&machine->ffi_table);
 	free(machine->stack);
 	free(machine->positions);
 	free(machine->heap_allocs);
 	free(machine->heap_frame_bounds);
 	free(machine->heap_reset_bounds);
-	free_ffi(&machine->ffi_table);
 }
 
 const int machine_execute(machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count) {
