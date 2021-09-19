@@ -286,9 +286,9 @@ void free_machine(machine_t* machine) {
 }
 
 const int machine_execute(machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count) {
-	machine_ins_t* last_ins = &instructions[instruction_count - 1];
+	machine_ins_t* last_ins = &instructions[instruction_count];
 	machine->ip = &instructions[0];
-	while (machine->ip <= last_ins)
+	while (machine->ip != last_ins)
 		ESCAPE_ON_NULL(machine_execute_instruction(machine, instructions)); 
 	return 1;
 }

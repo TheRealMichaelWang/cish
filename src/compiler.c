@@ -59,9 +59,6 @@ static void alloc_ast_prim(compiler_t* compiler, machine_t* machine, ast_value_t
 		for (uint_fast32_t i = 0; i < ast_value->data.array_literal.element_count; i++)
 			alloc_ast_prim(compiler, machine, &ast_value->data.array_literal.elements[i], current_prim_reg);
 		break;
-	case AST_VALUE_PROC:
-		alloc_ast_code_block(compiler, machine, &ast_value->data.procedure->exec_block, current_prim_reg);
-		break;
 	case AST_VALUE_GET_INDEX:
 		alloc_ast_prim(compiler, machine, &ast_value->data.get_index->array, current_prim_reg);
 		alloc_ast_prim(compiler, machine, &ast_value->data.get_index->index, current_prim_reg);
@@ -85,6 +82,9 @@ static void alloc_ast_prim(compiler_t* compiler, machine_t* machine, ast_value_t
 		for (uint_fast8_t i = 0; i < ast_value->data.proc_call->argument_count; i++)
 			alloc_ast_prim(compiler, machine, &ast_value->data.proc_call->arguments[i], current_prim_reg);
 		break;
+	case AST_VALUE_PROC: {
+		alloc_ast_code_block(compiler, machine, &ast_value->data.procedure->exec_block, current_prim_reg);
+		break;}
 	}
 	}
 }
@@ -95,7 +95,7 @@ static void alloc_ast_code_block(compiler_t* compiler, machine_t* machine, ast_c
 		{
 		case AST_TOP_LEVEL_DECL_VAR:
 			alloc_ast_prim(compiler, machine, &code_block->instructions[i].data.var_decl.set_value, current_prim_reg);
-			break;
+			break; 
 		case AST_TOP_LEVEL_COND: {
 			ast_cond_t* current_conditional = code_block->instructions[i].data.conditional;
 			while (current_conditional) {
