@@ -75,6 +75,7 @@ static const char* error_names[] = {
 	"insufficient memory",
 
 	"unexpected token",
+	"cannot set readonly var",
 
 	"unallowed type",
 	"missing type argument",

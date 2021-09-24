@@ -8,9 +8,10 @@ typedef enum error {
 	ERROR_NONE,
 	ERROR_MEMORY,
 
-	//compiler errors
+	//syntax errors
 	ERROR_UNEXPECTED_TOK,
 
+	ERROR_READONLY,
 	ERROR_TYPE_NOT_ALLOWED,
 	ERROR_NO_TYPE_ARG,
 

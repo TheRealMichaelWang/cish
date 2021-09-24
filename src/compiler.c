@@ -1,10 +1,6 @@
 #include <stdlib.h>
 #include "compiler.h"
 
-#ifndef max
-#define max(a,b) (((a) > (b)) ? (a) : (b))
-#endif // !max
-
 #define TEMPREG(INDEX) (ast_reg_t){.index = INDEX, .offset_flag = 1}
 #define GLOBREG(INDEX) (ast_reg_t){.index = INDEX, .offset_flag = 0}
 
@@ -59,18 +55,22 @@ static void alloc_ast_prim(compiler_t* compiler, machine_t* machine, ast_value_t
 		for (uint_fast32_t i = 0; i < ast_value->data.array_literal.element_count; i++)
 			alloc_ast_prim(compiler, machine, &ast_value->data.array_literal.elements[i], current_prim_reg);
 		break;
-	case AST_VALUE_GET_INDEX:
+	case AST_VALUE_GET_INDEX: {
 		alloc_ast_prim(compiler, machine, &ast_value->data.get_index->array, current_prim_reg);
-		alloc_ast_prim(compiler, machine, &ast_value->data.get_index->index, current_prim_reg);
-		break;
+		if (ast_value->data.get_index->index.value_type != AST_VALUE_LONG)
+			alloc_ast_prim(compiler, machine, &ast_value->data.get_index->index, current_prim_reg);
+		break; 
+	}
 	case AST_VALUE_SET_VAR:
 		alloc_ast_prim(compiler, machine, &ast_value->data.set_var->set_value, current_prim_reg);
 		break;
-	case AST_VALUE_SET_INDEX:
+	case AST_VALUE_SET_INDEX: {
 		alloc_ast_prim(compiler, machine, &ast_value->data.set_index->array, current_prim_reg);
-		alloc_ast_prim(compiler, machine, &ast_value->data.set_index->index, current_prim_reg);
+		if (ast_value->data.set_index->index.value_type != AST_VALUE_LONG)
+			alloc_ast_prim(compiler, machine, &ast_value->data.set_index->index, current_prim_reg);
 		alloc_ast_prim(compiler, machine, &ast_value->data.set_index->value, current_prim_reg);
-		break;
+		break; 
+	}
 	case AST_VALUE_BINARY_OP:
 		alloc_ast_prim(compiler, machine, &ast_value->data.binary_op->lhs, current_prim_reg);
 		alloc_ast_prim(compiler, machine, &ast_value->data.binary_op->rhs, current_prim_reg);
@@ -216,18 +216,28 @@ static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_buil
 		ESCAPE_ON_NULL(compile_ast_proc(compiler, ins_builder, value->data.procedure, out_reg));
 		break;
 	case AST_VALUE_GET_INDEX: {
-		ast_reg_t array_reg, index_reg;
+		ast_reg_t array_reg;
 		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.get_index->array, &array_reg, out_reg, temp_regs));
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.get_index->index, &index_reg, TEMPREG(temp_regs), temp_regs + 1));
-		PUSH_INS(INS3(OP_CODE_LOAD_HEAP, array_reg, index_reg, out_reg));
+		if (value->data.get_index->index.value_type == AST_VALUE_LONG)
+			PUSH_INS(INS3(OP_CODE_LOAD_HEAP, array_reg, GLOBREG(value->data.get_index->index.data.long_int), out_reg))
+		else {
+			ast_reg_t index_reg;
+			ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.get_index->index, &index_reg, TEMPREG(temp_regs), temp_regs + 1));
+			PUSH_INS(INS3(OP_CODE_LOAD_HEAP, array_reg, index_reg, out_reg));
+		}
 		break; 
 	}
 	case AST_VALUE_SET_INDEX: {
-		ast_reg_t array_reg, index_reg, value_reg;
+		ast_reg_t array_reg, value_reg;
 		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.set_index->array, &array_reg, TEMPREG(temp_regs), temp_regs + 1));
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.set_index->index, &index_reg, TEMPREG(temp_regs + 1), temp_regs + 2));
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.set_index->value, &value_reg, out_reg, temp_regs + 2));
-		PUSH_INS(INS3(OP_CODE_STORE_HEAP, array_reg, index_reg, value_reg));
+		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.set_index->value, &value_reg, out_reg, temp_regs + 1));
+		if (value->data.set_index->index.value_type == AST_VALUE_LONG)
+			PUSH_INS(INS3(OP_CODE_STORE_HEAP_I, array_reg, GLOBREG(value->data.set_index->index.data.long_int), out_reg))
+		else {
+			ast_reg_t index_reg;
+			ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.set_index->index, &index_reg, TEMPREG(temp_regs + 1), temp_regs + 2));
+			PUSH_INS(INS3(OP_CODE_STORE_HEAP, array_reg, index_reg, value_reg));
+		}
 		break; 
 	}
 	case AST_VALUE_BINARY_OP: {
@@ -235,17 +245,16 @@ static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_buil
 		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.binary_op->lhs, &lhs_reg, out_reg, temp_regs));
 		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.binary_op->rhs, &rhs_reg, TEMPREG(temp_regs), temp_regs + 1));
 
-		enum typecheck_type_type target_type = max(value->data.binary_op->lhs.type.type, value->data.binary_op->rhs.type.type);
-		if (value->data.binary_op->lhs.type.type != target_type) {
+		if (value->data.binary_op->lhs.type.type != value->type.type) {
 			PUSH_INS(INS2(OP_CODE_LONG_TO_FLOAT, lhs_reg, out_reg));
 			lhs_reg = out_reg;
 		}
-		else if (value->data.binary_op->rhs.type.type != target_type) {
+		else if (value->data.binary_op->rhs.type.type != value->type.type) {
 			PUSH_INS(INS2(OP_CODE_LONG_TO_FLOAT, rhs_reg, TEMPREG(temp_regs)));
 			rhs_reg = TEMPREG(temp_regs);
 		}
 		if (value->data.binary_op->operator == TOK_EQUALS || value->data.binary_op->operator == TOK_NOT_EQUAL) {
-			PUSH_INS(INS3(OP_CODE_BOOL_EQUAL + (target_type - TYPE_PRIMATIVE_BOOL), lhs_reg, rhs_reg, out_reg));
+			PUSH_INS(INS3(OP_CODE_BOOL_EQUAL + (value->type.type - TYPE_PRIMATIVE_BOOL), lhs_reg, rhs_reg, out_reg));
 			if (value->data.binary_op->operator == TOK_NOT_EQUAL)
 				PUSH_INS(INS2(OP_CODE_NOT, out_reg, out_reg));
 		}
@@ -254,9 +263,9 @@ static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_buil
 		else if (value->data.binary_op->operator == TOK_OR)
 			PUSH_INS(INS3(OP_CODE_OR, lhs_reg, rhs_reg, out_reg))
 		else {
-			if (target_type == TYPE_PRIMATIVE_LONG)
+			if (value->type.type == TYPE_PRIMATIVE_LONG)
 				PUSH_INS(INS3(OP_CODE_LONG_MORE + (value->data.binary_op->operator - TOK_MORE), lhs_reg, rhs_reg, out_reg))
-			else if (target_type == TYPE_PRIMATIVE_FLOAT)
+			else if (value->type.type == TYPE_PRIMATIVE_FLOAT)
 				PUSH_INS(INS3(OP_CODE_FLOAT_MORE + (value->data.binary_op->operator - TOK_MORE), lhs_reg, rhs_reg, out_reg))
 			else
 				PANIC(compiler, ERROR_UNEXPECTED_TYPE);

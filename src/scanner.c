@@ -78,6 +78,8 @@ const int scanner_scan_tok(scanner_t* scanner) {
 		uint64_t id_hash = hash_s(scanner->last_tok.str, scanner->last_tok.length);
 		switch (id_hash)
 		{
+		case 7572877634356771:
+			SET_TOK_TYPE(TOK_READONLY);
 		case 229466054363183:
 			SET_TOK_TYPE(TOK_FOREIGN);
 		case 7572251799911306: //continue

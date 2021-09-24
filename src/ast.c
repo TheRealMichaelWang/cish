@@ -300,12 +300,16 @@ static const int parse_type_decl(ast_t* ast, typecheck_type_t* typecheck_type, i
 }
 
 static const int parse_var_decl(ast_t* ast, ast_decl_var_t* var_decl, uint16_t* current_reg, uint16_t* register_limit) {
-	if (LAST_TOK.type == TOK_GLOBAL) {
-		var_decl->global_flag = 1;
+	var_decl->var_info.is_global = 0;
+	var_decl->var_info.is_readonly = 0;
+	while (LAST_TOK.type == TOK_GLOBAL || LAST_TOK.type == TOK_READONLY)
+	{
+		if (LAST_TOK.type == TOK_GLOBAL)
+			var_decl->var_info.is_global = 1;
+		else if (LAST_TOK.type == TOK_READONLY)
+			var_decl->var_info.is_readonly = 1;
 		READ_TOK;
 	}
-	else
-		var_decl->global_flag = 0;
 	ESCAPE_ON_NULL(parse_type_decl(ast, &var_decl->var_info.type, 1, 0, 0));
 	ESCAPE_ON_NULL(parse_id(ast, &var_decl->id));
 
@@ -320,16 +324,16 @@ static const int parse_var_decl(ast_t* ast, ast_decl_var_t* var_decl, uint16_t* 
 	}
 	else if (!typecheck_type_compatible(var_decl->var_info.type, var_decl->set_value.type))
 		PANIC(ast, ERROR_UNEXPECTED_TYPE);
-	var_decl->var_info.alloced_reg.offset_flag = !var_decl->global_flag;
-	var_decl->var_info.is_global = var_decl->global_flag;
-	if (var_decl->global_flag)
+	var_decl->var_info.alloced_reg.offset_flag = !var_decl->var_info.is_global;
+	var_decl->var_info.is_global = var_decl->var_info.is_global;
+	if (var_decl->var_info.is_global)
 		var_decl->var_info.alloced_reg.index = ast->global_registers++;
 	else {
 		var_decl->var_info.alloced_reg.index = *current_reg;
 		(*current_reg)++;
 		(*register_limit)++;
 	}
-	ESCAPE_ON_NULL(ast_var_cache_decl_var(ast, var_decl->id.hash, var_decl->var_info, var_decl->global_flag));
+	ESCAPE_ON_NULL(ast_var_cache_decl_var(ast, var_decl->id.hash, var_decl->var_info, var_decl->var_info.is_global));
 	return 1;
 }
 
@@ -816,6 +820,8 @@ static const int parse_value(ast_t* ast, ast_value_t* value) {
 
 		if (LAST_TOK.type == TOK_SET) {
 			READ_TOK;
+			if (var_info.is_readonly)
+				PANIC(ast, ERROR_READONLY);
 			value->value_type = AST_VALUE_SET_VAR;
 			PANIC_ON_NULL(value->data.set_var = malloc(sizeof(ast_set_var_t)), ast, ERROR_MEMORY);
 			value->data.set_var->id = id;

@@ -18,6 +18,7 @@ typedef enum token_type {
 	TOK_TYPEARG,
 	TOK_NOTHING,
 	TOK_GLOBAL,
+	TOK_READONLY,
 
 	TOK_IF,
 	TOK_ELIF,
