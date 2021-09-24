@@ -60,7 +60,8 @@ static const int std_itos(machine_reg_t* in, machine_reg_t* out) {
 	free(out->heap_alloc->init_stat);
 	free(out->heap_alloc->registers);
 	char output[50];
-	sprintf(output, 50, "%" PRIi64, in->long_int);
+	itoa((int)in->long_int, output, 10);
+	//sprintf(output, 50, "%" PRIi64, in->long_int);
 	uint8_t len = strlen(output);
 	out->heap_alloc->limit = len;
 	ESCAPE_ON_NULL(out->heap_alloc->registers = malloc(len * sizeof(machine_reg_t)));
