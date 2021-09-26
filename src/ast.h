@@ -18,6 +18,9 @@ typedef struct ast_unary_op ast_unary_op_t;
 typedef struct ast_call_proc ast_call_proc_t;
 typedef struct ast_cond ast_cond_t;
 typedef struct ast_proc ast_proc_t;
+typedef struct ast_struct_proto ast_struct_proto_t;
+typedef struct ast_get_property ast_get_property_t;
+typedef struct ast_set_property ast_set_property_t;
 
 typedef struct ast_register {
 	uint16_t index;
@@ -56,12 +59,15 @@ typedef struct ast_value {
 		AST_VALUE_ARRAY_LITERAL,
 		AST_VALUE_PROC,
 		AST_VALUE_VAR,
-		AST_VALUE_GET_INDEX,
 		AST_VALUE_SET_VAR,
 		AST_VALUE_SET_INDEX,
+		AST_VALUE_GET_INDEX,
+		AST_VALUE_SET_PROPERTY,
+		AST_VALUE_GET_PROPERTY,
 		AST_VALUE_BINARY_OP,
 		AST_VALUE_UNARY_OP,
 		AST_VALUE_PROC_CALL,
+		AST_VALUE_STRUCT_LITERAL
 	} value_type;
 
 	union ast_value_data {
@@ -73,12 +79,15 @@ typedef struct ast_value {
 		ast_array_literal_t array_literal;
 		ast_proc_t* procedure;
 		ast_id_t variable;
-		ast_get_index_t* get_index;
 		ast_set_var_t* set_var;
 		ast_set_index_t* set_index;
+		ast_get_index_t* get_index;
+		ast_set_property_t* set_property;
+		ast_get_property_t* get_property;
 		ast_binary_op_t* binary_op;
 		ast_unary_op_t* unary_op;
 		ast_call_proc_t* proc_call;
+		ast_struct_proto_t* struct_literal;
 	} data;
 
 	ast_reg_t alloced_reg;
@@ -108,6 +117,18 @@ typedef struct ast_set_index {
 typedef struct ast_get_index {
 	ast_value_t array, index;
 } ast_get_index_t;
+
+typedef struct ast_get_property {
+	ast_value_t struct_value;
+	ast_id_t id;
+	uint8_t index;
+} ast_get_property_t;
+
+typedef struct ast_set_property {
+	ast_value_t struct_value, set_value;
+	ast_id_t id;
+	uint8_t index;
+} ast_set_property_t;
 
 typedef struct ast_binary_op {
 	token_type_t operator;
@@ -141,7 +162,8 @@ typedef struct ast_top_level {
 		AST_TOP_LEVEL_RETURN,
 		AST_TOP_LEVEL_CONTINUE,
 		AST_TOP_LEVEL_BREAK,
-		AST_TOP_LEVEL_FOREIGN
+		AST_TOP_LEVEL_FOREIGN,
+		AST_TOP_LEVEL_STRUCT_PROTO
 	} type;
 
 	union ast_top_level_data
@@ -150,6 +172,7 @@ typedef struct ast_top_level {
 		ast_cond_t* conditional;
 		ast_value_t value;
 		ast_foreign_call_t foreign;
+		ast_struct_proto_t* struct_proto;
 	} data;
 } ast_top_level_t;
 
@@ -182,6 +205,21 @@ typedef struct ast_proc {
 	ast_code_block_t exec_block;
 } ast_proc_t;
 
+typedef struct ast_struct_proto {
+	ast_id_t id;
+
+	struct ast_struct_proto_property {
+		ast_id_t id;
+		typecheck_type_t type;
+
+		ast_value_t default_value;
+		int has_default_value;
+	} properties[TYPE_MAX_SUBTYPES - 1];
+	
+	uint8_t property_count;
+	typecheck_type_t type;
+} ast_struct_proto_t;
+
 typedef struct ast_var_cache_entry {
 	uint64_t id_hash;
 	ast_var_info_t var_info;
@@ -200,9 +238,11 @@ typedef struct ast {
 		uint8_t search_bounds[32], stack_top, decl_count;
 	} generic_cache;
 
-	ast_code_block_t exec_block;
-	uint16_t global_registers;
-	error_t last_err;
+	struct ast_struct_cache {
+		uint64_t ids[64];
+		ast_struct_proto_t* proto[64];
+		uint8_t definitions;
+	} struct_cache;
 
 	struct ast_include_stack {
 		uint64_t visited_hashes[64];
@@ -214,6 +254,10 @@ typedef struct ast {
 		char* file_paths[32];
 		char* sources[32];
 	} include_stack;
+
+	ast_code_block_t exec_block;
+	uint16_t global_registers;
+	error_t last_err;
 } ast_t;
 
 const int init_ast(ast_t* ast, const char* source);

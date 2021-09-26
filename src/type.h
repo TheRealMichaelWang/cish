@@ -14,6 +14,7 @@ typedef struct typecheck_type {
 		TYPE_AUTO,
 		TYPE_NOTHING,
 		TYPE_TYPEARG,
+		TYPE_STRUCTURE,
 
 		TYPE_PRIMATIVE_BOOL,
 		TYPE_PRIMATIVE_CHAR,

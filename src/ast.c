@@ -106,6 +106,15 @@ static void free_ast_call_proc(ast_call_proc_t* call_proc) {
 	free_ast_value(&call_proc->procedure);
 }
 
+static void free_ast_struct_proto(ast_struct_proto_t* struct_proto) {
+	for (uint_fast8_t i = 0; i < struct_proto->property_count; i++) {
+		free_typecheck_type(&struct_proto->properties[i].type);
+		if(struct_proto->properties[i].has_default_value)
+			free_ast_value(&struct_proto->properties[i].default_value);
+	}
+	free_typecheck_type(&struct_proto->type);
+}
+
 static void free_ast_value(ast_value_t* value) {
 	free_typecheck_type(&value->type);
 	switch (value->value_type)
@@ -123,11 +132,6 @@ static void free_ast_value(ast_value_t* value) {
 		free_ast_code_block(&value->data.procedure->exec_block);
 		free(value->data.procedure);
 		break;
-	case AST_VALUE_GET_INDEX:
-		free_ast_value(&value->data.get_index->array);
-		free_ast_value(&value->data.get_index->index);
-		free(value->data.get_index);
-		break;
 	case AST_VALUE_SET_VAR:
 		free_ast_value(&value->data.set_var->set_value);
 		free(value->data.set_var);
@@ -137,6 +141,20 @@ static void free_ast_value(ast_value_t* value) {
 		free_ast_value(&value->data.set_index->index);
 		free_ast_value(&value->data.set_index->value);
 		free(value->data.set_index);
+		break;
+	case AST_VALUE_GET_INDEX:
+		free_ast_value(&value->data.get_index->array);
+		free_ast_value(&value->data.get_index->index);
+		free(value->data.get_index);
+		break;
+	case AST_VALUE_SET_PROPERTY:
+		free_ast_value(&value->data.set_property->struct_value);
+		free_ast_value(&value->data.set_property->set_value);
+		free(value->data.set_property);
+		break;
+	case AST_VALUE_GET_PROPERTY:
+		free_ast_value(&value->data.get_property->struct_value);
+		free(value->data.get_property);
 		break;
 	case AST_VALUE_BINARY_OP:
 		free_ast_value(&value->data.binary_op->lhs);
@@ -150,6 +168,9 @@ static void free_ast_value(ast_value_t* value) {
 	case AST_VALUE_PROC_CALL:
 		free_ast_call_proc(value->data.proc_call);
 		free(value->data.proc_call);
+		break;
+	case AST_VALUE_STRUCT_LITERAL:
+		free(value->data.struct_literal);
 		break;
 	}
 }
@@ -165,31 +186,35 @@ static void free_ast_conditional(ast_cond_t* conditional) {
 	free(conditional);
 }
 
-static void free_ast_top_lvl(ast_top_level_t top_level_ins) {
-	switch (top_level_ins.type) {
+static void free_ast_top_lvl(ast_top_level_t* top_level_ins) {
+	switch (top_level_ins->type) {
 	case AST_TOP_LEVEL_RETURN_VALUE:
 	case AST_TOP_LEVEL_VALUE:
-		free_ast_value(&top_level_ins.data.value);
+		free_ast_value(&top_level_ins->data.value);
 		break;
 	case AST_TOP_LEVEL_DECL_VAR:
-		free_typecheck_type(&top_level_ins.data.var_decl.var_info.type);
-		free_ast_value(&top_level_ins.data.var_decl.set_value);
+		free_typecheck_type(&top_level_ins->data.var_decl.var_info.type);
+		free_ast_value(&top_level_ins->data.var_decl.set_value);
 		break;
 	case AST_TOP_LEVEL_COND:
-		free_ast_conditional(top_level_ins.data.conditional);
+		free_ast_conditional(top_level_ins->data.conditional);
 		break;
 	case AST_TOP_LEVEL_FOREIGN: {
-		free_ast_value(&top_level_ins.data.foreign.id_t);
-		if (top_level_ins.data.foreign.has_input)
-			free_ast_value(&top_level_ins.data.foreign.input);
+		free_ast_value(&top_level_ins->data.foreign.id_t);
+		if (top_level_ins->data.foreign.has_input)
+			free_ast_value(&top_level_ins->data.foreign.input);
 		break; 
+	case AST_TOP_LEVEL_STRUCT_PROTO:
+		free_ast_struct_proto(top_level_ins->data.struct_proto);
+		free(top_level_ins->data.struct_proto);
+		break;
 	}
 	}
 }
 
 static void free_ast_code_block(ast_code_block_t* code_block) {
 	for (uint_fast32_t i = 0; i < code_block->instruction_count; i++)
-		free_ast_top_lvl(code_block->instructions[i]);
+		free_ast_top_lvl(&code_block->instructions[i]);
 	free(code_block->instructions);
 }
 
@@ -592,6 +617,8 @@ static const int parse_proc_lit(ast_t* ast, ast_value_t* value) {
 
 		param->var_info.alloced_reg.index = current_reg++;
 		param->var_info.alloced_reg.offset_flag = 1;
+		param->var_info.is_global = 0;
+		param->var_info.is_readonly = 0;
 		ast_var_cache_decl_var(ast, param->id.hash, param->var_info, 0);
 		value->data.procedure->exec_block.register_limit++;
 	} while (LAST_TOK.type == TOK_COMMA);
