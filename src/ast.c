@@ -573,6 +573,7 @@ static const int parse_prim_value(ast_t* ast, ast_value_t* value) {
 	case TOK_NEW: {
 		value->value_type = AST_VALUE_ALLOC_ARRAY;
 		READ_TOK;
+
 		PANIC_ON_NULL(value->data.alloc_array = malloc(sizeof(ast_alloc_t)), ast, ERROR_MEMORY);
 		ESCAPE_ON_NULL(parse_type_decl(ast, &value->data.alloc_array->elem_type, 0, 0, 0));
 		PANIC_ON_NULL(value->type.sub_types = malloc((value->type.sub_type_count = 1) * sizeof(typecheck_type_t)), ast, ERROR_MEMORY);
