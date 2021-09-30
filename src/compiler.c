@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include "common.h"
 #include "compiler.h"
 
 #define TEMPREG(INDEX) (ast_reg_t){.index = INDEX, .offset_flag = 1}
@@ -244,17 +245,17 @@ static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_buil
 		ast_reg_t lhs_reg, rhs_reg;
 		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.binary_op->lhs, &lhs_reg, out_reg, temp_regs));
 		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.binary_op->rhs, &rhs_reg, TEMPREG(temp_regs), temp_regs + 1));
-
-		if (value->data.binary_op->lhs.type.type != value->type.type) {
+		enum typecheck_type_type op_type = max(value->data.binary_op->lhs.type.type, value->data.binary_op->rhs.type.type);
+		if (value->data.binary_op->lhs.type.type != op_type) {
 			PUSH_INS(INS2(OP_CODE_LONG_TO_FLOAT, lhs_reg, out_reg));
 			lhs_reg = out_reg;
 		}
-		else if (value->data.binary_op->rhs.type.type != value->type.type) {
+		else if (value->data.binary_op->rhs.type.type != op_type) {
 			PUSH_INS(INS2(OP_CODE_LONG_TO_FLOAT, rhs_reg, TEMPREG(temp_regs)));
 			rhs_reg = TEMPREG(temp_regs);
 		}
 		if (value->data.binary_op->operator == TOK_EQUALS || value->data.binary_op->operator == TOK_NOT_EQUAL) {
-			PUSH_INS(INS3(OP_CODE_BOOL_EQUAL + (value->type.type - TYPE_PRIMATIVE_BOOL), lhs_reg, rhs_reg, out_reg));
+			PUSH_INS(INS3(OP_CODE_BOOL_EQUAL + op_type - TYPE_PRIMATIVE_BOOL, lhs_reg, rhs_reg, out_reg));
 			if (value->data.binary_op->operator == TOK_NOT_EQUAL)
 				PUSH_INS(INS2(OP_CODE_NOT, out_reg, out_reg));
 		}
@@ -263,9 +264,9 @@ static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_buil
 		else if (value->data.binary_op->operator == TOK_OR)
 			PUSH_INS(INS3(OP_CODE_OR, lhs_reg, rhs_reg, out_reg))
 		else {
-			if (value->type.type == TYPE_PRIMATIVE_LONG)
+			if (op_type == TYPE_PRIMATIVE_LONG)
 				PUSH_INS(INS3(OP_CODE_LONG_MORE + (value->data.binary_op->operator - TOK_MORE), lhs_reg, rhs_reg, out_reg))
-			else if (value->type.type == TYPE_PRIMATIVE_FLOAT)
+			else if (op_type == TYPE_PRIMATIVE_FLOAT)
 				PUSH_INS(INS3(OP_CODE_FLOAT_MORE + (value->data.binary_op->operator - TOK_MORE), lhs_reg, rhs_reg, out_reg))
 			else
 				PANIC(compiler, ERROR_UNEXPECTED_TYPE);

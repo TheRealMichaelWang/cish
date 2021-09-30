@@ -3,11 +3,8 @@
 #include "hash.h"
 #include "error.h"
 #include "file.h"
+#include "common.h"
 #include "ast.h"
-
-#ifndef max
-#define max(a,b) (((a) > (b)) ? (a) : (b))
-#endif // !max
 
 #define READ_TOK PANIC_ON_NULL(scanner_scan_tok(&ast->include_stack.scanners[ast->include_stack.current_scanner]), ast, ast->include_stack.scanners[ast->include_stack.current_scanner].last_err)
 #define LAST_TOK ast->include_stack.scanners[ast->include_stack.current_scanner].last_tok
@@ -638,6 +635,7 @@ static const int parse_code_block(ast_t* ast, ast_code_block_t* code_block, uint
 		ast_top_level_t top_level_ins;
 		switch (LAST_TOK.type)
 		{
+		case TOK_READONLY:
 		case TOK_AUTO:
 		case TOK_NOTHING: //nothing will generate an error
 		case TOK_GLOBAL:
