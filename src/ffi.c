@@ -4,7 +4,7 @@
 #include "ffi.h"
 
 const int init_ffi(ffi_t* ffi_table) {
-	ESCAPE_ON_NULL(ffi_table->func_table = malloc((ffi_table->func_alloc = 64) * sizeof(foreign_func)));
+	ESCAPE_ON_FAIL(ffi_table->func_table = malloc((ffi_table->func_alloc = 64) * sizeof(foreign_func)));
 	ffi_table->func_count = 0;
 	return 1;
 }
@@ -16,7 +16,7 @@ void free_ffi(ffi_t* ffi_table) {
 const int ffi_include_func(ffi_t* ffi_table, foreign_func func) {
 	if (ffi_table->func_count == ffi_table->func_alloc) {
 		foreign_func* new_table = realloc(ffi_table->func_table, (ffi_table->func_alloc *= 2) * sizeof(foreign_func));
-		ESCAPE_ON_NULL(new_table);
+		ESCAPE_ON_FAIL(new_table);
 		ffi_table->func_table = new_table;
 	}
 	ffi_table->func_table[ffi_table->func_count++] = func;

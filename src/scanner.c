@@ -1,5 +1,8 @@
 #include <ctype.h>
+#include <string.h>
+#include <stdlib.h>
 #include "hash.h"
+#include "file.h"
 #include "scanner.h"
 
 static const char scanner_peek_char(scanner_t* scanner) {
@@ -251,6 +254,46 @@ const int scanner_scan_tok(scanner_t* scanner) {
 			PANIC(scanner, ERROR_UNEXPECTED_TOK);
 		}
 		scanner_read_char(scanner);
+	}
+	return 1;
+}
+
+void init_multi_scanner(multi_scanner_t* scanner, const char* source, const uint32_t length) {
+	init_scanner(&scanner->scanners[0], source, length, 1);
+	scanner->visited_files = 0;
+	scanner->current_scanner = 0;
+	scanner->last_err = ERROR_NONE;
+}
+
+void free_multi_scanner(multi_scanner_t* scanner) {
+	for (uint_fast8_t i = 0; i < scanner->visited_files; i++) {
+		free(scanner->file_paths[i]);
+		free(scanner->sources[i]);
+	}
+}
+
+const int multi_scanner_visit(multi_scanner_t* scanner, const char* file) {
+	uint64_t id = hash(file);
+	for (uint_fast8_t i = 0; i < scanner->visited_files; i++)
+		if (id == scanner->visited_hashes[i])
+			return 1;
+	if (scanner->visited_files == 64 || scanner->current_scanner == 31)
+		return 0;
+	PANIC_ON_FAIL(scanner->sources[scanner->visited_files] = file_read_source(file), scanner, ERROR_CANNOT_OPEN_FILE);
+	ESCAPE_ON_FAIL(scanner->file_paths[scanner->visited_files] = malloc(strlen(file) * sizeof(char)));
+	strcpy(scanner->file_paths[scanner->visited_files], file);
+	scanner->visited_hashes[scanner->visited_files] = id;
+
+	init_scanner(&scanner->scanners[++scanner->current_scanner], scanner->sources[scanner->visited_files], strlen(scanner->sources[scanner->visited_files]), 1);
+	return 1;
+}
+
+const int multi_scanner_scan_tok(multi_scanner_t* scanner) {
+	PANIC_ON_FAIL(scanner_scan_tok(&scanner->scanners[scanner->current_scanner]), scanner, scanner->scanners[scanner->current_scanner].last_err);
+	scanner->last_tok = scanner->scanners[scanner->current_scanner].last_tok;
+	if (scanner->last_tok.type == TOK_EOF && scanner->current_scanner) {
+		--scanner->current_scanner;
+		ESCAPE_ON_FAIL(multi_scanner_scan_tok(scanner));
 	}
 	return 1;
 }

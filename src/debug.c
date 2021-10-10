@@ -118,8 +118,8 @@ const char* get_err_msg(error_t error) {
 }
 
 void print_compiler_err(compiler_t* error_compiler) {
-	if (error_compiler->ast.include_stack.current_scanner)
-		printf("%s:", error_compiler->ast.include_stack.file_paths[error_compiler->ast.include_stack.current_scanner - 1]);
-	scanner_t scanner = error_compiler->ast.include_stack.scanners[error_compiler->ast.include_stack.current_scanner];
+	if (error_compiler->ast.current_scanner)
+		printf("%s:", error_compiler->ast.file_paths[error_compiler->ast.current_scanner - 1]);
+	scanner_t scanner = error_compiler->ast.scanners[error_compiler->ast.current_scanner];
 	printf("%i:%i: error:%s.", scanner.row, scanner.col, error_names[error_compiler->last_err]);
 }
