@@ -5,7 +5,7 @@
 void free_typecheck_type(typecheck_type_t* typecheck_type) {
 	for (uint_fast8_t i = 0; i < typecheck_type->sub_type_count; i++)
 		free_typecheck_type(&typecheck_type->sub_types[i]);
-	if (typecheck_type->sub_type_count)
+	if (typecheck_type->type >= TYPE_SUPER_ARRAY && typecheck_type->sub_type_count)
 		free(typecheck_type->sub_types);
 }
 
@@ -13,7 +13,7 @@ const int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src) {
 	dest->type = src.type;
 	dest->sub_type_count = src.sub_type_count;
 	dest->match = src.match;
-	if (src.sub_type_count) {
+	if (src.type >= TYPE_SUPER_ARRAY && src.sub_type_count) {
 		ESCAPE_ON_FAIL(dest->sub_types = malloc(src.sub_type_count * sizeof(typecheck_type_t)));
 		for (uint_fast8_t i = 0; i < src.sub_type_count; i++)
 			copy_typecheck_type(&dest->sub_types[i], src.sub_types[i]);
@@ -23,17 +23,22 @@ const int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src) {
 	return 1;
 }
 
-const int typecheck_type_compatible(typecheck_type_t target_type, typecheck_type_t match_type) {
-	if (target_type.type == TYPE_TYPEARG && match_type.type == TYPE_TYPEARG)
-		return target_type.match == match_type.match;
-	if (target_type.type < TYPE_SUPER_ARRAY)
-		return target_type.type == match_type.type;
+const int typecheck_type_compatible(typecheck_type_t* target_type, typecheck_type_t match_type) {
+	if (target_type->type == TYPE_AUTO)
+		return copy_typecheck_type(target_type, match_type);
+	else if (target_type->type < TYPE_SUPER_ARRAY)
+		return target_type->type == match_type.type;
 	else {
-		if (target_type.type != match_type.type || target_type.sub_type_count != match_type.sub_type_count)
+		if (target_type->type != match_type.type)
 			return 0;
-		for (uint_fast8_t i = 0; i < target_type.sub_type_count; i++)
-			if (target_type.sub_types[i].type != match_type.sub_types[i].type)
+		if (target_type->type >= TYPE_SUPER_ARRAY) {
+			if (target_type->sub_type_count != match_type.sub_type_count)
 				return 0;
+			for (uint_fast8_t i = 0; i < target_type->sub_type_count; i++)
+				ESCAPE_ON_FAIL(typecheck_type_compatible(&target_type->sub_types[i], match_type.sub_types[i]));
+		}
+		else if (target_type->type == TYPE_TYPEARG)
+			return target_type->match == match_type.match;
 		return 1;
 	}
 }
@@ -55,7 +60,7 @@ const int type_matcher_add(type_matcher_t* matcher, typecheck_type_t* param, typ
 	if (param->type == TYPE_TYPEARG) {
 		uint8_t match = param->match;
 		if (matcher->match_flags[match])
-			return typecheck_type_compatible(matcher->match_types[match], arg);
+			return typecheck_type_compatible(&matcher->match_types[match], arg);
 		if (arg.type == TYPE_NOTHING)
 			return 0;
 		matcher->match_flags[match] = 1;

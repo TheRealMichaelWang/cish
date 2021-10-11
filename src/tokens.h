@@ -33,8 +33,8 @@ typedef enum token_type {
 	TOK_INCLUDE,
 	TOK_FOREIGN,
 
-	TOK_TRUE,
 	TOK_FALSE,
+	TOK_TRUE,
 
 	TOK_IDENTIFIER,
 

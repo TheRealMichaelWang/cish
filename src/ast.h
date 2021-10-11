@@ -52,7 +52,7 @@ typedef struct ast_primative {
 } ast_primative_t;
 
 typedef struct ast_value {
-	typecheck_type_t* type;
+	typecheck_type_t type;
 
 	enum ast_value_type {
 		AST_VALUE_PRIMATIVE,
@@ -131,14 +131,14 @@ typedef struct ast_foreign_call {
 
 typedef struct ast_statement {
 	enum ast_statement_type {
-		AST_TOP_LEVEL_DECL_VAR,
-		AST_TOP_LEVEL_COND,
-		AST_TOP_LEVEL_VALUE,
-		AST_TOP_LEVEL_RETURN_VALUE,
-		AST_TOP_LEVEL_RETURN,
-		AST_TOP_LEVEL_CONTINUE,
-		AST_TOP_LEVEL_BREAK,
-		AST_TOP_LEVEL_FOREIGN
+		AST_STATEMENT_DECL_VAR,
+		AST_STATEMENT_COND,
+		AST_STATEMENT_VALUE,
+		AST_STATEMENT_RETURN_VALUE,
+		AST_STATEMENT_RETURN,
+		AST_STATEMENT_CONTINUE,
+		AST_STATEMENT_BREAK,
+		AST_STATEMENT_FOREIGN
 	} type;
 
 	union ast_statement_data
