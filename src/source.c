@@ -1,8 +1,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "compiler.h"
+//#include "compiler.h"
 #include "machine.h"
+#include "ast.h"
 #include "file.h"
 #include "stdlib.h"
 #include "debug.h"
@@ -16,92 +17,18 @@ int main(int argc, const char* argv[]) {
 	int current_arg = 0;
 
 	const char* working_dir = READ_ARG;
-
-	while (current_arg < argc)
-	{
-		const char* flag = READ_ARG;
-
-		if (!strcmp(flag, "-info")) {
-			printf("SuperForth 0.1\n"
-				"written by Michael Wang, 2020-2021\n"
-				"This is free software; see the source for copying conditions. There is NO\n"
-				"warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n");
-		}
-		else if (!strcmp(flag, "-help")) {
-			printf("Usage: [option flag] -s [source file] -o [output file]\n\n"
-				"Option Flags:\n"
-				"-cr  Compile and run.\n"
-				"-c   Compile and save.\n"
-				"-r   Load and run.\n"
-				"-d   Print instruction dump");
-		}
-		else if (!strcmp(flag, "-r") || !strcmp(flag, "-d")) {
-			machine_t machine;
-			uint16_t instruction_count;
-
-			EXPECT_FLAG("-s");
-			machine_ins_t* instructions = file_load_ins(READ_ARG, &machine, &instruction_count);
-			install_stdlib(&machine, 2);
-			if (!instructions)
-				ABORT(("Error reading instructions."));
-
-			if (strcmp(flag, "-d")) {
-				if (!machine_execute(&machine, instructions, instruction_count))
-					ABORT(("A runtime error occured(%s).", get_err_msg(machine.last_err)));
-			}
-			else {
-				print_instructions(instructions, instruction_count);
-			}
-			free_machine(&machine);
-			free(instructions);
-		}
-		else if (!strcmp(flag, "-c") || !strcmp(flag, "-cr")) {
-			compiler_t* compiler = malloc(sizeof(compiler_t));
-			if (!compiler)
-				ABORT(("Error allocating memory for the compiler."));
-
-			EXPECT_FLAG("-s");
-			char* source = file_read_source(READ_ARG);
-			if (!source)
-				ABORT(("Error reading input source file(-s)."));
-
-			if (!init_compiler(compiler, source)) {
-				print_compiler_err(compiler);
-				free_compiler(compiler);
-				free(compiler);
-				exit(EXIT_FAILURE);
-			}
-			free(source);
-			machine_t machine;
-			machine_ins_t* instructions;
-			uint16_t instruction_count;
-			if (!compile(compiler, &machine, &instructions, &instruction_count)) {
-				free_compiler(compiler);
-				free_machine(&machine);
-				free(instructions);
-				free(compiler);
-				ABORT(("A compiler error occured(%s).", get_err_msg(compiler->last_err)))
-			}
-
-			if (!strcmp(flag, "-c")) {
-				EXPECT_FLAG("-o");
-				if (!file_save_compiled(READ_ARG, compiler, &machine, instructions, instruction_count))
-					ABORT(("Error writing instructions to output."));
-				printf("Success!");
-			}
-			else {
-				install_stdlib(&machine, 2);
-				if(!machine_execute(&machine, instructions, instruction_count))
-					ABORT(("A runtime error occured(%s)", get_err_msg(machine.last_err)))
-			}
-			free_compiler(compiler);
-			free_machine(&machine);
-			free(instructions);
-			free(compiler);
-		}
-		else
-			ABORT(("Unexpected flag \"%s\".", flag));
-	}
 	
+	char* source = file_read_source(READ_ARG);
+	
+	ast_parser_t parser;
+	init_ast_parser(&parser, source);
+
+	ast_t ast;
+
+	init_ast(&ast, &parser);
+
+	free_ast_parser(&parser);
+	free_ast(&ast);
+
 	exit(EXIT_SUCCESS);
 }

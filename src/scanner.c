@@ -111,8 +111,6 @@ const int scanner_scan_tok(scanner_t* scanner) {
 			SET_TOK_TYPE(TOK_GLOBAL);
 		case 5863476: //if
 			SET_TOK_TYPE(TOK_IF);
-		case 6385191717: //elif
-			SET_TOK_TYPE(TOK_ELIF);
 		case 6385192046: //else
 			SET_TOK_TYPE(TOK_ELSE);
 		case 210732529790: //while
@@ -259,10 +257,12 @@ const int scanner_scan_tok(scanner_t* scanner) {
 }
 
 void init_multi_scanner(multi_scanner_t* scanner, const char* source, const uint32_t length) {
-	init_scanner(&scanner->scanners[0], source, length, 1);
+	init_scanner(&scanner->scanners[0], source, length, 0);
 	scanner->visited_files = 0;
 	scanner->current_scanner = 0;
 	scanner->last_err = ERROR_NONE;
+	scanner_read_char(&scanner->scanners[0]);
+	multi_scanner_scan_tok(scanner);
 }
 
 void free_multi_scanner(multi_scanner_t* scanner) {

@@ -29,7 +29,7 @@ typedef struct ast_array_literal {
 	typecheck_type_t* elem_type;
 
 	ast_value_t* elements;
-	uint32_t element_count;
+	uint16_t element_count;
 } ast_array_literal_t;
 
 typedef struct ast_primative {
@@ -74,9 +74,9 @@ typedef struct ast_value {
 		ast_array_literal_t array_literal;
 		ast_proc_t* procedure;
 		ast_var_info_t* variable;
-		ast_get_index_t* get_index;
 		ast_set_var_t* set_var;
 		ast_set_index_t* set_index;
+		ast_get_index_t* get_index;
 		ast_binary_op_t* binary_op;
 		ast_unary_op_t* unary_op;
 		ast_call_proc_t* proc_call;
@@ -124,7 +124,7 @@ typedef struct ast_call_proc {
 } ast_call_proc_t;
 
 typedef struct ast_foreign_call {
-	ast_value_t id_t, input;
+	ast_value_t id, input;
 	ast_var_info_t* output_var;
 	int has_input, has_output;
 } ast_foreign_call_t;
@@ -153,7 +153,6 @@ typedef struct ast_statement {
 typedef struct ast_code_block {
 	ast_statement_t* instructions;
 	uint32_t instruction_count, allocated_instructions;
-	uint16_t variables;
 } ast_code_block_t;
 
 typedef struct ast_cond {
@@ -169,14 +168,11 @@ typedef struct ast_cond {
 typedef struct ast_proc {
 	typecheck_type_t* return_type;
 
-	struct ast_proc_param {
-		ast_var_info_t var_info;
-		typecheck_type_t* type;
-	} params[TYPE_MAX_SUBTYPES - 1];
-
+	ast_var_info_t params[TYPE_MAX_SUBTYPES - 1];
 	uint8_t param_count;
 
 	ast_code_block_t exec_block;
+	uint16_t total_locals;
 } ast_proc_t;
 
 typedef struct ast_var_cache_entry {
@@ -189,7 +185,36 @@ typedef struct ast {
 	uint16_t global_variables, constants;
 } ast_t;
 
-const int init_ast(ast_t* ast, const char* source);
+typedef struct ast_parser_frame ast_parser_frame_t;
+
+typedef struct ast_parser_frame {
+	ast_var_cache_entry_t* locals;
+	typecheck_type_t* return_type;
+
+	uint64_t* generics;
+
+	uint16_t local_count, allocated_locals, local_offset, total_locals;
+	uint8_t generic_count;
+
+	ast_parser_frame_t* parent_frame;
+} ast_parser_frame_t;
+
+typedef struct ast_parser {
+	ast_parser_frame_t frames[32];
+	uint8_t current_frame;
+
+	ast_var_cache_entry_t* globals;
+	uint16_t global_count, allocated_globals, constant_count;
+
+	multi_scanner_t multi_scanner;
+
+	error_t last_err;
+} ast_parser_t;
+
+const int init_ast_parser(ast_parser_t* ast_parser, const char* source);
+void free_ast_parser(ast_parser_t* ast_parser);
+
+const int init_ast(ast_t* ast, ast_parser_t* ast_parser);
 void free_ast(ast_t* ast);
 
 #endif // !AST_H
