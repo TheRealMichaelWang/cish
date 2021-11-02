@@ -31,6 +31,10 @@ int main(int argc, const char* argv[]) {
 	compiler_t compiler;
 	int k = init_compiler(&compiler, &machine, &ast);
 
+	print_instructions(compiler.ins_builder.instructions, compiler.ins_builder.instruction_count);
+
+	machine_execute(&machine, compiler.ins_builder.instructions, compiler.ins_builder.instruction_count);
+
 	free_ast_parser(&parser);
 	free_ast(&ast);
 

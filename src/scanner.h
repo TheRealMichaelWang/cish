@@ -18,8 +18,8 @@ typedef struct scanner {
 } scanner_t;
 
 typedef struct multi_scanner {
-	char* file_paths[64];
-	char* sources[64];
+	char* file_paths[32];
+	char* sources[32];
 	uint64_t visited_hashes[64];
 	uint8_t visited_files;
 

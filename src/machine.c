@@ -60,7 +60,7 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 			machine->ip++;
 		break;
 	case OP_CODE_JUMP:
-		machine->ip = &instructions[AREG];
+		machine->ip = &instructions[ins.a];
  		return 1;
 	case OP_CODE_JUMP_HIST: {
 		PANIC_ON_FAIL(machine->position_count != machine->frame_limit, machine, ERROR_STACK_OVERFLOW);
@@ -69,7 +69,7 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		return 1;
 	}
 	case OP_CODE_LABEL:
-		machine->stack[AREG].ip = &instructions[BREG];
+		machine->stack[AREG].ip = &instructions[ins.b];
 		break;
 	case OP_CODE_JUMP_BACK: {
 		machine->ip = machine->positions[--machine->position_count];
@@ -86,11 +86,10 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		break;
 	}
 	case OP_CODE_LOAD_HEAP_I: {
-		uint16_t a_reg = AREG;
-		machine_reg_t array_register = machine->stack[a_reg];
-		if (!array_register.heap_alloc->init_stat[a_reg])
+		machine_reg_t array_register = machine->stack[AREG];
+		if (!array_register.heap_alloc->init_stat[ins.b])
 			PANIC(machine, ERROR_READ_UNINIT);
-		machine->stack[CREG] = array_register.heap_alloc->registers[BREG];
+		machine->stack[CREG] = array_register.heap_alloc->registers[ins.b];
 		break;
 	}
 	case OP_CODE_STORE_HEAP: {
@@ -103,10 +102,9 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		break;
 	}
 	case OP_CODE_STORE_HEAP_I: {
-		uint16_t b_reg = BREG;
 		machine_reg_t array_register = machine->stack[AREG];
-		array_register.heap_alloc->registers[b_reg] = machine->stack[CREG];
-		array_register.heap_alloc->init_stat[b_reg] = 1;
+		array_register.heap_alloc->registers[ins.b] = machine->stack[CREG];
+		array_register.heap_alloc->init_stat[ins.b] = 1;
 		break;
 	}
 	case OP_CODE_STACK_OFFSET:

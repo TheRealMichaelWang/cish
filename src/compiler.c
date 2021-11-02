@@ -36,9 +36,8 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	{
 	case AST_VALUE_PRIMATIVE:
 		memcpy(&compiler->target_machine->stack[compiler->current_constant], &value.data.primative.data, sizeof(uint64_t));
-		compiler->eval_regs[value.id] = GLOB_REG(compiler->current_constant);
+		compiler->eval_regs[value.id] = GLOB_REG(compiler->current_constant++);
 		compiler->move_eval[value.id] = 1;
-		compiler->current_constant++;
 		return current_reg;
 	case AST_VALUE_ALLOC_ARRAY:
 		allocate_value_regs(compiler, value.data.alloc_array->size, current_reg, target_reg);
@@ -48,12 +47,14 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 			allocate_value_regs(compiler, value.data.array_literal.elements[i], current_reg, NULL);
 		break;
 	case AST_VALUE_PROC: {
+		compiler->eval_regs[value.id] = GLOB_REG(compiler->current_constant++);
+		compiler->move_eval[value.id] = 1;
 		uint16_t proc_regs = 1;
 		for (uint_fast16_t i = 0; i < value.data.procedure->param_count; i++)
-			compiler->var_regs[value.data.procedure->params[i].id] = LOC_REG(proc_regs++);
-		compiler->var_regs[value.data.procedure->thisproc.id] = LOC_REG(proc_regs);
+			compiler->var_regs[value.data.procedure->params[i].var_info.id] = LOC_REG(proc_regs++);
+		compiler->var_regs[value.data.procedure->thisproc.id] = compiler->eval_regs[value.id];
 		allocate_code_block_regs(compiler, value.data.procedure->exec_block, proc_regs);
-		break;
+		return current_reg;
 	}
 	case AST_VALUE_VAR:
 		compiler->eval_regs[value.id] = compiler->var_regs[value.data.variable->id];
@@ -90,8 +91,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 			arg_dest_regs = LOC_REG(extra_regs++);
 			allocate_value_regs(compiler, value.data.proc_call->arguments[i], extra_regs, &arg_dest_regs);
 		}
-		arg_dest_regs = LOC_REG(extra_regs);
-		allocate_value_regs(compiler, value.data.proc_call->procedure, extra_regs, &arg_dest_regs);
+		allocate_value_regs(compiler, value.data.proc_call->procedure, extra_regs, NULL);
 		return current_reg + 1;
 	}
 	}
@@ -114,16 +114,22 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 			ast_decl_var_t var_decl = code_block.instructions[i].data.var_decl;
 			if (var_decl.var_info.is_readonly &&
 				(var_decl.set_value.value_type == AST_VALUE_PRIMATIVE ||
+					var_decl.set_value.value_type == AST_VALUE_PROC ||
 					(var_decl.set_value.value_type == AST_VALUE_VAR && var_decl.set_value.data.variable->is_readonly))) {
 				current_reg = allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL);
 				compiler->var_regs[var_decl.var_info.id] = compiler->eval_regs[var_decl.set_value.id];
+				compiler->move_eval[var_decl.set_value.id] = 0;
 			}
 			else {
-				if (var_decl.var_info.is_global)
+				if (var_decl.var_info.is_global) {
 					compiler->var_regs[var_decl.var_info.id] = GLOB_REG(compiler->ast->total_constants + compiler->current_global++);
-				else
-					compiler->var_regs[var_decl.var_info.id] = LOC_REG(current_reg++);
-				current_reg = allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info.id]);
+					allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info.id]);
+				}
+				else {
+					compiler->var_regs[var_decl.var_info.id] = LOC_REG(current_reg);
+					allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info.id]);
+					current_reg++;
+				}
 			}
 			break;
 		}
@@ -229,12 +235,17 @@ static const int compile_value(compiler_t* compiler, ast_value_t value) {
 			EMIT_INS(INS2(OP_CODE_NOT + value.data.unary_op->operator - TOK_NOT, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]))
 		break;
 	case AST_VALUE_PROC_CALL:
-		for (uint_fast8_t i = 0; i < value.data.proc_call->argument_count; i++)
+		for (uint_fast8_t i = 0; i < value.data.proc_call->argument_count; i++) {
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.proc_call->arguments[i]));
+			if (compiler->move_eval[value.data.proc_call->arguments[i].id])
+				EMIT_INS(INS2(OP_CODE_MOVE, LOC_REG(i + 1), compiler->eval_regs[value.data.proc_call->arguments[i].id]));
+		}
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.proc_call->procedure));
-		EMIT_INS(INS1(OP_CODE_STACK_OFFSET, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
-		EMIT_INS(INS1(OP_CODE_JUMP_HIST, LOC_REG(value.data.proc_call->argument_count + 1)));
-		EMIT_INS(INS1(OP_CODE_STACK_DEOFFSET, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id]))); 
+		if(compiler->proc_call_offsets[value.data.proc_call->id])
+			EMIT_INS(INS1(OP_CODE_STACK_OFFSET, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
+		EMIT_INS(INS1(OP_CODE_JUMP_HIST, compiler->eval_regs[value.data.proc_call->procedure.id]));
+		if (compiler->proc_call_offsets[value.data.proc_call->id])
+			EMIT_INS(INS1(OP_CODE_STACK_DEOFFSET, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id]))); 
 		break;
 	}
 	return 1;
@@ -248,8 +259,8 @@ static const int compile_conditional(compiler_t* compiler, ast_cond_t* condition
 		uint16_t this_break_ip = compiler->ins_builder.instruction_count;
 		EMIT_INS(INS0(OP_CODE_JUMP));
 		ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, this_break_ip, this_continue_ip));
-		EMIT_INS(INS1(OP_CODE_JUMP, LOC_REG(continue_ip)));
-		compiler->ins_builder.instructions[break_ip].a = compiler->ins_builder.instruction_count;
+		EMIT_INS(INS1(OP_CODE_JUMP, LOC_REG(this_continue_ip)));
+		compiler->ins_builder.instructions[this_break_ip].a = compiler->ins_builder.instruction_count;
 	}
 	else {
 		uint16_t escape_jump_count = 0;
@@ -259,9 +270,10 @@ static const int compile_conditional(compiler_t* compiler, ast_cond_t* condition
 				escape_jump_count++;
 			count_cond = count_cond->next_if_false;
 		}
+		escape_jump_count--;
 		uint16_t* escape_jumps = malloc(escape_jump_count * sizeof(uint16_t));
 		PANIC_ON_FAIL(escape_jumps, compiler, ERROR_MEMORY);
-		escape_jump_count = 0;
+		uint16_t current_escape_jump = 0;
 		while (conditional) {
 			if (conditional->has_cond_val) {
 				ESCAPE_ON_FAIL(compile_value(compiler, conditional->condition));
@@ -269,16 +281,18 @@ static const int compile_conditional(compiler_t* compiler, ast_cond_t* condition
 				uint16_t move_next_ip = compiler->ins_builder.instruction_count;
 				EMIT_INS(INS0(OP_CODE_JUMP));
 				ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, break_ip, continue_ip));
-				escape_jumps[escape_jump_count++] = compiler->ins_builder.instruction_count;
-				EMIT_INS(INS0(OP_CODE_JUMP));
+				if (current_escape_jump != escape_jump_count) {
+					escape_jumps[current_escape_jump++] = compiler->ins_builder.instruction_count;
+					EMIT_INS(INS0(OP_CODE_JUMP));
+				}
 				compiler->ins_builder.instructions[move_next_ip].a = compiler->ins_builder.instruction_count;
 			}
-			else {
+			else
 				ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, break_ip, continue_ip));
-				for (uint_fast16_t i = 0; i < escape_jump_count; i++)
-					compiler->ins_builder.instructions[escape_jumps[i]].a = compiler->ins_builder.instruction_count;
-			}
+			conditional = conditional->next_if_false;
 		}
+		for (uint_fast16_t i = 0; i < escape_jump_count; i++)
+			compiler->ins_builder.instructions[escape_jumps[i]].a = compiler->ins_builder.instruction_count;
 	}
 	return 1;
 }
@@ -300,7 +314,7 @@ static const int compile_code_block(compiler_t* compiler, ast_code_block_t code_
 		case AST_STATEMENT_RETURN_VALUE:
 			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.value));
 			if (compiler->move_eval[code_block.instructions[i].data.value.id])
-				EMIT_INS(INS2(OP_CODE_MOVE, compiler->eval_regs[code_block.instructions[i].data.value.id], LOC_REG(0)));
+				EMIT_INS(INS2(OP_CODE_MOVE, LOC_REG(0), compiler->eval_regs[code_block.instructions[i].data.value.id]));
 			if (code_block.instructions[i].data.value.type.type == TYPE_SUPER_ARRAY)
 				EMIT_INS(INS1(OP_CODE_HEAP_TRACE, LOC_REG(0)));
 		case AST_STATEMENT_RETURN:
@@ -344,11 +358,15 @@ const int init_compiler(compiler_t* compiler, machine_t* target_machine, ast_t* 
 	PANIC_ON_FAIL(compiler->move_eval = malloc(ast->value_count * sizeof(int)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(compiler->var_regs = malloc(ast->total_var_decls * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(compiler->proc_call_offsets = malloc(ast->proc_call_count * sizeof(uint16_t)), compiler, ERROR_MEMORY);
+
+	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX, 1000, 1000), compiler, target_machine->last_err);
 	allocate_code_block_regs(compiler, ast->exec_block, 0);
 
 	PANIC_ON_FAIL(init_ins_builder(&compiler->ins_builder), compiler, ERROR_MEMORY);
-	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX, 1000, 1000), compiler, target_machine->last_err);
+	
+	EMIT_INS(INS1(OP_CODE_STACK_OFFSET, LOC_REG(compiler->ast->total_constants + compiler->current_global)));
 	ESCAPE_ON_FAIL(compile_code_block(compiler, ast->exec_block, NULL, 0, 0));
+
 
 	return 1;
 }

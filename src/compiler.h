@@ -20,6 +20,7 @@ typedef struct compiler_reg {
 typedef struct compiler {
 	compiler_reg_t* eval_regs;
 	int* move_eval;
+
 	compiler_reg_t* var_regs;
 
 	uint16_t* proc_call_offsets;

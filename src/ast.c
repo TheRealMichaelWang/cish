@@ -6,7 +6,7 @@
 #include "ast.h"
 
 #define LAST_TOK ast_parser->multi_scanner.last_tok
-#define MATCH_TOK(TYPE) if(LAST_TOK.type != TYPE) PANIC(ast_parser, ERROR_UNEXPECTED_TOK)
+#define MATCH_TOK(TYPE) {if(LAST_TOK.type != TYPE) PANIC(ast_parser, ERROR_UNEXPECTED_TOK)}
 #define READ_TOK PANIC_ON_FAIL(multi_scanner_scan_tok(&ast_parser->multi_scanner), ast_parser, ast_parser->multi_scanner.last_err);
 
 #define CURRENT_FRAME ast_parser->frames[ast_parser->current_frame - 1]
@@ -156,8 +156,10 @@ static const int parse_subtypes(ast_parser_t* ast_parser, typecheck_type_t* supe
 }
 
 static const int parse_type(ast_parser_t* ast_parser, typecheck_type_t* type, int allow_auto, int allow_nothing) {
-	if (LAST_TOK.type >= TOK_TYPECHECK_BOOL && LAST_TOK.type <= TOK_TYPECHECK_PROC)
+	if (LAST_TOK.type >= TOK_TYPECHECK_BOOL && LAST_TOK.type <= TOK_TYPECHECK_PROC) {
 		type->type = TYPE_PRIMATIVE_BOOL + (LAST_TOK.type - TOK_TYPECHECK_BOOL);
+		type->match = 0;
+	}
 	else if (LAST_TOK.type == TOK_AUTO || LAST_TOK.type == TOK_NOTHING) {
 		PANIC_ON_FAIL(LAST_TOK.type == TOK_AUTO ? allow_auto : allow_nothing, ast_parser, ERROR_TYPE_NOT_ALLOWED);
 		type->type = LAST_TOK.type - TOK_AUTO + TYPE_AUTO;
@@ -288,6 +290,7 @@ static const int parse_if_else(ast_parser_t* ast_parser, ast_cond_t* conditional
 	}
 	else
 		conditional->next_if_false = NULL;
+	conditional->next_if_true = NULL;
 	return 1;
 }
 
@@ -353,6 +356,14 @@ static const int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* co
 				ESCAPE_ON_FAIL(parse_expression(ast_parser, &statement->data.value, CURRENT_FRAME.return_type, 0));
 			}
 			break;
+		case TOK_INCLUDE: {
+			READ_TOK;
+			MATCH_TOK(TOK_STRING);
+			char* file_source = malloc((LAST_TOK.length + 1) * sizeof(char));
+			memcpy(file_source, LAST_TOK.str, LAST_TOK.length * sizeof(char));
+			multi_scanner_visit(&ast_parser->multi_scanner, file_source);
+			break; 
+		}
 		default:
 			PANIC(ast_parser, ERROR_UNEXPECTED_TOK);
 		}
@@ -501,8 +512,10 @@ static const int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typec
 		value->value_type = AST_VALUE_PROC;
 		ESCAPE_ON_FAIL(ast_parser_new_frame(ast_parser, NULL, 0));
 		value->type.match = 0;
+
 		if(LAST_TOK.type == TOK_LESS)
 			ESCAPE_ON_FAIL(parse_type_params(ast_parser, &value->type.match));
+		
 		PANIC_ON_FAIL(value->data.procedure = malloc(sizeof(ast_proc_t)), ast_parser, ERROR_MEMORY);
 		value->data.procedure->param_count = 0;
 		MATCH_TOK(TOK_OPEN_PAREN);
@@ -525,8 +538,10 @@ static const int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typec
 		}
 		value->type.type = TYPE_SUPER_PROC;
 		value->type.sub_types = malloc((value->type.sub_type_count = value->data.procedure->param_count + 1) * sizeof(typecheck_type_t));
+		
 		for (uint_fast8_t i = 0; i < value->data.procedure->param_count; i++)
 			PANIC_ON_FAIL(copy_typecheck_type(&value->type.sub_types[i + 1], value->data.procedure->params[i].var_info.type), ast_parser, ERROR_MEMORY);
+		
 		READ_TOK;
 		MATCH_TOK(TOK_RETURN);
 		READ_TOK;
@@ -537,9 +552,11 @@ static const int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typec
 			.is_readonly = 1,
 			.type = value->type
 		};
+		
 		ESCAPE_ON_FAIL(ast_parser_decl_var(ast_parser, 7572967076558961, &value->data.procedure->thisproc));
 		ESCAPE_ON_FAIL(parse_code_block(ast_parser, &value->data.procedure->exec_block, 1, 0));
 		ESCAPE_ON_FAIL(ast_parser_close_frame(ast_parser));
+		ast_parser->ast->total_constants++;
  		break;
 	}
 	default:

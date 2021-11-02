@@ -9,9 +9,9 @@ static const char* opcode_names[] = {
 
 	"mov        ",
 	"check      ",
-	"ncheck     ",
 
 	"jmp        ",
+
 	"jmphist    ",
 	"jmpback    ",
 	"lbl        ",
@@ -26,6 +26,7 @@ static const char* opcode_names[] = {
 
 	"heapalloc  ",
 	"heapalloc_i",
+
 	"newframe   ",
 	"heaptrace  ",
 	"heapclean  ",
@@ -67,7 +68,8 @@ static const char* opcode_names[] = {
 	"fneg       ",
 	"lneg       ",
 
-	"ltf        "
+	"ltf        ",
+	"ftl        "
 };
 
 static const char* error_names[] = {
@@ -116,4 +118,3 @@ void print_instructions(machine_ins_t* ins, uint16_t ins_count) {
 const char* get_err_msg(error_t error) {
 	return error_names[error];
 }
-

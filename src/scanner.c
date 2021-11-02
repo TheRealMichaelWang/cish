@@ -278,7 +278,7 @@ const int multi_scanner_visit(multi_scanner_t* scanner, const char* file) {
 	if (scanner->visited_files == 64 || scanner->current_scanner == 31)
 		return 0;
 	PANIC_ON_FAIL(scanner->sources[scanner->visited_files] = file_read_source(file), scanner, ERROR_CANNOT_OPEN_FILE);
-	ESCAPE_ON_FAIL(scanner->file_paths[scanner->visited_files] = malloc(strlen(file) * sizeof(char)));
+	ESCAPE_ON_FAIL(scanner->file_paths[scanner->visited_files] = malloc((strlen(file) + 1) * sizeof(char)));
 	strcpy(scanner->file_paths[scanner->visited_files], file);
 	scanner->visited_hashes[scanner->visited_files] = id;
 
