@@ -38,6 +38,6 @@ typedef struct compiler {
 const int init_ins_builder(ins_builder_t* ins_builder);
 const int ins_builder_append_ins(ins_builder_t* ins_builder, machine_ins_t ins);
 
-const int init_compiler(compiler_t* compiler, machine_t* target_machine, ast_t* ast);
+const int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast);
 
 #endif // !COMPILER_H

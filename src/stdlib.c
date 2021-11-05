@@ -32,7 +32,7 @@ static const int std_ftos(machine_reg_t* in, machine_reg_t* out) {
 	free(out->heap_alloc->init_stat);
 	free(out->heap_alloc->registers);
 	char output[50];
-	sprintf(output, 50, "%f", in->float_int);
+	sprintf(output, "%f", in->float_int);
 	uint8_t len = strlen(output);
 	out->heap_alloc->limit = len;
 	ESCAPE_ON_FAIL(out->heap_alloc->registers = malloc(len * sizeof(machine_reg_t)));
@@ -60,7 +60,7 @@ static const int std_itos(machine_reg_t* in, machine_reg_t* out) {
 	free(out->heap_alloc->init_stat);
 	free(out->heap_alloc->registers);
 	char output[50];
-	sprintf(output, 50, "%" PRIi64, in->long_int);
+	sprintf(output, "%" PRIi64, in->long_int);
 	uint8_t len = strlen(output);
 	out->heap_alloc->limit = len;
 	ESCAPE_ON_FAIL(out->heap_alloc->registers = malloc(len * sizeof(machine_reg_t)));

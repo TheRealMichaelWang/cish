@@ -18,25 +18,33 @@ int main(int argc, const char* argv[]) {
 
 	const char* working_dir = READ_ARG;
 	
-	char* source = file_read_source(READ_ARG);
-	
-	ast_parser_t parser;
-	init_ast_parser(&parser, source);
+	const char* op_flag = READ_ARG;
 
-	ast_t ast;
+	if (!strcmp(op_flag, "-cr")) {
+		ast_parser_t parser;
+		if (!init_ast_parser(&parser, READ_ARG))
+			ABORT(("Error initializing parser(%s).", get_err_msg(parser.last_err)));
+		ast_t ast;
+		if (!init_ast(&ast, &parser)) {
+			print_error_trace(parser.multi_scanner);
+			ABORT(("Syntax error(%s).", get_err_msg(parser.last_err)));
+		}
+		free_ast_parser(&parser);
 
-	int s = init_ast(&ast, &parser);
+		machine_t machine;
+		compiler_t compiler;
+		if (!compile(&compiler, &machine, &ast))
+			ABORT(("Compilation failiure(%s).", get_err_msg(compiler.last_err)));
+		free_ast(&ast);
 
-	machine_t machine;
-	compiler_t compiler;
-	int k = init_compiler(&compiler, &machine, &ast);
-
-	print_instructions(compiler.ins_builder.instructions, compiler.ins_builder.instruction_count);
-
-	machine_execute(&machine, compiler.ins_builder.instructions, compiler.ins_builder.instruction_count);
-
-	free_ast_parser(&parser);
-	free_ast(&ast);
+		print_instructions(compiler.ins_builder.instructions, compiler.ins_builder.instruction_count);
+		install_stdlib(&machine, 100);
+		if (!machine_execute(&machine, compiler.ins_builder.instructions, compiler.ins_builder.instruction_count))
+			ABORT(("Runtime error(%s).", get_err_msg(machine.last_err)));
+		free_machine(&machine);
+	}
+	else
+		ABORT(("Unrecognized flag(%s).", op_flag));
 
 	exit(EXIT_SUCCESS);
 }

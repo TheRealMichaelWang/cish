@@ -74,18 +74,21 @@ static const char* opcode_names[] = {
 
 static const char* error_names[] = {
 	"none",
-	"insufficient memory",
+	"memory",
+	"internal",
 
 	"unexpected token",
-	"cannot set readonly var",
 
+	"cannot set readonly var",
 	"unallowed type",
+
 	"missing type argument",
 
 	"expected sub types",
-	"to many sub types",
 
-	"undeclared variable",
+	"undeclared",
+	"redeclaration",
+
 	"unexpected type",
 	"unexpected argument length",
 
@@ -93,7 +96,6 @@ static const char* error_names[] = {
 	"cannot break",
 	"cannot continue",
 
-	"insufficient position stack",
 	"index out of range",
 	"stack overflow",
 	"read unitialized memory",
@@ -117,4 +119,16 @@ void print_instructions(machine_ins_t* ins, uint16_t ins_count) {
 
 const char* get_err_msg(error_t error) {
 	return error_names[error];
+}
+
+void print_error_trace(multi_scanner_t multi_scanner) {
+	for (uint_fast8_t i = 0; i < multi_scanner.current_file; i++)
+		printf("in %s: row %" PRIu32 ", col %"PRIu32 "\n", multi_scanner.file_paths[i], multi_scanner.scanners[i].row, multi_scanner.scanners[i].col);
+	printf("\t");
+	for (uint_fast32_t i = 0; i < multi_scanner.last_tok.length; i++)
+		if(multi_scanner.last_tok.str[i] != '\n')
+			printf("%c", multi_scanner.last_tok.str[i]);
+	for(uint_fast8_t i = multi_scanner.last_tok.length; multi_scanner.last_tok.str[i] && multi_scanner.last_tok.str[i] == '\n'; i++)
+		printf("%c", multi_scanner.last_tok.str[i]);
+	printf("\n");
 }

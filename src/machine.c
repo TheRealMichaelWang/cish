@@ -154,10 +154,10 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		machine->stack[CREG].bool_flag = machine->stack[AREG].bool_flag || machine->stack[BREG].bool_flag;
 		break;
 	case OP_CODE_NOT:
-		machine->stack[BREG].bool_flag = !machine->stack[AREG].bool_flag;
+		machine->stack[AREG].bool_flag = !machine->stack[BREG].bool_flag;
 		break;
 	case OP_CODE_LENGTH:
-		machine->stack[BREG].long_int = machine->stack[AREG].heap_alloc->limit;
+		machine->stack[AREG].long_int = machine->stack[BREG].heap_alloc->limit;
 		break;
 	case OP_CODE_BOOL_EQUAL:
 		machine->stack[CREG].bool_flag = machine->stack[AREG].bool_flag == machine->stack[BREG].bool_flag;
