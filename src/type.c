@@ -10,7 +10,7 @@ void free_typecheck_type(typecheck_type_t* typecheck_type) {
 	}
 }
 
-const int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src) {
+int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src) {
 	dest->type = src.type;
 	dest->sub_type_count = src.sub_type_count;
 	dest->match = src.match;
@@ -24,7 +24,7 @@ const int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src) {
 	return 1;
 }
 
-const int typecheck_compatible(typecheck_type_t* target_type, typecheck_type_t match_type) {
+int typecheck_compatible(typecheck_type_t* target_type, typecheck_type_t match_type) {
 	if (target_type->type == TYPE_AUTO)
 		return copy_typecheck_type(target_type, match_type);
 	else if (target_type->type < TYPE_SUPER_ARRAY)
@@ -46,7 +46,7 @@ const int typecheck_compatible(typecheck_type_t* target_type, typecheck_type_t m
 	}
 }
 
-const int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type) {
+int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type) {
 	if (type.type == base_type)
 		return 1;
 	if (type.type >= TYPE_SUPER_ARRAY)

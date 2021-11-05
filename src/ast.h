@@ -218,10 +218,10 @@ typedef struct ast_parser {
 	error_t last_err;
 } ast_parser_t;
 
-const int init_ast_parser(ast_parser_t* ast_parser, const char* source);
+int init_ast_parser(ast_parser_t* ast_parser, char* source);
 void free_ast_parser(ast_parser_t* ast_parser);
 
-const int init_ast(ast_t* ast, ast_parser_t* ast_parser);
+int init_ast(ast_t* ast, ast_parser_t* ast_parser);
 void free_ast(ast_t* ast);
 
 #endif // !AST_H

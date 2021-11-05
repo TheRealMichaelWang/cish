@@ -47,7 +47,7 @@ static uint16_t machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc,
 #define BREG ins.b_flag ? ins.b + machine->global_offset : ins.b
 #define CREG ins.c_flag ? ins.c + machine->global_offset : ins.c
 
-static const int machine_execute_instruction(machine_t* machine, machine_ins_t* instructions) {
+static int machine_execute_instruction(machine_t* machine, machine_ins_t* instructions) {
 	machine_ins_t ins = *machine->ip;
 
     switch (ins.op_code)
@@ -253,7 +253,7 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 	return 1;
 }
 
-const int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_limit, uint16_t frame_limit) {
+int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_limit, uint16_t frame_limit) {
 	machine->heap_alloc_limit = heap_alloc_limit;
 	machine->frame_limit = frame_limit;
 
@@ -282,7 +282,7 @@ void free_machine(machine_t* machine) {
 	free(machine->heap_reset_bounds);
 }
 
-const int machine_execute(machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count) {
+int machine_execute(machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count) {
 	machine_ins_t* last_ins = &instructions[instruction_count];
 	machine->ip = &instructions[0];
 	while (machine->ip != last_ins)

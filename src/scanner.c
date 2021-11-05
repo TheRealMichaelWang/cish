@@ -5,13 +5,13 @@
 #include "file.h"
 #include "scanner.h"
 
-static const char scanner_peek_char(scanner_t* scanner) {
+static char scanner_peek_char(scanner_t* scanner) {
 	if (scanner->length == scanner->position)
 		return 0;
 	return scanner->source[scanner->position];
 }
 
-static const char scanner_read_char(scanner_t* scanner) {
+static char scanner_read_char(scanner_t* scanner) {
 	if (scanner->length == scanner->position)
 		return scanner->last_char = 0;
 	scanner->col++;
@@ -22,7 +22,7 @@ static const char scanner_read_char(scanner_t* scanner) {
 	return scanner->last_char = scanner->source[scanner->position++];
 }
 
-void init_scanner(scanner_t* scanner, const char* source, const uint32_t length) {
+void init_scanner(scanner_t* scanner, char* source, uint32_t length) {
 	scanner->source = source;
 	scanner->length = length;
 	scanner->position = 0;
@@ -32,7 +32,7 @@ void init_scanner(scanner_t* scanner, const char* source, const uint32_t length)
 }
 
 #define SET_CHAR_TYPE(TYPE) { scanner->last_char = TYPE; break; }
-const int scanner_scan_char(scanner_t* scanner) {
+int scanner_scan_char(scanner_t* scanner) {
 	scanner_read_char(scanner);
 	if (scanner->last_char == '\\') {
 		scanner_read_char(scanner);
@@ -62,7 +62,7 @@ const int scanner_scan_char(scanner_t* scanner) {
 }
 
 #define SET_TOK_TYPE(TYPE) {scanner->last_tok.type = TYPE; break;}
-const int scanner_scan_tok(scanner_t* scanner) {
+int scanner_scan_tok(scanner_t* scanner) {
 	while (scanner->last_char == ' ' || scanner->last_char == '\t' || scanner->last_char == '\r' || scanner->last_char == '\n')
 		scanner_read_char(scanner);
 
@@ -168,7 +168,7 @@ const int scanner_scan_tok(scanner_t* scanner) {
 		return scanner_scan_tok(scanner);
 	}
 	else {
-		const char next_char = scanner_peek_char(scanner);
+		char next_char = scanner_peek_char(scanner);
 		
 		switch (scanner->last_char)
 		{
@@ -254,7 +254,7 @@ const int scanner_scan_tok(scanner_t* scanner) {
 	return 1;
 }
 
-const int init_multi_scanner(multi_scanner_t* scanner, const char* path) {
+int init_multi_scanner(multi_scanner_t* scanner, char* path) {
 	scanner->visited_files = 0;
 	scanner->current_file = 0;
 	scanner->last_err = ERROR_NONE;
@@ -269,7 +269,7 @@ void free_multi_scanner(multi_scanner_t* scanner) {
 	}
 }
 
-const int multi_scanner_visit(multi_scanner_t* scanner, const char* file) {
+int multi_scanner_visit(multi_scanner_t* scanner, char* file) {
 	uint64_t id = hash(file);
 	for (uint_fast8_t i = 0; i < scanner->visited_files; i++)
 		if (id == scanner->visited_hashes[i])
@@ -289,7 +289,7 @@ const int multi_scanner_visit(multi_scanner_t* scanner, const char* file) {
 	return 1;
 }
 
-const int multi_scanner_scan_tok(multi_scanner_t* scanner) {
+int multi_scanner_scan_tok(multi_scanner_t* scanner) {
 	if (scanner->current_file) {
 		PANIC_ON_FAIL(scanner_scan_tok(&scanner->scanners[scanner->current_file - 1]), scanner, scanner->scanners[scanner->current_file - 1].last_err);
 		scanner->last_tok = scanner->scanners[scanner->current_file - 1].last_tok;

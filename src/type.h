@@ -29,18 +29,18 @@ typedef struct typecheck_type {
 	uint8_t sub_type_count, match;
 } typecheck_type_t;
 
-static const typecheck_type_t typecheck_int = { .type = TYPE_PRIMATIVE_LONG };
-static const typecheck_type_t typecheck_float = { .type = TYPE_PRIMATIVE_FLOAT };
-static const typecheck_type_t typecheck_char = { .type = TYPE_PRIMATIVE_CHAR };
-static const typecheck_type_t typecheck_bool = { .type = TYPE_PRIMATIVE_BOOL };
-static const typecheck_type_t typecheck_array = { .type = TYPE_SUPER_ARRAY };
+static typecheck_type_t typecheck_int = { .type = TYPE_PRIMATIVE_LONG };
+static typecheck_type_t typecheck_float = { .type = TYPE_PRIMATIVE_FLOAT };
+static typecheck_type_t typecheck_char = { .type = TYPE_PRIMATIVE_CHAR };
+static typecheck_type_t typecheck_bool = { .type = TYPE_PRIMATIVE_BOOL };
+static typecheck_type_t typecheck_array = { .type = TYPE_SUPER_ARRAY };
 
 void free_typecheck_type(typecheck_type_t* typecheck_type);
-const int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src);
+int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src);
 
-const int typecheck_compatible(typecheck_type_t* target_type, typecheck_type_t match_type);
+int typecheck_compatible(typecheck_type_t* target_type, typecheck_type_t match_type);
 
-const int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type);
+int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type);
 
 void type_args_substitute(typecheck_type_t* input_type_args, typecheck_type_t* proto_type);
 

@@ -13,12 +13,12 @@
 #define READ_ARG argv[current_arg++]
 #define EXPECT_FLAG(FLAG) if(strcmp(READ_ARG, FLAG)) { ABORT(("Unexpected flag %s.", FLAG)); }
 
-int main(int argc, const char* argv[]) {
+int main(int argc, char* argv[]) {
 	int current_arg = 0;
 
-	const char* working_dir = READ_ARG;
+	char* working_dir = READ_ARG;
 	
-	const char* op_flag = READ_ARG;
+	char* op_flag = READ_ARG;
 
 	if (!strcmp(op_flag, "-cr")) {
 		ast_parser_t parser;

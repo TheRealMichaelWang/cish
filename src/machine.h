@@ -117,9 +117,9 @@ typedef struct machine {
 	ffi_t ffi_table;
 } machine_t;
 
-const int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_limit, uint16_t frame_limit);
+int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_limit, uint16_t frame_limit);
 void free_machine(machine_t* machine);
 
-const int machine_execute(machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count);
+int machine_execute(machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count);
 
 #endif // !OPCODE_H

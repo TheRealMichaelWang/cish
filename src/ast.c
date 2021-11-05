@@ -11,11 +11,11 @@
 
 #define CURRENT_FRAME ast_parser->frames[ast_parser->current_frame - 1]
 
-static const int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_type_t* type);
-static const int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typecheck_type_t* type, int min_prec);
+static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_type_t* type);
+static int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typecheck_type_t* type, int min_prec);
 
-static const int parse_type(ast_parser_t* ast_parser, typecheck_type_t* type, int allow_auto, int allow_nothing);
-static const int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_block, int encapsulated, int in_loop);
+static int parse_type(ast_parser_t* ast_parser, typecheck_type_t* type, int allow_auto, int allow_nothing);
+static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_block, int encapsulated, int in_loop);
 
 static ast_statement_t* ast_code_block_append(ast_code_block_t* code_block) {
 	if (code_block->instruction_count == code_block->allocated_instructions) {
@@ -26,7 +26,7 @@ static ast_statement_t* ast_code_block_append(ast_code_block_t* code_block) {
 	return &code_block->instructions[code_block->instruction_count++];
 }
 
-static const int ast_parser_new_frame(ast_parser_t* ast_parser, typecheck_type_t* return_type, int access_previous) {
+static int ast_parser_new_frame(ast_parser_t* ast_parser, typecheck_type_t* return_type, int access_previous) {
 	if (ast_parser->current_frame == 32)
 		PANIC(ast_parser, ERROR_INTERNAL);
 	ast_parser_frame_t* next_frame = &ast_parser->frames[ast_parser->current_frame++];
@@ -45,7 +45,7 @@ static const int ast_parser_new_frame(ast_parser_t* ast_parser, typecheck_type_t
 	return 1;
 }
 
-static const int ast_parser_close_frame(ast_parser_t* ast_parser) {
+static int ast_parser_close_frame(ast_parser_t* ast_parser) {
 	PANIC_ON_FAIL(ast_parser->current_frame, ast_parser, ERROR_INTERNAL);
 	ast_parser_frame_t* free_frame = &ast_parser->frames[--ast_parser->current_frame];
 	if (!free_frame->parent_frame)
@@ -68,7 +68,7 @@ static ast_var_info_t* ast_parser_find_var(ast_parser_t* ast_parser, uint64_t id
 	return NULL;
 }
 
-static const int ast_parser_decl_var(ast_parser_t* ast_parser, uint64_t id, ast_var_info_t* var_info) {
+static int ast_parser_decl_var(ast_parser_t* ast_parser, uint64_t id, ast_var_info_t* var_info) {
 	ast_parser_frame_t* current_frame = &ast_parser->frames[ast_parser->current_frame - 1];
 	if (ast_parser_find_var(ast_parser, id))
 		PANIC(ast_parser, ERROR_REDECLARATION);
@@ -109,7 +109,7 @@ static uint8_t ast_parser_find_generic(ast_parser_t* ast_parser, uint64_t id) {
 	return 0;
 }
 
-static const int ast_parser_decl_generic(ast_parser_t* ast_parser, uint64_t id) {
+static int ast_parser_decl_generic(ast_parser_t* ast_parser, uint64_t id) {
 	ast_parser_frame_t* current_frame = &ast_parser->frames[ast_parser->current_frame - 1];
 	if (ast_parser_find_generic(ast_parser, id))
 		PANIC(ast_parser, ERROR_REDECLARATION);
@@ -121,7 +121,7 @@ static const int ast_parser_decl_generic(ast_parser_t* ast_parser, uint64_t id) 
 	return 1;
 }
 
-const int init_ast_parser(ast_parser_t* ast_parser, const char* file_path) {
+int init_ast_parser(ast_parser_t* ast_parser, char* file_path) {
 	PANIC_ON_FAIL(ast_parser->globals = malloc((ast_parser->allocated_globals = 16) * sizeof(ast_var_cache_entry_t)), ast_parser, ERROR_MEMORY);
 	ast_parser->current_frame = 0;
 	ast_parser->last_err = ERROR_NONE;
@@ -137,7 +137,7 @@ void free_ast_parser(ast_parser_t* ast_parser) {
 	free(ast_parser->globals);
 }
 
-static const int parse_subtypes(ast_parser_t* ast_parser, typecheck_type_t* super_type) {
+static int parse_subtypes(ast_parser_t* ast_parser, typecheck_type_t* super_type) {
 	MATCH_TOK(TOK_LESS);
 	typecheck_type_t* sub_types = malloc(TYPE_MAX_SUBTYPES * sizeof(typecheck_type_t));
 	super_type->sub_type_count = 0;
@@ -156,7 +156,7 @@ static const int parse_subtypes(ast_parser_t* ast_parser, typecheck_type_t* supe
 	return 1;
 }
 
-static const int parse_type(ast_parser_t* ast_parser, typecheck_type_t* type, int allow_auto, int allow_nothing) {
+static int parse_type(ast_parser_t* ast_parser, typecheck_type_t* type, int allow_auto, int allow_nothing) {
 	if (LAST_TOK.type >= TOK_TYPECHECK_BOOL && LAST_TOK.type <= TOK_TYPECHECK_PROC) {
 		type->type = TYPE_PRIMATIVE_BOOL + (LAST_TOK.type - TOK_TYPECHECK_BOOL);
 		type->match = 0;
@@ -185,7 +185,7 @@ static const int parse_type(ast_parser_t* ast_parser, typecheck_type_t* type, in
 	return 1;
 }
 
-static const int parse_type_params(ast_parser_t* ast_parser, uint8_t* decled_type_params) {
+static int parse_type_params(ast_parser_t* ast_parser, uint8_t* decled_type_params) {
 	MATCH_TOK(TOK_LESS);
 	while (LAST_TOK.type != TOK_MORE) {
 		READ_TOK;
@@ -200,7 +200,7 @@ static const int parse_type_params(ast_parser_t* ast_parser, uint8_t* decled_typ
 	return 1;
 }
 
-static const int parse_prim_value(ast_parser_t* ast_parser, ast_primative_t* primative) {
+static int parse_prim_value(ast_parser_t* ast_parser, ast_primative_t* primative) {
 	switch (LAST_TOK.type)
 	{
 	case TOK_NUMERICAL:
@@ -238,7 +238,7 @@ static const int parse_prim_value(ast_parser_t* ast_parser, ast_primative_t* pri
 	return 1;
 }
 
-static const int parse_var_decl(ast_parser_t* ast_parser, ast_decl_var_t* ast_decl_var) {
+static int parse_var_decl(ast_parser_t* ast_parser, ast_decl_var_t* ast_decl_var) {
 	ast_decl_var->var_info.is_global = 0;
 	ast_decl_var->var_info.is_readonly = 0;
 	while (LAST_TOK.type == TOK_GLOBAL || LAST_TOK.type == TOK_READONLY) {
@@ -261,7 +261,7 @@ static const int parse_var_decl(ast_parser_t* ast_parser, ast_decl_var_t* ast_de
 	return 1;
 }
 
-static const int parse_condition(ast_parser_t* ast_parser, ast_cond_t* conditional) {
+static int parse_condition(ast_parser_t* ast_parser, ast_cond_t* conditional) {
 	MATCH_TOK(TOK_OPEN_PAREN);
 	READ_TOK;
 	ESCAPE_ON_FAIL(parse_expression(ast_parser, &conditional->condition, &typecheck_bool, 0));
@@ -271,7 +271,7 @@ static const int parse_condition(ast_parser_t* ast_parser, ast_cond_t* condition
 	return 1;
 }
 
-static const int parse_if_else(ast_parser_t* ast_parser, ast_cond_t* conditional, int in_loop) {
+static int parse_if_else(ast_parser_t* ast_parser, ast_cond_t* conditional, int in_loop) {
 	MATCH_TOK(TOK_IF);
 	READ_TOK;
 	ESCAPE_ON_FAIL(parse_condition(ast_parser, conditional));
@@ -295,7 +295,7 @@ static const int parse_if_else(ast_parser_t* ast_parser, ast_cond_t* conditional
 	return 1;
 }
 
-static const int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_block, int encapsulated, int in_loop) {
+static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_block, int encapsulated, int in_loop) {
 	PANIC_ON_FAIL(code_block->instructions = malloc((code_block->allocated_instructions = 16) * sizeof(ast_statement_t)), ast_parser, ERROR_MEMORY);
 	code_block->instruction_count = 0;
 	if (encapsulated) {
@@ -411,7 +411,7 @@ static const int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* co
 	return 1;
 }
 
-static const int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_type_t* type) {
+static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_type_t* type) {
 	switch (LAST_TOK.type) {
 	case TOK_NUMERICAL:
 	case TOK_CHAR:
@@ -667,8 +667,8 @@ static const int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typec
 	return 1;
 }
 
-static const int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typecheck_type_t* type, int min_prec) {
-	static const int op_precs[] = {
+static int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typecheck_type_t* type, int min_prec) {
+	static int op_precs[] = {
 		2, 2, 2, 2, 2, 2,
 		3, 3, 4, 4, 4, 5,
 		1, 1
@@ -704,7 +704,7 @@ static const int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, 
 	return 1;
 }
 
-const int init_ast(ast_t* ast, ast_parser_t* ast_parser) {
+int init_ast(ast_t* ast, ast_parser_t* ast_parser) {
 	ast_parser->ast = ast;
 	ast->proc_call_count = 0;
 	ast->value_count = 0;

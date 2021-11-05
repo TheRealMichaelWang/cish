@@ -5,6 +5,6 @@
 
 #include "machine.h"
 
-char* file_read_source(const char* path);
+char* file_read_source(char* path);
 
 #endif // !FILE_H

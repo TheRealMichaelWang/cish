@@ -5,7 +5,7 @@
 
 #include <stdint.h>
 
-const uint64_t hash_s(const char* str, const uint64_t len);
-const uint64_t hash(const char* str);
+uint64_t hash_s(char* str, uint64_t len);
+uint64_t hash(char* str);
 
 #endif // !HASH_H

@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "debug.h"
 
-static const char* opcode_names[] = {
+static char* opcode_names[] = {
 	"abort      ",
 	"foreign    ",
 
@@ -72,7 +72,7 @@ static const char* opcode_names[] = {
 	"ftl        "
 };
 
-static const char* error_names[] = {
+static char* error_names[] = {
 	"none",
 	"memory",
 	"internal",
@@ -117,7 +117,7 @@ void print_instructions(machine_ins_t* ins, uint16_t ins_count) {
 	}
 }
 
-const char* get_err_msg(error_t error) {
+char* get_err_msg(error_t error) {
 	return error_names[error];
 }
 

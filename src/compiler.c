@@ -12,13 +12,13 @@
 
 #define EMIT_INS(INS) PANIC_ON_FAIL(ins_builder_append_ins(&compiler->ins_builder, INS), compiler, ERROR_MEMORY)
 
-const int init_ins_builder(ins_builder_t* ins_builder) {
+int init_ins_builder(ins_builder_t* ins_builder) {
 	ESCAPE_ON_FAIL(ins_builder->instructions = malloc((ins_builder->alloced_ins = 64) * sizeof(machine_ins_t)));
 	ins_builder->instruction_count = 0;
 	return 1;
 }
 
-const int ins_builder_append_ins(ins_builder_t* ins_builder, machine_ins_t ins) {
+int ins_builder_append_ins(ins_builder_t* ins_builder, machine_ins_t ins) {
 	if (ins_builder->instruction_count == ins_builder->alloced_ins) {
 		machine_ins_t* new_ins = realloc(ins_builder->instructions, (ins_builder->alloced_ins *= 2) * sizeof(machine_ins_t));
 		ESCAPE_ON_FAIL(new_ins);
@@ -162,9 +162,9 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 		}
 }
 
-static const int compile_code_block(compiler_t* compiler, ast_code_block_t code_block, ast_proc_t* proc, uint16_t break_ip, uint16_t continue_ip);
+static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block, ast_proc_t* proc, uint16_t break_ip, uint16_t continue_ip);
 
-static const int compile_value(compiler_t* compiler, ast_value_t value) {
+static int compile_value(compiler_t* compiler, ast_value_t value) {
 	switch (value.value_type)
 	{
 	case AST_VALUE_ALLOC_ARRAY:
@@ -251,7 +251,7 @@ static const int compile_value(compiler_t* compiler, ast_value_t value) {
 	return 1;
 }
 
-static const int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, ast_proc_t* proc, uint16_t break_ip, uint16_t continue_ip) {
+static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, ast_proc_t* proc, uint16_t break_ip, uint16_t continue_ip) {
 	if (conditional->next_if_true) {
 		uint16_t this_continue_ip = compiler->ins_builder.instruction_count;
 		ESCAPE_ON_FAIL(compile_value(compiler, conditional->condition));
@@ -297,7 +297,7 @@ static const int compile_conditional(compiler_t* compiler, ast_cond_t* condition
 	return 1;
 }
 
-static const int compile_code_block(compiler_t* compiler, ast_code_block_t code_block, ast_proc_t* proc, uint16_t break_ip, uint16_t continue_ip) {
+static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block, ast_proc_t* proc, uint16_t break_ip, uint16_t continue_ip) {
 	for (uint_fast32_t i = 0; i < code_block.instruction_count; i++)
 		switch (code_block.instructions[i].type) {
 		case AST_STATEMENT_DECL_VAR:
@@ -347,7 +347,7 @@ static const int compile_code_block(compiler_t* compiler, ast_code_block_t code_
 	return 1;
 }
 
-const int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
+int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
 	compiler->target_machine = target_machine;
 	compiler->ast = ast;
 	compiler->last_err = ERROR_NONE;
