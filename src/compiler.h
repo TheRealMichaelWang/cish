@@ -32,7 +32,7 @@ typedef struct compiler {
 
 	uint16_t current_constant, current_global;
 	
-	errno_t last_err;
+	error_t last_err;
 } compiler_t;
 
 const int init_ins_builder(ins_builder_t* ins_builder);

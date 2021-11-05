@@ -18,8 +18,8 @@ static const int parse_type(ast_parser_t* ast_parser, typecheck_type_t* type, in
 static const int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_block, int encapsulated, int in_loop);
 
 static ast_statement_t* ast_code_block_append(ast_code_block_t* code_block) {
-	if (code_block->instructions == code_block->allocated_instructions) {
-		ast_statement_t* new_ins = realloc(code_block->instructions, ((int)code_block->allocated_instructions *= 2) * sizeof(ast_statement_t));
+	if (code_block->instruction_count == code_block->allocated_instructions) {
+		ast_statement_t* new_ins = realloc(code_block->instructions, (code_block->allocated_instructions *= 2) * sizeof(ast_statement_t));
 		ESCAPE_ON_FAIL(new_ins);
 		code_block->instructions = new_ins;
 	}
@@ -468,7 +468,7 @@ static const int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typec
 		READ_TOK;
 		while (LAST_TOK.type != TOK_CLOSE_BRACKET) {
 			if (value->data.array_literal.element_count == alloc_elems) {
-				ast_value_t* new_elems = realloc(value->data.array_literal.element_count, (alloc_elems *= 2) * sizeof(ast_value_t));
+				ast_value_t* new_elems = realloc(value->data.array_literal.elements, (alloc_elems *= 2) * sizeof(ast_value_t));
 				PANIC_ON_FAIL(new_elems, ast_parser, ERROR_MEMORY);
 				value->data.array_literal.elements = new_elems;
 			}
@@ -737,7 +737,7 @@ static void free_ast_value(ast_value_t* value) {
 		break;
 	case AST_VALUE_PROC:
 		for (uint_fast8_t i = 0; i < value->data.procedure->param_count; i++)
-			free_ast_var_info(&value->data.procedure->params[i]);
+			free_ast_var_info(&value->data.procedure->params[i].var_info);
 		free_ast_code_block(&value->data.procedure->exec_block);
 		free(value->data.procedure);
 		break;
