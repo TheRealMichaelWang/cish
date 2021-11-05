@@ -1,9 +1,3 @@
-global auto itof = proc(int n) return float {
-	float f = 0;
-	foreign 0 n f;
-	return f;
-};
-
 global auto itos = proc(int n) return array<char> {
 	array<char> buf = new char[0];
 	foreign 6 n buf;
@@ -15,21 +9,3 @@ global auto stoi = proc(array<char> buffer) return int {
 	foreign 7 buffer n;
 	return n;
 };
-
-global auto ftos = proc(float f) return array<char> {
-	array<char> buf = new char[0];
-	foreign 4 f buf;
-	return buf;
-};
-
-global auto stof = proc(array<char> buffer) return float {
-	float n = 0;
-	foreign 5 buffer n;
-	return n;
-};
-
-global auto floor = proc(float f) return int {
-	int i = 0;
-	foreign 1 f i;
-	return i;
-}
