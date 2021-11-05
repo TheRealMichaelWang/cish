@@ -1,25 +1,19 @@
 #include <stdlib.h>
-#include "common.h"
+#include <string.h>
 #include "compiler.h"
 
-#define TEMPREG(INDEX) (ast_reg_t){.index = INDEX, .offset_flag = 1}
-#define GLOBREG(INDEX) (ast_reg_t){.index = INDEX, .offset_flag = 0}
+#define LOC_REG(INDEX) (compiler_reg_t){.reg = (INDEX), .offset = 1}
+#define GLOB_REG(INDEX) (compiler_reg_t){.reg = (INDEX), .offset = 0}
 
-#define INS0(OP) (machine_ins_t) {.op_code = OP}
-#define INS1(OP, REGA) (machine_ins_t){.op_code = OP, .a = REGA.index, .a_flag = REGA.offset_flag}
-#define INS2(OP, REGA, REGB) (machine_ins_t){.op_code = OP, .a = REGA.index, .a_flag = REGA.offset_flag, .b = REGB.index, .b_flag = REGB.offset_flag}
-#define INS3(OP, REGA, REGB, REGC) (machine_ins_t){.op_code = OP, .a = REGA.index, .a_flag = REGA.offset_flag, .b = REGB.index, .b_flag = REGB.offset_flag, .c = REGC.index, .c_flag = REGC.offset_flag}
+#define INS0(OP) (machine_ins_t){.op_code = OP}
+#define INS1(OP, REG) (machine_ins_t){.op_code = OP, .a = REG.reg, .a_flag = REG.offset}
+#define INS2(OP, REG, REG1) (machine_ins_t){.op_code = OP, .a = REG.reg, .a_flag = REG.offset, .b = REG1.reg, .b_flag = REG1.offset}
+#define INS3(OP, REG, REG1, REG2) (machine_ins_t){.op_code = OP, .a = REG.reg, .a_flag = REG.offset, .b = REG1.reg, .b_flag = REG1.offset, .c = REG2.reg, .c_flag = REG2.offset}
 
-#define PUSH_INS(INS) PANIC_ON_NULL(ins_builder_append_ins(ins_builder, INS), compiler, ERROR_MEMORY)
-
-#define ALLOC_REG {ast_value->alloced_reg.index = (*current_prim_reg)++; ast_value->alloced_reg.offset_flag = 0; break; }
-
-static void alloc_ast_code_block(compiler_t* compiler, machine_t* machine, ast_code_block_t* code_block, uint16_t* current_prim_reg);
-static const int compile_code_block(compiler_t* compiler, ins_builder_t* ins_builder, ast_code_block_t* code_block, uint16_t temp_regs, ast_proc_t* procedure, uint16_t break_jump, uint16_t continue_jump);
-static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_builder, ast_value_t* value, ast_reg_t out_reg, uint16_t temp_regs);
+#define EMIT_INS(INS) PANIC_ON_FAIL(ins_builder_append_ins(&compiler->ins_builder, INS), compiler, ERROR_MEMORY)
 
 const int init_ins_builder(ins_builder_t* ins_builder) {
-	ESCAPE_ON_NULL(ins_builder->instructions = malloc((ins_builder->alloced_ins = 64) * sizeof(machine_ins_t)));
+	ESCAPE_ON_FAIL(ins_builder->instructions = malloc((ins_builder->alloced_ins = 64) * sizeof(machine_ins_t)));
 	ins_builder->instruction_count = 0;
 	return 1;
 }
@@ -27,376 +21,358 @@ const int init_ins_builder(ins_builder_t* ins_builder) {
 const int ins_builder_append_ins(ins_builder_t* ins_builder, machine_ins_t ins) {
 	if (ins_builder->instruction_count == ins_builder->alloced_ins) {
 		machine_ins_t* new_ins = realloc(ins_builder->instructions, (ins_builder->alloced_ins *= 2) * sizeof(machine_ins_t));
-		ESCAPE_ON_NULL(new_ins);
+		ESCAPE_ON_FAIL(new_ins);
 		ins_builder->instructions = new_ins;
 	}
 	ins_builder->instructions[ins_builder->instruction_count++] = ins;
 	return 1;
 }
 
-static void alloc_ast_prim(compiler_t* compiler, machine_t* machine, ast_value_t* ast_value, uint16_t* current_prim_reg) {
-	switch (ast_value->value_type)
+static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code_block, uint16_t current_reg);
+
+static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uint16_t current_reg, compiler_reg_t* target_reg) {
+	uint16_t extra_regs = current_reg;
+	switch (value.value_type)
 	{
-	case AST_VALUE_BOOL:
-		machine->stack[*current_prim_reg].bool_flag = ast_value->data.bool_flag;
-		ALLOC_REG;
-	case AST_VALUE_CHAR:
-		machine->stack[*current_prim_reg].char_int = ast_value->data.character;
-		ALLOC_REG;
-	case AST_VALUE_LONG:
-		machine->stack[*current_prim_reg].long_int = ast_value->data.long_int;
-		ALLOC_REG;
-	case AST_VALUE_FLOAT:
-		machine->stack[*current_prim_reg].float_int = ast_value->data.float_int;
-		ALLOC_REG;
+	case AST_VALUE_PRIMATIVE:
+		memcpy(&compiler->target_machine->stack[compiler->current_constant], &value.data.primative.data, sizeof(uint64_t));
+		compiler->eval_regs[value.id] = GLOB_REG(compiler->current_constant++);
+		compiler->move_eval[value.id] = 1;
+		return current_reg;
 	case AST_VALUE_ALLOC_ARRAY:
-		alloc_ast_prim(compiler, machine, &ast_value->data.alloc_array->size, current_prim_reg);
+		allocate_value_regs(compiler, value.data.alloc_array->size, current_reg, target_reg);
 		break;
-	case AST_VALUE_ARRAY_LITERAL: {
-		for (uint_fast32_t i = 0; i < ast_value->data.array_literal.element_count; i++)
-			alloc_ast_prim(compiler, machine, &ast_value->data.array_literal.elements[i], current_prim_reg);
-		break;
-	case AST_VALUE_GET_INDEX: {
-		alloc_ast_prim(compiler, machine, &ast_value->data.get_index->array, current_prim_reg);
-		if (ast_value->data.get_index->index.value_type != AST_VALUE_LONG)
-			alloc_ast_prim(compiler, machine, &ast_value->data.get_index->index, current_prim_reg);
-		break; 
-	}
-	case AST_VALUE_SET_VAR:
-		alloc_ast_prim(compiler, machine, &ast_value->data.set_var->set_value, current_prim_reg);
-		break;
-	case AST_VALUE_SET_INDEX: {
-		alloc_ast_prim(compiler, machine, &ast_value->data.set_index->array, current_prim_reg);
-		if (ast_value->data.set_index->index.value_type != AST_VALUE_LONG)
-			alloc_ast_prim(compiler, machine, &ast_value->data.set_index->index, current_prim_reg);
-		alloc_ast_prim(compiler, machine, &ast_value->data.set_index->value, current_prim_reg);
-		break; 
-	}
-	case AST_VALUE_BINARY_OP:
-		alloc_ast_prim(compiler, machine, &ast_value->data.binary_op->lhs, current_prim_reg);
-		alloc_ast_prim(compiler, machine, &ast_value->data.binary_op->rhs, current_prim_reg);
-		break;
-	case AST_VALUE_UNARY_OP:
-		alloc_ast_prim(compiler, machine, &ast_value->data.unary_op->operand, current_prim_reg);
-		break;
-	case AST_VALUE_PROC_CALL:
-		for (uint_fast8_t i = 0; i < ast_value->data.proc_call->argument_count; i++)
-			alloc_ast_prim(compiler, machine, &ast_value->data.proc_call->arguments[i], current_prim_reg);
+	case AST_VALUE_ARRAY_LITERAL:
+		for (uint_fast16_t i = 0; i < value.data.array_literal.element_count; i++)
+			allocate_value_regs(compiler, value.data.array_literal.elements[i], current_reg, NULL);
 		break;
 	case AST_VALUE_PROC: {
-		alloc_ast_code_block(compiler, machine, &ast_value->data.procedure->exec_block, current_prim_reg);
-		break;}
+		compiler->eval_regs[value.id] = GLOB_REG(compiler->current_constant++);
+		compiler->move_eval[value.id] = 1;
+		uint16_t proc_regs = 1;
+		for (uint_fast16_t i = 0; i < value.data.procedure->param_count; i++)
+			compiler->var_regs[value.data.procedure->params[i].var_info.id] = LOC_REG(proc_regs++);
+		compiler->var_regs[value.data.procedure->thisproc.id] = compiler->eval_regs[value.id];
+		allocate_code_block_regs(compiler, value.data.procedure->exec_block, proc_regs);
+		return current_reg;
 	}
-	}
-}
-
-static void alloc_ast_code_block(compiler_t* compiler, machine_t* machine, ast_code_block_t* code_block, uint16_t* current_prim_reg) {
-	for (uint_fast32_t i = 0; i < code_block->instruction_count; i++) {
-		switch (code_block->instructions[i].type)
-		{
-		case AST_TOP_LEVEL_DECL_VAR:
-			alloc_ast_prim(compiler, machine, &code_block->instructions[i].data.var_decl.set_value, current_prim_reg);
-			break; 
-		case AST_TOP_LEVEL_COND: {
-			ast_cond_t* current_conditional = code_block->instructions[i].data.conditional;
-			while (current_conditional) {
-				alloc_ast_prim(compiler, machine, &current_conditional->cond_val, current_prim_reg);
-				alloc_ast_code_block(compiler, machine, &current_conditional->exec_block, current_prim_reg);
-				if (current_conditional->next_if_false)
-					current_conditional = current_conditional->next_if_false;
-				else if (current_conditional != current_conditional->next_if_true)
-					current_conditional = current_conditional->next_if_true;
-				else
-					break;
-			}
-			break;
-		}
-		case AST_TOP_LEVEL_RETURN_VALUE:
-		case AST_TOP_LEVEL_VALUE:
-			alloc_ast_prim(compiler, machine, &code_block->instructions[i].data.value, current_prim_reg);
-			break;
-		case AST_TOP_LEVEL_FOREIGN: {
-			alloc_ast_prim(compiler, machine, &code_block->instructions[i].data.foreign.id_t, current_prim_reg); 
-			if (code_block->instructions[i].data.foreign.has_input)
-				alloc_ast_prim(compiler, machine, &code_block->instructions[i].data.foreign.input, current_prim_reg);
-			break;
-		}
-		}
-	}
-}
-
-const int init_compiler(compiler_t* compiler, const char* source) {
-	compiler->last_err = ERROR_NONE;
-	PANIC_ON_NULL(init_ast(&compiler->ast, source), compiler, compiler->ast.last_err);
-	return 1;
-}
-
-void free_compiler(compiler_t* compiler) {
-	free_ast(&compiler->ast);
-}
-
-static const int compile_ast_proc(compiler_t* compiler, ins_builder_t* ins_builder, ast_proc_t* procedure, ast_reg_t out_reg) {
-	uint16_t label_ins_ip = ins_builder->instruction_count;
-	PUSH_INS(INS2(OP_CODE_LABEL, out_reg, GLOBREG(0)));
-	uint16_t jump_ins_ip = ins_builder->instruction_count;
-	PUSH_INS(INS1(OP_CODE_JUMP, GLOBREG(0))); 
-	ins_builder->instructions[label_ins_ip].b = ins_builder->instruction_count;
-	PUSH_INS(INS0(OP_CODE_HEAP_NEW_FRAME));
-	ESCAPE_ON_NULL(compile_code_block(compiler, ins_builder, &procedure->exec_block, procedure->exec_block.register_limit, procedure, 0, 0));
-	PUSH_INS(INS0(OP_CODE_ABORT)); //instead of checking all code-paths for return statments, this aborts instead
-	ins_builder->instructions[jump_ins_ip].a = ins_builder->instruction_count;
-	return 1;
-}
-
-static const int compile_ast_value_reg(compiler_t* compiler, ins_builder_t* ins_builder, ast_value_t* value, ast_reg_t* dest_reg, ast_reg_t set_regs, uint16_t temp_regs) {
-	switch (value->value_type)
-	{
-	case AST_VALUE_SET_VAR: {
-		ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &value->data.set_var->set_value, value->alloced_reg, temp_regs));
-		if (value->data.set_var->set_global && value->type.type == TYPE_SUPER_ARRAY)
-			PUSH_INS(INS1(OP_CODE_HEAP_TRACE, value->alloced_reg));
-	}
-	case AST_VALUE_BOOL:
-	case AST_VALUE_CHAR:
-	case AST_VALUE_LONG:
-	case AST_VALUE_FLOAT:
 	case AST_VALUE_VAR:
-		*dest_reg = value->alloced_reg;
-		break;
-	case AST_VALUE_PROC_CALL: {
-		ast_reg_t proc_reg;
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.proc_call->procedure, &proc_reg, TEMPREG(temp_regs), temp_regs));
-		for (uint8_t i = 0; i < value->data.proc_call->argument_count; i++)
-			ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &value->data.proc_call->arguments[i], TEMPREG(temp_regs + i + 1), temp_regs + i + 2));
-		PUSH_INS(INS2(OP_CODE_MOVE, TEMPREG(temp_regs + value->data.proc_call->argument_count + 1), proc_reg));
-		PUSH_INS(INS1(OP_CODE_STACK_OFFSET, GLOBREG(temp_regs)));
-		PUSH_INS(INS1(OP_CODE_JUMP_HIST, TEMPREG(value->data.proc_call->argument_count + 1)));
-		PUSH_INS(INS1(OP_CODE_STACK_DEOFFSET, GLOBREG(temp_regs)));
-		*dest_reg = TEMPREG(temp_regs);
-		break;
-	}
-	default:
-		compile_ast_value(compiler, ins_builder, value, set_regs, temp_regs);
-		*dest_reg = set_regs;
-		break;
-	}
-	return 1;
-};
-
-static const int compile_ast_value(compiler_t* compiler, ins_builder_t* ins_builder, ast_value_t* value, ast_reg_t out_reg, uint16_t temp_regs) {
-	switch (value->value_type)
-	{
+		compiler->eval_regs[value.id] = compiler->var_regs[value.data.variable->id];
+		compiler->move_eval[value.id] = 1;
+		return current_reg;
 	case AST_VALUE_SET_VAR:
-	case AST_VALUE_BOOL:
-	case AST_VALUE_CHAR:
-	case AST_VALUE_LONG:
-	case AST_VALUE_FLOAT:
-	case AST_VALUE_VAR:
+		compiler->eval_regs[value.id] = compiler->var_regs[value.data.set_var->var_info->id];
+		allocate_value_regs(compiler, value.data.set_var->set_value, current_reg, &compiler->eval_regs[value.id]);
+		compiler->move_eval[value.id] = 1;
+		return current_reg;
+	case AST_VALUE_SET_INDEX:
+		extra_regs = allocate_value_regs(compiler, value.data.set_index->array, extra_regs, NULL);
+		extra_regs = allocate_value_regs(compiler, value.data.set_index->index, extra_regs, NULL);
+		extra_regs = allocate_value_regs(compiler, value.data.set_index->value, extra_regs, target_reg);
+		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_index->value.id];
+		compiler->move_eval[value.id] = compiler->move_eval[value.data.set_index->value.id];
+		return current_reg;
+	case AST_VALUE_GET_INDEX:
+		extra_regs = allocate_value_regs(compiler, value.data.get_index->array, extra_regs, NULL);
+		extra_regs = allocate_value_regs(compiler, value.data.get_index->index, extra_regs, NULL);
+		break;
+	case AST_VALUE_BINARY_OP:
+		extra_regs = allocate_value_regs(compiler, value.data.binary_op->lhs, extra_regs, NULL);
+		extra_regs = allocate_value_regs(compiler, value.data.binary_op->rhs, extra_regs, NULL);
+		break;
+	case AST_VALUE_UNARY_OP:
+		allocate_value_regs(compiler, value.data.unary_op->operand, current_reg, target_reg);
+		break;
 	case AST_VALUE_PROC_CALL: {
-		ast_reg_t reg;
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, value, &reg, out_reg, temp_regs));
-		PUSH_INS(INS2(OP_CODE_MOVE, out_reg, reg));
-		break; 
-	}
-	case AST_VALUE_ALLOC_ARRAY: {
-		ast_reg_t len_reg;
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.alloc_array->size, &len_reg, out_reg, temp_regs));
-		PUSH_INS(INS3(OP_CODE_HEAP_ALLOC, out_reg, len_reg, GLOBREG(value->data.alloc_array->elem_type.type == TYPE_SUPER_ARRAY)));
-		break;
-	}
-	case AST_VALUE_ARRAY_LITERAL: {
-		PUSH_INS(INS3(OP_CODE_HEAP_ALLOC_I, out_reg, GLOBREG(value->data.array_literal.element_count), GLOBREG(value->data.array_literal.elem_type.type == TYPE_SUPER_ARRAY)));
-		for (uint_fast32_t i = 0; i < value->data.array_literal.element_count; i++) {
-			ast_reg_t elem_reg;
-			ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.array_literal.elements[i], &elem_reg, TEMPREG(temp_regs), temp_regs + 1));
-			PUSH_INS(INS3(OP_CODE_STORE_HEAP_I, out_reg, GLOBREG(i), elem_reg));
+		compiler->eval_regs[value.id] = LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] = extra_regs++);
+		compiler->move_eval[value.id] = 1;
+		compiler_reg_t arg_dest_regs;
+		for (uint_fast8_t i = 0; i < value.data.proc_call->argument_count; i++) {
+			arg_dest_regs = LOC_REG(extra_regs++);
+			allocate_value_regs(compiler, value.data.proc_call->arguments[i], extra_regs, &arg_dest_regs);
 		}
-		break;
-	}
-	case AST_VALUE_PROC:
-		ESCAPE_ON_NULL(compile_ast_proc(compiler, ins_builder, value->data.procedure, out_reg));
-		break;
-	case AST_VALUE_GET_INDEX: {
-		ast_reg_t array_reg;
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.get_index->array, &array_reg, out_reg, temp_regs));
-		if (value->data.get_index->index.value_type == AST_VALUE_LONG)
-			PUSH_INS(INS3(OP_CODE_LOAD_HEAP, array_reg, GLOBREG(value->data.get_index->index.data.long_int), out_reg))
-		else {
-			ast_reg_t index_reg;
-			ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.get_index->index, &index_reg, TEMPREG(temp_regs), temp_regs + 1));
-			PUSH_INS(INS3(OP_CODE_LOAD_HEAP, array_reg, index_reg, out_reg));
-		}
-		break; 
-	}
-	case AST_VALUE_SET_INDEX: {
-		ast_reg_t array_reg, value_reg;
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.set_index->array, &array_reg, TEMPREG(temp_regs), temp_regs + 1));
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.set_index->value, &value_reg, out_reg, temp_regs + 1));
-		if (value->data.set_index->index.value_type == AST_VALUE_LONG)
-			PUSH_INS(INS3(OP_CODE_STORE_HEAP_I, array_reg, GLOBREG(value->data.set_index->index.data.long_int), out_reg))
-		else {
-			ast_reg_t index_reg;
-			ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.set_index->index, &index_reg, TEMPREG(temp_regs + 1), temp_regs + 2));
-			PUSH_INS(INS3(OP_CODE_STORE_HEAP, array_reg, index_reg, value_reg));
-		}
-		break; 
-	}
-	case AST_VALUE_BINARY_OP: {
-		ast_reg_t lhs_reg, rhs_reg;
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.binary_op->lhs, &lhs_reg, out_reg, temp_regs));
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.binary_op->rhs, &rhs_reg, TEMPREG(temp_regs), temp_regs + 1));
-		enum typecheck_type_type op_type = max(value->data.binary_op->lhs.type.type, value->data.binary_op->rhs.type.type);
-		if (value->data.binary_op->lhs.type.type != op_type) {
-			PUSH_INS(INS2(OP_CODE_LONG_TO_FLOAT, lhs_reg, out_reg));
-			lhs_reg = out_reg;
-		}
-		else if (value->data.binary_op->rhs.type.type != op_type) {
-			PUSH_INS(INS2(OP_CODE_LONG_TO_FLOAT, rhs_reg, TEMPREG(temp_regs)));
-			rhs_reg = TEMPREG(temp_regs);
-		}
-		if (value->data.binary_op->operator == TOK_EQUALS || value->data.binary_op->operator == TOK_NOT_EQUAL) {
-			PUSH_INS(INS3(OP_CODE_BOOL_EQUAL + op_type - TYPE_PRIMATIVE_BOOL, lhs_reg, rhs_reg, out_reg));
-			if (value->data.binary_op->operator == TOK_NOT_EQUAL)
-				PUSH_INS(INS2(OP_CODE_NOT, out_reg, out_reg));
-		}
-		else if (value->data.binary_op->operator == TOK_AND)
-			PUSH_INS(INS3(OP_CODE_AND, lhs_reg, rhs_reg, out_reg))
-		else if (value->data.binary_op->operator == TOK_OR)
-			PUSH_INS(INS3(OP_CODE_OR, lhs_reg, rhs_reg, out_reg))
-		else {
-			if (op_type == TYPE_PRIMATIVE_LONG)
-				PUSH_INS(INS3(OP_CODE_LONG_MORE + (value->data.binary_op->operator - TOK_MORE), lhs_reg, rhs_reg, out_reg))
-			else if (op_type == TYPE_PRIMATIVE_FLOAT)
-				PUSH_INS(INS3(OP_CODE_FLOAT_MORE + (value->data.binary_op->operator - TOK_MORE), lhs_reg, rhs_reg, out_reg))
-			else
-				PANIC(compiler, ERROR_UNEXPECTED_TYPE);
-		}
-		break;
-	}
-	case AST_VALUE_UNARY_OP: {
-		ast_reg_t op_reg;
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &value->data.unary_op->operand, &op_reg, out_reg, temp_regs));
-
-		if (value->data.unary_op->operator == TOK_NOT)
-			PUSH_INS(INS2(OP_CODE_NOT, op_reg, out_reg))
-		else if (value->data.unary_op->operator == TOK_HASHTAG)
-			PUSH_INS(INS2(OP_CODE_LENGTH, op_reg, out_reg))
-		else {
-			if (value->type.type == TOK_TYPECHECK_LONG)
-				PUSH_INS(INS2(OP_CODE_LONG_NEGATE, op_reg, out_reg))
-			else
-				PUSH_INS(INS2(OP_CODE_FLOAT_NEGATE, op_reg, out_reg))
-		}
-		break;
+		allocate_value_regs(compiler, value.data.proc_call->procedure, extra_regs, NULL);
+		return current_reg + 1;
 	}
 	}
-	return 1;
+	if (target_reg) {
+		compiler->eval_regs[value.id] = *target_reg;
+		compiler->move_eval[value.id] = 0;
+	}
+	else {
+		compiler->eval_regs[value.id] = LOC_REG(current_reg++);
+		compiler->move_eval[value.id] = 1;
+	}
+	return current_reg;
 }
 
-static const int compile_conditional(compiler_t* compiler, ins_builder_t* ins_builder, ast_cond_t* conditional, uint16_t temp_regs, ast_proc_t* procedure, uint16_t break_jump, uint16_t continue_jump) {
-	if (conditional->has_cond_val) {
-		uint16_t this_begin = ins_builder->instruction_count;
-		ast_reg_t cond_reg;
-		ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &conditional->cond_val, &cond_reg, TEMPREG(temp_regs), temp_regs + 1));
-
-		PUSH_INS(INS1(OP_CODE_CHECK, cond_reg));
-		uint16_t body_jump_ip = ins_builder->instruction_count;
-
-		PUSH_INS(INS1(OP_CODE_JUMP, GLOBREG(0)));
-		
-		if (conditional->next_if_false) {
-			ESCAPE_ON_NULL(compile_code_block(compiler, ins_builder, &conditional->exec_block, temp_regs + 1, procedure, break_jump, continue_jump));
-			ins_builder->instructions[body_jump_ip].a = ins_builder->instruction_count;
-
-			PUSH_INS(INS1(OP_CODE_NCHECK, cond_reg));
-			uint16_t cond_begin_ip = ins_builder->instruction_count;
-			PUSH_INS(INS1(OP_CODE_JUMP, GLOBREG(cond_begin_ip)));
-			ESCAPE_ON_NULL(compile_conditional(compiler, ins_builder, conditional->next_if_false, temp_regs, procedure, break_jump, continue_jump));
-			ins_builder->instructions[cond_begin_ip].a = ins_builder->instruction_count;
-		}
-		else {
-			if (conditional->next_if_true) {
-				ESCAPE_ON_NULL(compile_code_block(compiler, ins_builder, &conditional->exec_block, temp_regs + 1, procedure, body_jump_ip, this_begin))
-				PUSH_INS(INS1(OP_CODE_JUMP, GLOBREG(this_begin)));
-			}
-			else
-				ESCAPE_ON_NULL(compile_code_block(compiler, ins_builder, &conditional->exec_block, temp_regs + 1, procedure, break_jump, continue_jump));
-			ins_builder->instructions[body_jump_ip].a = ins_builder->instruction_count;
-		}
-	}
-	else
-		ESCAPE_ON_NULL(compile_code_block(compiler, ins_builder, &conditional->exec_block, temp_regs + 1, procedure, break_jump, continue_jump));
-	return 1;
-}
-
-static const int compile_code_block(compiler_t* compiler, ins_builder_t* ins_builder, ast_code_block_t* code_block, uint16_t temp_regs, ast_proc_t* procedure, uint16_t break_jump, uint16_t continue_jump) {
-	for (uint_fast32_t i = 0; i < code_block->instruction_count; i++) {
-		switch (code_block->instructions[i].type)
+static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code_block, uint16_t current_reg) {
+	for (uint_fast32_t i = 0; i < code_block.instruction_count; i++)
+		switch (code_block.instructions[i].type)
 		{
-		case AST_TOP_LEVEL_DECL_VAR:
-			ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &code_block->instructions[i].data.var_decl.set_value, code_block->instructions[i].data.var_decl.var_info.alloced_reg, temp_regs));
-			break;
-		case AST_TOP_LEVEL_VALUE:
-			ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &code_block->instructions[i].data.value, TEMPREG(temp_regs), temp_regs + 1));
-			break;
-		case AST_TOP_LEVEL_COND:
-			ESCAPE_ON_NULL(compile_conditional(compiler, ins_builder, code_block->instructions[i].data.conditional, temp_regs, procedure, break_jump, continue_jump));
-			break;
-		case AST_TOP_LEVEL_RETURN_VALUE: {
-			ESCAPE_ON_NULL(compile_ast_value(compiler, ins_builder, &code_block->instructions[i].data.value, TEMPREG(0), temp_regs));
-			if (procedure->return_type.type == TYPE_SUPER_ARRAY)
-				PUSH_INS(INS1(OP_CODE_HEAP_TRACE, TEMPREG(0)));
-		}
-		case AST_TOP_LEVEL_RETURN: {
-			for (uint_fast8_t i = 0; i < procedure->param_count; i++)
-				if (procedure->params[i].var_info.type.type == TYPE_SUPER_ARRAY)
-					PUSH_INS(INS1(OP_CODE_HEAP_TRACE, procedure->params[i].var_info.alloced_reg));
-			PUSH_INS(INS0(OP_CODE_HEAP_CLEAN));
-			PUSH_INS(INS0(OP_CODE_JUMP_BACK));
-			break;
-		}
-		case AST_TOP_LEVEL_BREAK:
-			PANIC_ON_NULL(break_jump, compiler, ERROR_CANNOT_BREAK);
-			PUSH_INS(INS1(OP_CODE_JUMP, GLOBREG(break_jump)));
-			break;
-		case AST_TOP_LEVEL_CONTINUE:
-			PANIC_ON_NULL(continue_jump, compiler, ERROR_CANNOT_CONTINUE);
-			PUSH_INS(INS1(OP_CODE_JUMP, GLOBREG(continue_jump)));
-			break;
-		case AST_TOP_LEVEL_FOREIGN: {
-			ast_reg_t id_reg;
-			ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &code_block->instructions[i].data.foreign.id_t, &id_reg, TEMPREG(temp_regs), temp_regs + 1));
-
-			if (code_block->instructions[i].data.foreign.has_input) {
-				ast_reg_t op_reg;
-				ESCAPE_ON_NULL(compile_ast_value_reg(compiler, ins_builder, &code_block->instructions[i].data.foreign.input, &op_reg, TEMPREG(temp_regs + 1), temp_regs + 2));
-				PUSH_INS(INS3(OP_CODE_FOREIGN, id_reg, op_reg, (code_block->instructions[i].data.foreign.has_output ? code_block->instructions[i].data.foreign.output : GLOBREG(UINT16_MAX))));
+		case AST_STATEMENT_DECL_VAR: {
+			ast_decl_var_t var_decl = code_block.instructions[i].data.var_decl;
+			if (var_decl.var_info.is_readonly &&
+				(var_decl.set_value.value_type == AST_VALUE_PRIMATIVE ||
+					var_decl.set_value.value_type == AST_VALUE_PROC ||
+					(var_decl.set_value.value_type == AST_VALUE_VAR && var_decl.set_value.data.variable->is_readonly))) {
+				current_reg = allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL);
+				compiler->var_regs[var_decl.var_info.id] = compiler->eval_regs[var_decl.set_value.id];
+				compiler->move_eval[var_decl.set_value.id] = 0;
 			}
-			else
-				PUSH_INS(INS3(OP_CODE_FOREIGN, TEMPREG(temp_regs), GLOBREG(UINT16_MAX), GLOBREG(UINT16_MAX)));
+			else {
+				if (var_decl.var_info.is_global) {
+					compiler->var_regs[var_decl.var_info.id] = GLOB_REG(compiler->ast->total_constants + compiler->current_global++);
+					allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info.id]);
+				}
+				else {
+					compiler->var_regs[var_decl.var_info.id] = LOC_REG(current_reg);
+					allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info.id]);
+					current_reg++;
+				}
+			}
+			break;
+		}
+		case AST_STATEMENT_COND: {
+			ast_cond_t* conditional = code_block.instructions[i].data.conditional;
+			while (conditional)
+			{
+				if (conditional->has_cond_val)
+					allocate_value_regs(compiler, conditional->condition, current_reg, NULL);
+				allocate_code_block_regs(compiler, conditional->exec_block, current_reg);
+				conditional = conditional->next_if_false;
+			}
+			break;
+		}
+		case AST_STATEMENT_VALUE:
+			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, NULL);
+			break;
+		case AST_STATEMENT_RETURN_VALUE: {
+			compiler_reg_t return_reg = LOC_REG(0);
+			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, &return_reg);
+			break;
+		}
+		case AST_STATEMENT_FOREIGN: {
+			uint16_t f_regs = current_reg;
+			f_regs = allocate_value_regs(compiler, code_block.instructions[i].data.foreign.op_id, f_regs, NULL);
+			if (code_block.instructions[i].data.foreign.has_input)
+				allocate_value_regs(compiler, code_block.instructions[i].data.foreign.input, f_regs, NULL);
 			break;
 		}
 		}
+}
+
+static const int compile_code_block(compiler_t* compiler, ast_code_block_t code_block, ast_proc_t* proc, uint16_t break_ip, uint16_t continue_ip);
+
+static const int compile_value(compiler_t* compiler, ast_value_t value) {
+	switch (value.value_type)
+	{
+	case AST_VALUE_ALLOC_ARRAY:
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.alloc_array->size));
+		EMIT_INS(INS3(OP_CODE_HEAP_ALLOC, compiler->eval_regs[value.id], compiler->eval_regs[value.data.alloc_array->size.id], LOC_REG(value.data.alloc_array->elem_type->type == TYPE_SUPER_ARRAY)));
+		break;
+	case AST_VALUE_ARRAY_LITERAL:
+		EMIT_INS(INS2(OP_CODE_HEAP_ALLOC_I, compiler->eval_regs[value.id], GLOB_REG(value.data.array_literal.element_count)));
+		for (uint_fast32_t i = 0; i < value.data.array_literal.element_count; i++) {
+			ESCAPE_ON_FAIL(compile_value(compiler, value.data.array_literal.elements[i]));
+			EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.id], GLOB_REG(i), compiler->eval_regs[value.data.array_literal.elements[i].id]));
+		}
+		break;
+	case AST_VALUE_PROC: {
+		uint16_t start_ip = compiler->ins_builder.instruction_count;
+		EMIT_INS(INS1(OP_CODE_LABEL, compiler->eval_regs[value.id]));
+		EMIT_INS(INS0(OP_CODE_JUMP));
+		compiler->ins_builder.instructions[start_ip].b = compiler->ins_builder.instruction_count;
+		EMIT_INS(INS0(OP_CODE_HEAP_NEW_FRAME));
+		compile_code_block(compiler, value.data.procedure->exec_block, value.data.procedure, 0 ,0);
+		EMIT_INS(INS0(OP_CODE_ABORT));
+		compiler->ins_builder.instructions[start_ip + 1].a = compiler->ins_builder.instruction_count;
+		break;
+	}
+	case AST_VALUE_SET_VAR:
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_var->set_value));
+		if (compiler->move_eval[value.data.set_var->set_value.id])
+			EMIT_INS(INS2(OP_CODE_MOVE, compiler->var_regs[value.data.set_var->var_info->id], compiler->eval_regs[value.data.set_var->set_value.id]));
+		if (value.data.set_var->var_info->is_global && value.type.type == TYPE_SUPER_ARRAY)
+			EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->var_regs[value.data.set_var->var_info->id]));
+		break;
+	case AST_VALUE_SET_INDEX:
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->array));
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->index));
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->value));
+		EMIT_INS(INS3(OP_CODE_STORE_HEAP, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->index.id], compiler->eval_regs[value.data.set_index->value.id]));
+		break;
+	case AST_VALUE_GET_INDEX:
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->array));
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->index));
+		EMIT_INS(INS3(OP_CODE_LOAD_HEAP, compiler->eval_regs[value.data.get_index->array.id], compiler->eval_regs[value.data.get_index->index.id], compiler->eval_regs[value.id]));
+		break;
+	case AST_VALUE_BINARY_OP: {
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.binary_op->lhs));
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.binary_op->rhs));
+		compiler_reg_t lhs = compiler->eval_regs[value.data.binary_op->lhs.id];
+		compiler_reg_t rhs = compiler->eval_regs[value.data.binary_op->rhs.id];
+		if (value.data.binary_op->operator == TOK_EQUALS || value.data.binary_op->operator == TOK_NOT_EQUAL) {
+			EMIT_INS(INS3(OP_CODE_BOOL_EQUAL + value.data.binary_op->lhs.type.type - TYPE_PRIMATIVE_BOOL, lhs, rhs, compiler->eval_regs[value.id]));
+			if (value.data.binary_op->operator == TOK_NOT_EQUAL)
+				EMIT_INS(INS2(OP_CODE_NOT, compiler->eval_regs[value.id], compiler->eval_regs[value.id]));
+		}
+		else if (value.data.binary_op->operator == TOK_AND || value.data.binary_op->operator == TOK_OR)
+			EMIT_INS(INS3(OP_CODE_AND + value.data.binary_op->operator - TOK_AND, rhs, lhs, compiler->eval_regs[value.id]))
+		else {
+			if (value.data.binary_op->lhs.type.type == TYPE_PRIMATIVE_LONG)
+				EMIT_INS(INS3(OP_CODE_LONG_MORE + (value.data.binary_op->operator - TOK_MORE), lhs, rhs, compiler->eval_regs[value.id]))
+			else
+				EMIT_INS(INS3(OP_CODE_FLOAT_MORE + (value.data.binary_op->operator - TOK_MORE), lhs, rhs, compiler->eval_regs[value.id]))
+		}
+		break;
+	}
+	case AST_VALUE_UNARY_OP:
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.unary_op->operand));
+		if (value.data.unary_op->operator == TOK_SUBTRACT)
+			EMIT_INS(INS2(OP_CODE_LONG_NEGATE + value.type.type - TYPE_PRIMATIVE_LONG, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]))
+		else
+			EMIT_INS(INS2(OP_CODE_NOT + value.data.unary_op->operator - TOK_NOT, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]))
+		break;
+	case AST_VALUE_PROC_CALL:
+		for (uint_fast8_t i = 0; i < value.data.proc_call->argument_count; i++) {
+			ESCAPE_ON_FAIL(compile_value(compiler, value.data.proc_call->arguments[i]));
+			if (compiler->move_eval[value.data.proc_call->arguments[i].id])
+				EMIT_INS(INS2(OP_CODE_MOVE, LOC_REG(i + 1 + compiler->proc_call_offsets[value.data.proc_call->id]), compiler->eval_regs[value.data.proc_call->arguments[i].id]));
+		}
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.proc_call->procedure));
+		if(compiler->proc_call_offsets[value.data.proc_call->id])
+			EMIT_INS(INS1(OP_CODE_STACK_OFFSET, GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
+		EMIT_INS(INS1(OP_CODE_JUMP_HIST, compiler->eval_regs[value.data.proc_call->procedure.id]));
+		if (compiler->proc_call_offsets[value.data.proc_call->id])
+			EMIT_INS(INS1(OP_CODE_STACK_DEOFFSET, GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
+		break;
 	}
 	return 1;
 }
 
-const int compile(compiler_t* compiler, machine_t* machine, machine_ins_t** output_ins, uint16_t* output_count) {
-	PANIC_ON_NULL(init_machine(machine, UINT16_MAX, 1000, 1000), compiler, ERROR_MEMORY);
+static const int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, ast_proc_t* proc, uint16_t break_ip, uint16_t continue_ip) {
+	if (conditional->next_if_true) {
+		uint16_t this_continue_ip = compiler->ins_builder.instruction_count;
+		ESCAPE_ON_FAIL(compile_value(compiler, conditional->condition));
+		EMIT_INS(INS1(OP_CODE_CHECK, compiler->eval_regs[conditional->condition.id]));
+		uint16_t this_break_ip = compiler->ins_builder.instruction_count;
+		EMIT_INS(INS0(OP_CODE_JUMP));
+		ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, this_break_ip, this_continue_ip));
+		EMIT_INS(INS1(OP_CODE_JUMP, GLOB_REG(this_continue_ip)));
+		compiler->ins_builder.instructions[this_break_ip].a = compiler->ins_builder.instruction_count;
+	}
+	else {
+		uint16_t escape_jump_count = 0;
+		ast_cond_t* count_cond = conditional;
+		while (count_cond) {
+			if (count_cond->has_cond_val)
+				escape_jump_count++;
+			count_cond = count_cond->next_if_false;
+		}
+		escape_jump_count--;
+		uint16_t* escape_jumps = malloc(escape_jump_count * sizeof(uint16_t));
+		PANIC_ON_FAIL(escape_jumps, compiler, ERROR_MEMORY);
+		uint16_t current_escape_jump = 0;
+		while (conditional) {
+			if (conditional->has_cond_val) {
+				ESCAPE_ON_FAIL(compile_value(compiler, conditional->condition));
+				EMIT_INS(INS1(OP_CODE_CHECK, compiler->eval_regs[conditional->condition.id]));
+				uint16_t move_next_ip = compiler->ins_builder.instruction_count;
+				EMIT_INS(INS0(OP_CODE_JUMP));
+				ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, break_ip, continue_ip));
+				if (current_escape_jump != escape_jump_count) {
+					escape_jumps[current_escape_jump++] = compiler->ins_builder.instruction_count;
+					EMIT_INS(INS0(OP_CODE_JUMP));
+				}
+				compiler->ins_builder.instructions[move_next_ip].a = compiler->ins_builder.instruction_count;
+			}
+			else
+				ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, break_ip, continue_ip));
+			conditional = conditional->next_if_false;
+		}
+		for (uint_fast16_t i = 0; i < escape_jump_count; i++)
+			compiler->ins_builder.instructions[escape_jumps[i]].a = compiler->ins_builder.instruction_count;
+	}
+	return 1;
+}
 
-	uint16_t initial_offset = compiler->allocated_globals = compiler->ast.global_registers;
-	alloc_ast_code_block(compiler, machine, &compiler->ast.exec_block, &initial_offset);
-	compiler->allocated_constants = initial_offset - compiler->allocated_globals;
+static const int compile_code_block(compiler_t* compiler, ast_code_block_t code_block, ast_proc_t* proc, uint16_t break_ip, uint16_t continue_ip) {
+	for (uint_fast32_t i = 0; i < code_block.instruction_count; i++)
+		switch (code_block.instructions[i].type) {
+		case AST_STATEMENT_DECL_VAR:
+			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.var_decl.set_value));
+			if (compiler->move_eval[code_block.instructions[i].data.var_decl.set_value.id])
+				EMIT_INS(INS2(OP_CODE_MOVE, compiler->var_regs[code_block.instructions[i].data.var_decl.var_info.id], compiler->eval_regs[code_block.instructions[i].data.var_decl.set_value.id]));
+			break;
+		case AST_STATEMENT_COND: 
+			ESCAPE_ON_FAIL(compile_conditional(compiler, code_block.instructions[i].data.conditional, proc, break_ip, continue_ip));
+			break;
+		case AST_STATEMENT_VALUE:
+			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.value));
+			break;
+		case AST_STATEMENT_RETURN_VALUE:
+			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.value));
+			if (compiler->move_eval[code_block.instructions[i].data.value.id])
+				EMIT_INS(INS2(OP_CODE_MOVE, LOC_REG(0), compiler->eval_regs[code_block.instructions[i].data.value.id]));
+			if (code_block.instructions[i].data.value.type.type == TYPE_SUPER_ARRAY)
+				EMIT_INS(INS1(OP_CODE_HEAP_TRACE, LOC_REG(0)));
+		case AST_STATEMENT_RETURN:
+			for (uint_fast8_t i = 0; i < proc->param_count; i++)
+				if (proc->params[i].var_info.type.type == TYPE_SUPER_ARRAY)
+					EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->var_regs[proc->params[i].var_info.id]));
+			EMIT_INS(INS0(OP_CODE_HEAP_CLEAN));
+			EMIT_INS(INS0(OP_CODE_JUMP_BACK));
+			break;
+		case AST_STATEMENT_BREAK:
+			EMIT_INS(INS1(OP_CODE_JUMP, GLOB_REG(break_ip)));
+			break;
+		case AST_STATEMENT_CONTINUE:
+			EMIT_INS(INS1(OP_CODE_JUMP, GLOB_REG(continue_ip)));
+			break;
+		case AST_STATEMENT_FOREIGN: {
+			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.foreign.op_id));
+			compiler_reg_t inp_reg;
+			if (code_block.instructions[i].data.foreign.has_input) {
+				ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.foreign.input));
+				inp_reg = compiler->eval_regs[code_block.instructions[i].data.foreign.input.id];
+			}
+			else
+				inp_reg = GLOB_REG(0);
+			compiler_reg_t out_reg = code_block.instructions[i].data.foreign.has_output ? compiler->var_regs[code_block.instructions[i].data.foreign.output_var->id] : GLOB_REG(0);
+			EMIT_INS(INS3(OP_CODE_FOREIGN, compiler->eval_regs[code_block.instructions[i].data.foreign.op_id.id], inp_reg, out_reg));
+			break;
+		}
+		}
+	return 1;
+}
 
-	ins_builder_t ins_builder;
-	PANIC_ON_NULL(init_ins_builder(&ins_builder), compiler, ERROR_MEMORY);
+const int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
+	compiler->target_machine = target_machine;
+	compiler->ast = ast;
+	compiler->last_err = ERROR_NONE;
+	compiler->current_constant = 0;
+	compiler->current_global = 0;
+	
+	PANIC_ON_FAIL(compiler->eval_regs = malloc(ast->value_count * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
+	PANIC_ON_FAIL(compiler->move_eval = malloc(ast->value_count * sizeof(int)), compiler, ERROR_MEMORY);
+	PANIC_ON_FAIL(compiler->var_regs = malloc(ast->total_var_decls * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
+	PANIC_ON_FAIL(compiler->proc_call_offsets = malloc(ast->proc_call_count * sizeof(uint16_t)), compiler, ERROR_MEMORY);
 
-	ins_builder_append_ins(&ins_builder, (machine_ins_t) { .op_code = OP_CODE_STACK_OFFSET, .a = initial_offset, .a_flag = 0 });
-	ins_builder_append_ins(&ins_builder, (machine_ins_t) { .op_code = OP_CODE_HEAP_NEW_FRAME });
-	ESCAPE_ON_NULL(compile_code_block(compiler, &ins_builder, &compiler->ast.exec_block, compiler->ast.exec_block.register_limit, NULL, 0, 0));
-	ins_builder_append_ins(&ins_builder, (machine_ins_t) { .op_code = OP_CODE_HEAP_CLEAN });
+	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX, 1000, 1000), compiler, target_machine->last_err);
+	allocate_code_block_regs(compiler, ast->exec_block, 0);
 
-	*output_ins = ins_builder.instructions;
-	*output_count = ins_builder.instruction_count;
+	PANIC_ON_FAIL(init_ins_builder(&compiler->ins_builder), compiler, ERROR_MEMORY);
+	
+	EMIT_INS(INS1(OP_CODE_STACK_OFFSET, GLOB_REG(compiler->ast->total_constants + compiler->current_global)));
+	EMIT_INS(INS0(OP_CODE_HEAP_NEW_FRAME));
+	ESCAPE_ON_FAIL(compile_code_block(compiler, ast->exec_block, NULL, 0, 0));
+	EMIT_INS(INS0(OP_CODE_HEAP_CLEAN));
+
+	free(compiler->eval_regs);
+	free(compiler->move_eval);
+	free(compiler->var_regs);
+	free(compiler->proc_call_offsets);
+
 	return 1;
 }

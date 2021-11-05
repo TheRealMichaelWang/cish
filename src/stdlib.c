@@ -32,11 +32,11 @@ static const int std_ftos(machine_reg_t* in, machine_reg_t* out) {
 	free(out->heap_alloc->init_stat);
 	free(out->heap_alloc->registers);
 	char output[50];
-	sprintf(output, 50, "%f", in->float_int);
+	sprintf(output, "%f", in->float_int);
 	uint8_t len = strlen(output);
 	out->heap_alloc->limit = len;
-	ESCAPE_ON_NULL(out->heap_alloc->registers = malloc(len * sizeof(machine_reg_t)));
-	ESCAPE_ON_NULL(out->heap_alloc->init_stat = malloc(len * sizeof(int)));
+	ESCAPE_ON_FAIL(out->heap_alloc->registers = malloc(len * sizeof(machine_reg_t)));
+	ESCAPE_ON_FAIL(out->heap_alloc->init_stat = malloc(len * sizeof(int)));
 	for (uint_fast8_t i = 0; i < len; i++) {
 		out->heap_alloc->registers[i].char_int = output[i];
 		out->heap_alloc->init_stat[i] = 1;
@@ -46,9 +46,9 @@ static const int std_ftos(machine_reg_t* in, machine_reg_t* out) {
 
 static const int std_stof(machine_reg_t* in, machine_reg_t* out) {
 	char* buffer = malloc(in->heap_alloc->limit + 1);
-	ESCAPE_ON_NULL(buffer);
+	ESCAPE_ON_FAIL(buffer);
 	for (uint_fast16_t i = 0; i < in->heap_alloc->limit; i++) {
-		ESCAPE_ON_NULL(in->heap_alloc->init_stat[i]);
+		ESCAPE_ON_FAIL(in->heap_alloc->init_stat[i]);
 		buffer[i] = in->heap_alloc->registers[i].char_int;
 	}
 	out->float_int = strtod(buffer, NULL);
@@ -60,11 +60,11 @@ static const int std_itos(machine_reg_t* in, machine_reg_t* out) {
 	free(out->heap_alloc->init_stat);
 	free(out->heap_alloc->registers);
 	char output[50];
-	sprintf(output, 50, "%" PRIi64, in->long_int);
+	sprintf(output, "%" PRIi64, in->long_int);
 	uint8_t len = strlen(output);
 	out->heap_alloc->limit = len;
-	ESCAPE_ON_NULL(out->heap_alloc->registers = malloc(len * sizeof(machine_reg_t)));
-	ESCAPE_ON_NULL(out->heap_alloc->init_stat = malloc(len * sizeof(int)));
+	ESCAPE_ON_FAIL(out->heap_alloc->registers = malloc(len * sizeof(machine_reg_t)));
+	ESCAPE_ON_FAIL(out->heap_alloc->init_stat = malloc(len * sizeof(int)));
 	for (uint_fast8_t i = 0; i < len; i++) {
 		out->heap_alloc->registers[i].char_int = output[i];
 		out->heap_alloc->init_stat[i] = 1;
@@ -74,9 +74,9 @@ static const int std_itos(machine_reg_t* in, machine_reg_t* out) {
 
 static const int std_stoi(machine_reg_t* in, machine_reg_t* out) {
 	char* buffer = malloc(in->heap_alloc->limit + 1);
-	ESCAPE_ON_NULL(buffer);
+	ESCAPE_ON_FAIL(buffer);
 	for (uint_fast16_t i = 0; i < in->heap_alloc->limit; i++) {
-		ESCAPE_ON_NULL(in->heap_alloc->init_stat[i]);
+		ESCAPE_ON_FAIL(in->heap_alloc->init_stat[i]);
 		buffer[i] = in->heap_alloc->registers[i].char_int;
 	}
 	out->long_int = strtol(buffer, NULL, 10);

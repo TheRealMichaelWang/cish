@@ -1,5 +1,8 @@
 #include <ctype.h>
+#include <string.h>
+#include <stdlib.h>
 #include "hash.h"
+#include "file.h"
 #include "scanner.h"
 
 static const char scanner_peek_char(scanner_t* scanner) {
@@ -19,17 +22,13 @@ static const char scanner_read_char(scanner_t* scanner) {
 	return scanner->last_char = scanner->source[scanner->position++];
 }
 
-void init_scanner(scanner_t* scanner, const char* source, const uint32_t length, int init_scan) {
+void init_scanner(scanner_t* scanner, const char* source, const uint32_t length) {
 	scanner->source = source;
 	scanner->length = length;
 	scanner->position = 0;
 	scanner->row = 1;
 	scanner->col = 0;
 	scanner->last_err = ERROR_NONE;
-	if (init_scan) {
-		scanner_read_char(scanner);
-		scanner_scan_tok(scanner);
-	}
 }
 
 #define SET_CHAR_TYPE(TYPE) { scanner->last_char = TYPE; break; }
@@ -98,8 +97,6 @@ const int scanner_scan_tok(scanner_t* scanner) {
 			SET_TOK_TYPE(TOK_TYPECHECK_ARRAY);
 		case 6385593753: //proc
 			SET_TOK_TYPE(TOK_TYPECHECK_PROC);
-		case 229484523888481: //typearg
-			SET_TOK_TYPE(TOK_TYPEARG);
 		case 229476388586812: //nothing
 			SET_TOK_TYPE(TOK_NOTHING);
 		case 6385058142: //auto
@@ -108,8 +105,6 @@ const int scanner_scan_tok(scanner_t* scanner) {
 			SET_TOK_TYPE(TOK_GLOBAL);
 		case 5863476: //if
 			SET_TOK_TYPE(TOK_IF);
-		case 6385191717: //elif
-			SET_TOK_TYPE(TOK_ELIF);
 		case 6385192046: //else
 			SET_TOK_TYPE(TOK_ELSE);
 		case 210732529790: //while
@@ -167,6 +162,10 @@ const int scanner_scan_tok(scanner_t* scanner) {
 		if (!scanner_read_char(scanner) || scanner->last_char != '\'')
 			PANIC(scanner, ERROR_UNEXPECTED_TOK);
 		scanner_read_char(scanner);
+	}
+	else if (scanner->last_char == '$') {
+		while (scanner_read_char(scanner) && scanner->last_char != '\n');
+		return scanner_scan_tok(scanner);
 	}
 	else {
 		const char next_char = scanner_peek_char(scanner);
@@ -251,6 +250,56 @@ const int scanner_scan_tok(scanner_t* scanner) {
 			PANIC(scanner, ERROR_UNEXPECTED_TOK);
 		}
 		scanner_read_char(scanner);
+	}
+	return 1;
+}
+
+const int init_multi_scanner(multi_scanner_t* scanner, const char* path) {
+	scanner->visited_files = 0;
+	scanner->current_file = 0;
+	scanner->last_err = ERROR_NONE;
+	ESCAPE_ON_FAIL(multi_scanner_visit(scanner, path));
+	return 1;
+}
+
+void free_multi_scanner(multi_scanner_t* scanner) {
+	for (uint_fast8_t i = 0; i < scanner->current_file; i++) {
+		free(scanner->sources[i]);
+		free(scanner->file_paths[i]);
+	}
+}
+
+const int multi_scanner_visit(multi_scanner_t* scanner, const char* file) {
+	uint64_t id = hash(file);
+	for (uint_fast8_t i = 0; i < scanner->visited_files; i++)
+		if (id == scanner->visited_hashes[i])
+			return 1;
+	if (scanner->visited_files == 64 || scanner->current_file == 32)
+		return 0;
+	scanner->visited_hashes[scanner->visited_files++] = id;
+
+	PANIC_ON_FAIL(scanner->sources[scanner->current_file] = file_read_source(file), scanner, ERROR_CANNOT_OPEN_FILE);
+	PANIC_ON_FAIL(scanner->file_paths[scanner->current_file] = malloc((strlen(file) + 1) * sizeof(char)), scanner, ERROR_MEMORY);
+	strcpy(scanner->file_paths[scanner->current_file], file);
+
+	init_scanner(&scanner->scanners[scanner->current_file], scanner->sources[scanner->current_file], strlen(scanner->sources[scanner->current_file]));
+	scanner_read_char(&scanner->scanners[scanner->current_file]);
+
+	scanner->current_file++;
+	return 1;
+}
+
+const int multi_scanner_scan_tok(multi_scanner_t* scanner) {
+	if (scanner->current_file) {
+		PANIC_ON_FAIL(scanner_scan_tok(&scanner->scanners[scanner->current_file - 1]), scanner, scanner->scanners[scanner->current_file - 1].last_err);
+		scanner->last_tok = scanner->scanners[scanner->current_file - 1].last_tok;
+		if (scanner->last_tok.type == TOK_EOF) {
+			free(scanner->file_paths[scanner->current_file - 1]);
+			free(scanner->sources[scanner->current_file - 1]);
+			--scanner->current_file;
+			if (scanner->current_file)
+				ESCAPE_ON_FAIL(multi_scanner_scan_tok(scanner));
+		}
 	}
 	return 1;
 }

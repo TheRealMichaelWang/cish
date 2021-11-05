@@ -15,7 +15,6 @@ typedef enum machine_op_code {
 
 	OP_CODE_MOVE,
 	OP_CODE_CHECK,
-	OP_CODE_NCHECK,
 
 	OP_CODE_JUMP,
 
@@ -33,6 +32,7 @@ typedef enum machine_op_code {
 
 	OP_CODE_HEAP_ALLOC,
 	OP_CODE_HEAP_ALLOC_I,
+
 	OP_CODE_HEAP_NEW_FRAME,
 	OP_CODE_HEAP_TRACE,
 	OP_CODE_HEAP_CLEAN,
@@ -74,6 +74,7 @@ typedef enum machine_op_code {
 	OP_CODE_LONG_NEGATE,
 	OP_CODE_FLOAT_NEGATE,
 	OP_CODE_LONG_TO_FLOAT,
+	OP_CODE_FLOAT_TO_LONG
 } op_code_t;
 
 typedef struct machine_instruction {

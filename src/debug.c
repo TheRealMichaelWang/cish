@@ -9,9 +9,9 @@ static const char* opcode_names[] = {
 
 	"mov        ",
 	"check      ",
-	"ncheck     ",
 
 	"jmp        ",
+
 	"jmphist    ",
 	"jmpback    ",
 	"lbl        ",
@@ -26,6 +26,7 @@ static const char* opcode_names[] = {
 
 	"heapalloc  ",
 	"heapalloc_i",
+
 	"newframe   ",
 	"heaptrace  ",
 	"heapclean  ",
@@ -67,23 +68,27 @@ static const char* opcode_names[] = {
 	"fneg       ",
 	"lneg       ",
 
-	"ltf        "
+	"ltf        ",
+	"ftl        "
 };
 
 static const char* error_names[] = {
 	"none",
-	"insufficient memory",
+	"memory",
+	"internal",
 
 	"unexpected token",
-	"cannot set readonly var",
 
+	"cannot set readonly var",
 	"unallowed type",
+
 	"missing type argument",
 
 	"expected sub types",
-	"to many sub types",
 
-	"undeclared variable",
+	"undeclared",
+	"redeclaration",
+
 	"unexpected type",
 	"unexpected argument length",
 
@@ -91,7 +96,6 @@ static const char* error_names[] = {
 	"cannot break",
 	"cannot continue",
 
-	"insufficient position stack",
 	"index out of range",
 	"stack overflow",
 	"read unitialized memory",
@@ -117,9 +121,14 @@ const char* get_err_msg(error_t error) {
 	return error_names[error];
 }
 
-void print_compiler_err(compiler_t* error_compiler) {
-	if (error_compiler->ast.include_stack.current_scanner)
-		printf("%s:", error_compiler->ast.include_stack.file_paths[error_compiler->ast.include_stack.current_scanner - 1]);
-	scanner_t scanner = error_compiler->ast.include_stack.scanners[error_compiler->ast.include_stack.current_scanner];
-	printf("%i:%i: error:%s.", scanner.row, scanner.col, error_names[error_compiler->last_err]);
+void print_error_trace(multi_scanner_t multi_scanner) {
+	for (uint_fast8_t i = 0; i < multi_scanner.current_file; i++)
+		printf("in %s: row %" PRIu32 ", col %"PRIu32 "\n", multi_scanner.file_paths[i], multi_scanner.scanners[i].row, multi_scanner.scanners[i].col);
+	printf("\t");
+	for (uint_fast32_t i = 0; i < multi_scanner.last_tok.length; i++)
+		if(multi_scanner.last_tok.str[i] != '\n')
+			printf("%c", multi_scanner.last_tok.str[i]);
+	for(uint_fast8_t i = multi_scanner.last_tok.length; multi_scanner.last_tok.str[i] && multi_scanner.last_tok.str[i] == '\n'; i++)
+		printf("%c", multi_scanner.last_tok.str[i]);
+	printf("\n");
 }

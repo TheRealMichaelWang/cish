@@ -12,18 +12,32 @@ typedef struct ins_builder {
 	uint16_t instruction_count, alloced_ins;
 } ins_builder_t;
 
+typedef struct compiler_reg {
+	uint16_t reg;
+	int offset;
+} compiler_reg_t;
+
 typedef struct compiler {
-	ast_t ast;
-	error_t last_err;
-	uint16_t allocated_globals, allocated_constants;
+	compiler_reg_t* eval_regs;
+	int* move_eval;
+
+	compiler_reg_t* var_regs;
+
+	uint16_t* proc_call_offsets;
+
+	ast_t* ast;
+	machine_t* target_machine;
+
+	ins_builder_t ins_builder;
+
+	uint16_t current_constant, current_global;
+	
+	errno_t last_err;
 } compiler_t;
 
 const int init_ins_builder(ins_builder_t* ins_builder);
 const int ins_builder_append_ins(ins_builder_t* ins_builder, machine_ins_t ins);
 
-const int init_compiler(compiler_t* compiler, const char* source);
-void free_compiler(compiler_t* compiler);
-
-const int compile(compiler_t* compiler, machine_t* machine, machine_ins_t** output_ins, uint16_t* output_count);
+const int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast);
 
 #endif // !COMPILER_H

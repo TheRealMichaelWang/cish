@@ -1,18 +1,27 @@
-global auto print = proc(array<char> msg) return nothing {
+$prints a string onto the console
+global readonly auto print = proc(array<char> str) return nothing {
 	int i = 0;
-	while(i < #msg) {
-		foreign 8 msg[i];
+	while(i < #str) {
+		foreign[8](str[i]);
 		i = i + 1;
 	}
 	return;
 };
 
-global auto input = proc() return array<char> {
+$prints a string onto the console, with a newline at the end
+global readonly auto println = proc(array<char> str) return nothing {
+	print(str);
+	foreign[8]('\n');
+	return;
+};
+
+$reads a line of input
+global readonly auto input = proc() return array<char> {
 	array<char> buffer = new char[4096];
 	int i = 0;
 	char scanned = '\0';
 	while(scanned != '\n') {
-		foreign 9 0 scanned;
+		foreign[9] >= scanned;
 		buffer[i] = scanned;
 		i = i + 1;
 	}
@@ -25,6 +34,3 @@ global auto input = proc() return array<char> {
 	}
 	return output;
 };
-
-array<char> inp = input();
-print(inp);

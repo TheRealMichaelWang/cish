@@ -20,9 +20,9 @@ static heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, int tr
 	if (machine->heap_count == machine->heap_alloc_limit)
 		PANIC(machine, ERROR_STACK_OVERFLOW);
 	heap_alloc_t* heap_alloc = malloc(sizeof(heap_alloc_t));
-	PANIC_ON_NULL(heap_alloc, machine, ERROR_MEMORY);
-	PANIC_ON_NULL(heap_alloc->registers = malloc(req_size * sizeof(machine_reg_t)), machine, ERROR_MEMORY);
-	PANIC_ON_NULL(heap_alloc->init_stat = calloc(req_size, sizeof(int)), machine, ERROR_MEMORY);
+	PANIC_ON_FAIL(heap_alloc, machine, ERROR_MEMORY);
+	PANIC_ON_FAIL(heap_alloc->registers = malloc(req_size * sizeof(machine_reg_t)), machine, ERROR_MEMORY);
+	PANIC_ON_FAIL(heap_alloc->init_stat = calloc(req_size, sizeof(int)), machine, ERROR_MEMORY);
 	heap_alloc->limit = req_size;
 	heap_alloc->gc_flag = 0;
 	heap_alloc->trace_children = trace_children;
@@ -59,21 +59,17 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		if (machine->stack[AREG].bool_flag)
 			machine->ip++;
 		break;
-	case OP_CODE_NCHECK:
-		if (!machine->stack[AREG].bool_flag)
-			machine->ip++;
-		break;
 	case OP_CODE_JUMP:
-		machine->ip = &instructions[AREG];
+		machine->ip = &instructions[ins.a];
  		return 1;
 	case OP_CODE_JUMP_HIST: {
-		PANIC_ON_NULL(machine->position_count != machine->frame_limit, machine, ERROR_STACK_OVERFLOW);
+		PANIC_ON_FAIL(machine->position_count != machine->frame_limit, machine, ERROR_STACK_OVERFLOW);
 		machine->positions[machine->position_count++] = machine->ip;
 		machine->ip = machine->stack[AREG].ip;
 		return 1;
 	}
 	case OP_CODE_LABEL:
-		machine->stack[AREG].ip = &instructions[BREG];
+		machine->stack[AREG].ip = &instructions[ins.b];
 		break;
 	case OP_CODE_JUMP_BACK: {
 		machine->ip = machine->positions[--machine->position_count];
@@ -90,11 +86,10 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		break;
 	}
 	case OP_CODE_LOAD_HEAP_I: {
-		uint16_t a_reg = AREG;
-		machine_reg_t array_register = machine->stack[a_reg];
-		if (!array_register.heap_alloc->init_stat[a_reg])
+		machine_reg_t array_register = machine->stack[AREG];
+		if (!array_register.heap_alloc->init_stat[ins.b])
 			PANIC(machine, ERROR_READ_UNINIT);
-		machine->stack[CREG] = array_register.heap_alloc->registers[BREG];
+		machine->stack[CREG] = array_register.heap_alloc->registers[ins.b];
 		break;
 	}
 	case OP_CODE_STORE_HEAP: {
@@ -107,10 +102,9 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		break;
 	}
 	case OP_CODE_STORE_HEAP_I: {
-		uint16_t b_reg = BREG;
 		machine_reg_t array_register = machine->stack[AREG];
-		array_register.heap_alloc->registers[b_reg] = machine->stack[CREG];
-		array_register.heap_alloc->init_stat[b_reg] = 1;
+		array_register.heap_alloc->registers[ins.b] = machine->stack[CREG];
+		array_register.heap_alloc->init_stat[ins.b] = 1;
 		break;
 	}
 	case OP_CODE_STACK_OFFSET:
@@ -120,10 +114,10 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		machine->global_offset -= ins.a;
 		break;
 	case OP_CODE_HEAP_ALLOC:
-		ESCAPE_ON_NULL(machine->stack[AREG].heap_alloc = machine_alloc(machine, machine->stack[BREG].long_int, ins.c));
+		ESCAPE_ON_FAIL(machine->stack[AREG].heap_alloc = machine_alloc(machine, machine->stack[BREG].long_int, ins.c));
 		break;
 	case OP_CODE_HEAP_ALLOC_I:
-		ESCAPE_ON_NULL(machine->stack[AREG].heap_alloc = machine_alloc(machine, ins.b, ins.c));
+		ESCAPE_ON_FAIL(machine->stack[AREG].heap_alloc = machine_alloc(machine, ins.b, ins.c));
 		break;
 	case OP_CODE_HEAP_NEW_FRAME: {
 		if (machine->heap_frame == machine->frame_limit)
@@ -160,10 +154,10 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 		machine->stack[CREG].bool_flag = machine->stack[AREG].bool_flag || machine->stack[BREG].bool_flag;
 		break;
 	case OP_CODE_NOT:
-		machine->stack[BREG].bool_flag = !machine->stack[AREG].bool_flag;
+		machine->stack[AREG].bool_flag = !machine->stack[BREG].bool_flag;
 		break;
 	case OP_CODE_LENGTH:
-		machine->stack[BREG].long_int = machine->stack[AREG].heap_alloc->limit;
+		machine->stack[AREG].long_int = machine->stack[BREG].heap_alloc->limit;
 		break;
 	case OP_CODE_BOOL_EQUAL:
 		machine->stack[CREG].bool_flag = machine->stack[AREG].bool_flag == machine->stack[BREG].bool_flag;
@@ -240,6 +234,9 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 	case OP_CODE_LONG_TO_FLOAT:
 		machine->stack[AREG].float_int = (double)machine->stack[BREG].long_int;
 		break;
+	case OP_CODE_FLOAT_TO_LONG:
+		machine->stack[AREG].long_int = (float)machine->stack[BREG].float_int;
+		break;
 	case OP_CODE_LONG_NEGATE:
 		machine->stack[AREG].long_int = -machine->stack[BREG].long_int;
 		break;
@@ -249,7 +246,7 @@ static const int machine_execute_instruction(machine_t* machine, machine_ins_t* 
 	case OP_CODE_ABORT:
 		PANIC(machine, ERROR_ABORT);
 	case OP_CODE_FOREIGN:
-		PANIC_ON_NULL(ffi_invoke(&machine->ffi_table, &machine->stack[AREG], &machine->stack[BREG], &machine->stack[CREG]), machine, ERROR_FOREIGN);
+		PANIC_ON_FAIL(ffi_invoke(&machine->ffi_table, &machine->stack[AREG], &machine->stack[BREG], &machine->stack[CREG]), machine, ERROR_FOREIGN);
 		break;
 	}
 	machine->ip++;
@@ -267,12 +264,12 @@ const int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_al
 	machine->heap_count = 0;
 	machine->heap_reset_count = 0;
 
-	ESCAPE_ON_NULL(machine->stack = malloc(stack_size * sizeof(machine_reg_t)));
-	ESCAPE_ON_NULL(machine->positions = malloc(machine->frame_limit * sizeof(machine_ins_t*)));
-	ESCAPE_ON_NULL(machine->heap_allocs = malloc(machine->heap_alloc_limit * sizeof(heap_alloc_t*)));
-	ESCAPE_ON_NULL(machine->heap_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
-	ESCAPE_ON_NULL(machine->heap_reset_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
-	ESCAPE_ON_NULL(init_ffi(&machine->ffi_table));
+	ESCAPE_ON_FAIL(machine->stack = malloc(stack_size * sizeof(machine_reg_t)));
+	ESCAPE_ON_FAIL(machine->positions = malloc(machine->frame_limit * sizeof(machine_ins_t*)));
+	ESCAPE_ON_FAIL(machine->heap_allocs = malloc(machine->heap_alloc_limit * sizeof(heap_alloc_t*)));
+	ESCAPE_ON_FAIL(machine->heap_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
+	ESCAPE_ON_FAIL(machine->heap_reset_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
+	ESCAPE_ON_FAIL(init_ffi(&machine->ffi_table));
 	return 1;
 }
 
@@ -289,6 +286,6 @@ const int machine_execute(machine_t* machine, machine_ins_t* instructions, uint1
 	machine_ins_t* last_ins = &instructions[instruction_count];
 	machine->ip = &instructions[0];
 	while (machine->ip != last_ins)
-		ESCAPE_ON_NULL(machine_execute_instruction(machine, instructions)); 
+		ESCAPE_ON_FAIL(machine_execute_instruction(machine, instructions)); 
 	return 1;
 }
