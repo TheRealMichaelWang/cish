@@ -588,6 +588,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 			READ_TOK;
 			typecheck_type_t t = { .type = TYPE_AUTO };
 			ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.foreign->input, &t, 0));
+			free_typecheck_type(&t);
 			value->data.foreign->has_input = 1;
 			MATCH_TOK(TOK_CLOSE_PAREN);
 			READ_TOK;
