@@ -87,7 +87,7 @@ typedef struct ast_value {
 } ast_value_t;
 
 typedef struct ast_decl_var {
-	ast_var_info_t var_info;
+	ast_var_info_t* var_info;
 	ast_value_t set_value;
 } ast_decl_var_t;
 
@@ -166,15 +166,17 @@ typedef struct ast_cond {
 	ast_cond_t* next_if_false;
 } ast_cond_t;
 
+typedef struct ast_proc_param {
+	ast_var_info_t var_info;
+	uint16_t id;
+} ast_proc_param_t;
+
 typedef struct ast_proc {
 	typecheck_type_t* return_type;
 
-	struct ast_proc_param {
-		ast_var_info_t var_info;
-		uint16_t id;
-	} params[TYPE_MAX_SUBTYPES - 1];
+	ast_proc_param_t *params;
 	uint8_t param_count;
-	ast_var_info_t thisproc;
+	ast_var_info_t* thisproc;
 
 	ast_code_block_t exec_block;
 } ast_proc_t;

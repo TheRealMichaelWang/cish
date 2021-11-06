@@ -52,7 +52,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		uint16_t proc_regs = 1;
 		for (uint_fast16_t i = 0; i < value.data.procedure->param_count; i++)
 			compiler->var_regs[value.data.procedure->params[i].var_info.id] = LOC_REG(proc_regs++);
-		compiler->var_regs[value.data.procedure->thisproc.id] = compiler->eval_regs[value.id];
+		compiler->var_regs[value.data.procedure->thisproc->id] = compiler->eval_regs[value.id];
 		allocate_code_block_regs(compiler, value.data.procedure->exec_block, proc_regs);
 		return current_reg;
 	}
@@ -117,22 +117,22 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 		{
 		case AST_STATEMENT_DECL_VAR: {
 			ast_decl_var_t var_decl = code_block.instructions[i].data.var_decl;
-			if (var_decl.var_info.is_readonly &&
+			if (var_decl.var_info->is_readonly &&
 				(var_decl.set_value.value_type == AST_VALUE_PRIMATIVE ||
 					var_decl.set_value.value_type == AST_VALUE_PROC ||
 					(var_decl.set_value.value_type == AST_VALUE_VAR && var_decl.set_value.data.variable->is_readonly))) {
 				current_reg = allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL);
-				compiler->var_regs[var_decl.var_info.id] = compiler->eval_regs[var_decl.set_value.id];
+				compiler->var_regs[var_decl.var_info->id] = compiler->eval_regs[var_decl.set_value.id];
 				compiler->move_eval[var_decl.set_value.id] = 0;
 			}
 			else {
-				if (var_decl.var_info.is_global) {
-					compiler->var_regs[var_decl.var_info.id] = GLOB_REG(compiler->ast->total_constants + compiler->current_global++);
-					allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info.id]);
+				if (var_decl.var_info->is_global) {
+					compiler->var_regs[var_decl.var_info->id] = GLOB_REG(compiler->ast->total_constants + compiler->current_global++);
+					allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info->id]);
 				}
 				else {
-					compiler->var_regs[var_decl.var_info.id] = LOC_REG(current_reg);
-					allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info.id]);
+					compiler->var_regs[var_decl.var_info->id] = LOC_REG(current_reg);
+					allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info->id]);
 					current_reg++;
 				}
 			}
@@ -309,7 +309,7 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 		case AST_STATEMENT_DECL_VAR:
 			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.var_decl.set_value));
 			if (compiler->move_eval[code_block.instructions[i].data.var_decl.set_value.id])
-				EMIT_INS(INS2(OP_CODE_MOVE, compiler->var_regs[code_block.instructions[i].data.var_decl.var_info.id], compiler->eval_regs[code_block.instructions[i].data.var_decl.set_value.id]));
+				EMIT_INS(INS2(OP_CODE_MOVE, compiler->var_regs[code_block.instructions[i].data.var_decl.var_info->id], compiler->eval_regs[code_block.instructions[i].data.var_decl.set_value.id]));
 			break;
 		case AST_STATEMENT_COND: 
 			ESCAPE_ON_FAIL(compile_conditional(compiler, code_block.instructions[i].data.conditional, proc, break_ip, continue_ip));

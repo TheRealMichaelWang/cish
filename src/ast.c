@@ -240,25 +240,26 @@ static int parse_prim_value(ast_parser_t* ast_parser, ast_primative_t* primative
 }
 
 static int parse_var_decl(ast_parser_t* ast_parser, ast_decl_var_t* ast_decl_var) {
-	ast_decl_var->var_info.is_global = 0;
-	ast_decl_var->var_info.is_readonly = 0;
+	PANIC_ON_FAIL(ast_decl_var->var_info = malloc(sizeof(ast_var_info_t)), ast_parser, ERROR_MEMORY);
+	ast_decl_var->var_info->is_global = 0;
+	ast_decl_var->var_info->is_readonly = 0;
 	while (LAST_TOK.type == TOK_GLOBAL || LAST_TOK.type == TOK_READONLY) {
 		if (LAST_TOK.type == TOK_GLOBAL) {
 			PANIC_ON_FAIL(!CURRENT_FRAME.return_type, ast_parser, ERROR_TYPE_NOT_ALLOWED);
-			ast_decl_var->var_info.is_global = 1;
+			ast_decl_var->var_info->is_global = 1;
 		}
 		else if (LAST_TOK.type == TOK_READONLY)
-			ast_decl_var->var_info.is_readonly = 1;
+			ast_decl_var->var_info->is_readonly = 1;
 		READ_TOK;
 	}
-	ESCAPE_ON_FAIL(parse_type(ast_parser, &ast_decl_var->var_info.type, 1, 0));
+	ESCAPE_ON_FAIL(parse_type(ast_parser, &ast_decl_var->var_info->type, 1, 0));
 	MATCH_TOK(TOK_IDENTIFIER);
 	uint64_t id = hash_s(LAST_TOK.str, LAST_TOK.length);
 	READ_TOK;
-	ESCAPE_ON_FAIL(ast_parser_decl_var(ast_parser, id, &ast_decl_var->var_info));
+	ESCAPE_ON_FAIL(ast_parser_decl_var(ast_parser, id, ast_decl_var->var_info));
 	MATCH_TOK(TOK_SET);
 	READ_TOK;
-	ESCAPE_ON_FAIL(parse_expression(ast_parser, &ast_decl_var->set_value, &ast_decl_var->var_info.type, 0));
+	ESCAPE_ON_FAIL(parse_expression(ast_parser, &ast_decl_var->set_value, &ast_decl_var->var_info->type, 0));
 	return 1;
 }
 
@@ -369,7 +370,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			READ_TOK;
 			multi_scanner_visit(&ast_parser->multi_scanner, file_source);
 			free(file_source);
-			break; 
+			break;
 		}
 		default:
 			PANIC(ast_parser, ERROR_UNEXPECTED_TOK);
@@ -511,7 +512,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		array_typecheck.sub_types = malloc(sizeof(typecheck_type_t));
 		array_typecheck.sub_types->type = TYPE_AUTO;
 		array_typecheck.sub_type_count = 1;
-		ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.unary_op->operand, LAST_TOK.type == TOK_SUBTRACT || LAST_TOK.type == TOK_NOT ? type : &array_typecheck, 0));
+		ESCAPE_ON_FAIL(parse_value(ast_parser, &value->data.unary_op->operand, LAST_TOK.type == TOK_SUBTRACT || LAST_TOK.type == TOK_NOT ? type : &array_typecheck));
 		free(array_typecheck.sub_types);
 		break;
 	}
@@ -525,6 +526,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 			ESCAPE_ON_FAIL(parse_type_params(ast_parser, &value->type.match));
 		
 		PANIC_ON_FAIL(value->data.procedure = malloc(sizeof(ast_proc_t)), ast_parser, ERROR_MEMORY);
+		PANIC_ON_FAIL(value->data.procedure->params = malloc((TYPE_MAX_SUBTYPES - 1) * sizeof(ast_proc_param_t)), ast_parser, ERROR_MEMORY);
 		value->data.procedure->param_count = 0;
 		MATCH_TOK(TOK_OPEN_PAREN);
 		READ_TOK;
@@ -555,15 +557,18 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		READ_TOK;
 		MATCH_TOK(TOK_RETURN);
 		READ_TOK;
-		ESCAPE_ON_FAIL(parse_type(ast_parser, &value->type.sub_types[0], 1, 1));
+		ESCAPE_ON_FAIL(parse_type(ast_parser, value->type.sub_types, 1, 1));
+
 		CURRENT_FRAME.return_type = value->data.procedure->return_type = &value->type.sub_types[0];
-		value->data.procedure->thisproc = (ast_var_info_t){
+		
+		PANIC_ON_FAIL(value->data.procedure->thisproc = malloc(sizeof(ast_var_info_t)), ast_parser, ERROR_MEMORY);
+		*value->data.procedure->thisproc = (ast_var_info_t){
 			.is_global = 0,
 			.is_readonly = 1,
 			.type = value->type
 		};
 		
-		ESCAPE_ON_FAIL(ast_parser_decl_var(ast_parser, 7572967076558961, &value->data.procedure->thisproc));
+		ESCAPE_ON_FAIL(ast_parser_decl_var(ast_parser, 7572967076558961, value->data.procedure->thisproc));
 		ESCAPE_ON_FAIL(parse_code_block(ast_parser, &value->data.procedure->exec_block, 1, 0));
 		ESCAPE_ON_FAIL(ast_parser_close_frame(ast_parser));
 		ast_parser->ast->total_constants++;
@@ -673,7 +678,8 @@ static int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typech
 	while (LAST_TOK.type >= TOK_EQUALS && LAST_TOK.type <= TOK_OR && op_precs[LAST_TOK.type - TOK_EQUALS] > min_prec) {
 		PANIC_ON_FAIL(value->data.binary_op = malloc(sizeof(ast_binary_op_t)), ast_parser, ERROR_MEMORY);
 		value->data.binary_op->lhs = lhs;
-		value->data.binary_op->operator = LAST_TOK.type;
+		value->data.binary_op->operator = LAST_TOK.type; 
+
 		value->value_type = AST_VALUE_BINARY_OP;
 		PANIC_ON_FAIL(copy_typecheck_type(&value->type, *type), ast_parser, ERROR_MEMORY);
 
@@ -735,6 +741,8 @@ static void free_ast_value(ast_value_t* value) {
 	case AST_VALUE_PROC:
 		for (uint_fast8_t i = 0; i < value->data.procedure->param_count; i++)
 			free_ast_var_info(&value->data.procedure->params[i].var_info);
+		free(value->data.procedure->params);
+		free(value->data.procedure->thisproc);
 		free_ast_code_block(&value->data.procedure->exec_block);
 		free(value->data.procedure);
 		break;
@@ -790,7 +798,8 @@ static void free_ast_code_block(ast_code_block_t* code_block) {
 	for (uint_fast32_t i = 0; i < code_block->instruction_count; i++)
 		switch (code_block->instructions[i].type) {
 		case AST_STATEMENT_DECL_VAR:
-			free_ast_var_info(&code_block->instructions[i].data.var_decl.var_info);
+			free_ast_var_info(code_block->instructions[i].data.var_decl.var_info);
+			free(code_block->instructions[i].data.var_decl.var_info);
 			free_ast_value(&code_block->instructions[i].data.var_decl.set_value);
 			break;
 		case AST_STATEMENT_COND:
