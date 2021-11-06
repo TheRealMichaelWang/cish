@@ -122,4 +122,5 @@ void free_machine(machine_t* machine);
 
 int machine_execute(machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count);
 
+heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, int trace_children);
 #endif // !OPCODE_H

@@ -18,6 +18,7 @@ typedef struct ast_unary_op ast_unary_op_t;
 typedef struct ast_call_proc ast_call_proc_t;
 typedef struct ast_cond ast_cond_t;
 typedef struct ast_proc ast_proc_t;
+typedef struct ast_foreign_call ast_foreign_call_t;
 
 typedef struct ast_var_info {
 	uint32_t id;
@@ -64,6 +65,7 @@ typedef struct ast_value {
 		AST_VALUE_BINARY_OP,
 		AST_VALUE_UNARY_OP,
 		AST_VALUE_PROC_CALL,
+		AST_VALUE_FOREIGN
 	} value_type;
 
 	union ast_value_data {
@@ -78,6 +80,7 @@ typedef struct ast_value {
 		ast_binary_op_t* binary_op;
 		ast_unary_op_t* unary_op;
 		ast_call_proc_t* proc_call;
+		ast_foreign_call_t* foreign;
 	} data;
 
 	uint32_t id;
@@ -126,8 +129,7 @@ typedef struct ast_call_proc {
 
 typedef struct ast_foreign_call {
 	ast_value_t op_id, input;
-	ast_var_info_t* output_var;
-	int has_input, has_output;
+	int has_input;
 } ast_foreign_call_t;
 
 typedef struct ast_statement {
@@ -138,8 +140,7 @@ typedef struct ast_statement {
 		AST_STATEMENT_RETURN_VALUE,
 		AST_STATEMENT_RETURN,
 		AST_STATEMENT_CONTINUE,
-		AST_STATEMENT_BREAK,
-		AST_STATEMENT_FOREIGN
+		AST_STATEMENT_BREAK
 	} type;
 
 	union ast_statement_data
@@ -147,7 +148,6 @@ typedef struct ast_statement {
 		ast_decl_var_t var_decl;
 		ast_cond_t* conditional;
 		ast_value_t value;
-		ast_foreign_call_t foreign;
 	} data;
 } ast_statement_t;
 

@@ -140,6 +140,7 @@ void free_ast_parser(ast_parser_t* ast_parser) {
 static int parse_subtypes(ast_parser_t* ast_parser, typecheck_type_t* super_type) {
 	MATCH_TOK(TOK_LESS);
 	typecheck_type_t* sub_types = malloc(TYPE_MAX_SUBTYPES * sizeof(typecheck_type_t));
+	PANIC_ON_FAIL(sub_types, ast_parser, ERROR_MEMORY);
 	super_type->sub_type_count = 0;
 	do {
 		READ_TOK;
@@ -336,6 +337,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			statement->data.conditional->next_if_false = NULL;
 			goto no_check_semicolon;
 		}
+		case TOK_FOREIGN:
 		case TOK_IDENTIFIER: {
 			statement->type = AST_STATEMENT_VALUE;
 			typecheck_type_t type = { .type = TYPE_AUTO };
@@ -368,36 +370,6 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			multi_scanner_visit(&ast_parser->multi_scanner, file_source);
 			free(file_source);
 			break; 
-		case TOK_FOREIGN: {
-			statement->type = AST_STATEMENT_FOREIGN;
-			READ_TOK;
-			MATCH_TOK(TOK_OPEN_BRACKET);
-			READ_TOK;
-			ESCAPE_ON_FAIL(parse_expression(ast_parser, &statement->data.foreign.op_id, &typecheck_int, 0));
-			MATCH_TOK(TOK_CLOSE_BRACKET);
-			READ_TOK; 
-			if (LAST_TOK.type == TOK_OPEN_PAREN) {
-				READ_TOK;
-				typecheck_type_t t = { .type = TYPE_AUTO };
-				ESCAPE_ON_FAIL(parse_expression(ast_parser, &statement->data.foreign.input, &t, 0));
-				statement->data.foreign.has_input = 1;
-				MATCH_TOK(TOK_CLOSE_PAREN);
-				READ_TOK;
-			}
-			else
-				statement->data.foreign.has_input = 0;
-			if (LAST_TOK.type == TOK_MORE_EQUAL) {
-				READ_TOK;
-				MATCH_TOK(TOK_IDENTIFIER);
-				statement->data.foreign.output_var = ast_parser_find_var(ast_parser, hash_s(LAST_TOK.str, LAST_TOK.length));
-				PANIC_ON_FAIL(statement->data.foreign.output_var, ast_parser, ERROR_UNDECLARED);
-				statement->data.foreign.has_output = 1;
-				READ_TOK;
-			}
-			else
-				statement->data.foreign.has_output = 0;
-			break;
-		}
 		}
 		default:
 			PANIC(ast_parser, ERROR_UNEXPECTED_TOK);
@@ -597,6 +569,28 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		ast_parser->ast->total_constants++;
  		break;
 	}
+	case TOK_FOREIGN: {
+		value->value_type = AST_VALUE_FOREIGN;
+		PANIC_ON_FAIL(value->data.foreign = malloc(sizeof(ast_foreign_call_t)), ast_parser, ERROR_MEMORY);
+		PANIC_ON_FAIL(copy_typecheck_type(&value->type, *type), ast_parser, ERROR_MEMORY);
+		READ_TOK;
+		MATCH_TOK(TOK_OPEN_BRACKET);
+		READ_TOK;
+		ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.foreign->op_id, &typecheck_int, 0));
+		MATCH_TOK(TOK_CLOSE_BRACKET);
+		READ_TOK;
+		if (LAST_TOK.type == TOK_OPEN_PAREN) {
+			READ_TOK;
+			typecheck_type_t t = { .type = TYPE_AUTO };
+			ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.foreign->input, &t, 0));
+			value->data.foreign->has_input = 1;
+			MATCH_TOK(TOK_CLOSE_PAREN);
+			READ_TOK;
+		}
+		else
+			value->data.foreign->has_input = 0;
+		break;
+	}
 	default:
 		PANIC(ast_parser, ERROR_UNEXPECTED_TOK);
 	}
@@ -699,7 +693,10 @@ static int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typech
 		value->id = ast_parser->ast->value_count++;
 		lhs = *value;
 	}
-	PANIC_ON_FAIL(typecheck_compatible(type, lhs.type), ast_parser, ERROR_UNEXPECTED_TYPE);
+	if (lhs.type.type == TYPE_AUTO)
+		PANIC_ON_FAIL(copy_typecheck_type(&lhs.type, *type), ast_parser, ERROR_MEMORY)
+	else
+		PANIC_ON_FAIL(typecheck_compatible(type, lhs.type), ast_parser, ERROR_UNEXPECTED_TYPE);
 	*value = lhs;
 	return 1;
 }
@@ -771,6 +768,12 @@ static void free_ast_value(ast_value_t* value) {
 			free_ast_value(&value->data.proc_call->arguments[i]);
 		free(value->data.proc_call);
 		break;
+	case AST_VALUE_FOREIGN:
+		free_ast_value(&value->data.foreign->op_id);
+		if (value->data.foreign->has_input)
+			free_ast_value(&value->data.foreign->input);
+		free(value->data.foreign);
+		break;
 	}
 }
 
@@ -797,11 +800,6 @@ static void free_ast_code_block(ast_code_block_t* code_block) {
 		case AST_STATEMENT_VALUE:
 			free_ast_value(&code_block->instructions[i].data.value);
 			break;
-		case AST_STATEMENT_FOREIGN:
-			free_ast_value(&code_block->instructions[i].data.foreign.op_id);
-			if (code_block->instructions[i].data.foreign.has_input)
-				free_ast_value(&code_block->instructions[i].data.foreign.input);
-			break; 
 		}
 	free(code_block->instructions);
 }

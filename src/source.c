@@ -37,11 +37,11 @@ int main(int argc, char* argv[]) {
 			ABORT(("Compilation failiure(%s).", get_err_msg(compiler.last_err)));
 		free_ast(&ast);
 
-		print_instructions(compiler.ins_builder.instructions, compiler.ins_builder.instruction_count);
 		install_stdlib(&machine, 100);
 		if (!machine_execute(&machine, compiler.ins_builder.instructions, compiler.ins_builder.instruction_count))
 			ABORT(("Runtime error(%s).", get_err_msg(machine.last_err)));
 		free_machine(&machine);
+		free(compiler.ins_builder.instructions);
 	}
 	else
 		ABORT(("Unrecognized flag(%s).", op_flag));

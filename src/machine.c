@@ -16,7 +16,7 @@ static uint64_t longpow(uint64_t base, uint64_t exp) {
 	return result;
 }
 
-static heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, int trace_children) {
+heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, int trace_children) {
 	if (machine->heap_count == machine->heap_alloc_limit)
 		PANIC(machine, ERROR_STACK_OVERFLOW);
 	heap_alloc_t* heap_alloc = malloc(sizeof(heap_alloc_t));
@@ -246,7 +246,7 @@ static int machine_execute_instruction(machine_t* machine, machine_ins_t* instru
 	case OP_CODE_ABORT:
 		PANIC(machine, ERROR_ABORT);
 	case OP_CODE_FOREIGN:
-		PANIC_ON_FAIL(ffi_invoke(&machine->ffi_table, &machine->stack[AREG], &machine->stack[BREG], &machine->stack[CREG]), machine, ERROR_FOREIGN);
+		PANIC_ON_FAIL(ffi_invoke(&machine->ffi_table, machine, &machine->stack[AREG], &machine->stack[BREG], &machine->stack[CREG]), machine, ERROR_FOREIGN);
 		break;
 	}
 	machine->ip++;

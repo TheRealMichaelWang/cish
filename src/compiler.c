@@ -94,6 +94,11 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		allocate_value_regs(compiler, value.data.proc_call->procedure, extra_regs, NULL);
 		return current_reg + 1;
 	}
+	case AST_VALUE_FOREIGN:
+		extra_regs = allocate_value_regs(compiler, value.data.foreign->op_id, extra_regs, NULL);
+		if(value.data.foreign->has_input)
+			extra_regs = allocate_value_regs(compiler, value.data.foreign->input, extra_regs, NULL);
+		break;
 	}
 	if (target_reg) {
 		compiler->eval_regs[value.id] = *target_reg;
@@ -152,14 +157,7 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, &return_reg);
 			break;
 		}
-		case AST_STATEMENT_FOREIGN: {
-			uint16_t f_regs = current_reg;
-			f_regs = allocate_value_regs(compiler, code_block.instructions[i].data.foreign.op_id, f_regs, NULL);
-			if (code_block.instructions[i].data.foreign.has_input)
-				allocate_value_regs(compiler, code_block.instructions[i].data.foreign.input, f_regs, NULL);
-			break;
-		}
-		}
+	}
 }
 
 static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block, ast_proc_t* proc, uint16_t break_ip, uint16_t continue_ip);
@@ -247,6 +245,14 @@ static int compile_value(compiler_t* compiler, ast_value_t value) {
 		if (compiler->proc_call_offsets[value.data.proc_call->id])
 			EMIT_INS(INS1(OP_CODE_STACK_DEOFFSET, GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
 		break;
+	case AST_VALUE_FOREIGN:
+		compile_value(compiler, value.data.foreign->op_id);
+		if (value.data.foreign->has_input) {
+			compile_value(compiler, value.data.foreign->input);
+			EMIT_INS(INS3(OP_CODE_FOREIGN, compiler->eval_regs[value.data.foreign->op_id.id], compiler->eval_regs[value.data.foreign->input.id], compiler->eval_regs[value.id]));
+		}
+		else
+			EMIT_INS(INS3(OP_CODE_FOREIGN, compiler->eval_regs[value.data.foreign->op_id.id], LOC_REG(0), compiler->eval_regs[value.id]));
 	}
 	return 1;
 }
@@ -330,19 +336,6 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 		case AST_STATEMENT_CONTINUE:
 			EMIT_INS(INS1(OP_CODE_JUMP, GLOB_REG(continue_ip)));
 			break;
-		case AST_STATEMENT_FOREIGN: {
-			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.foreign.op_id));
-			compiler_reg_t inp_reg;
-			if (code_block.instructions[i].data.foreign.has_input) {
-				ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.foreign.input));
-				inp_reg = compiler->eval_regs[code_block.instructions[i].data.foreign.input.id];
-			}
-			else
-				inp_reg = GLOB_REG(0);
-			compiler_reg_t out_reg = code_block.instructions[i].data.foreign.has_output ? compiler->var_regs[code_block.instructions[i].data.foreign.output_var->id] : GLOB_REG(0);
-			EMIT_INS(INS3(OP_CODE_FOREIGN, compiler->eval_regs[code_block.instructions[i].data.foreign.op_id.id], inp_reg, out_reg));
-			break;
-		}
 		}
 	return 1;
 }
