@@ -42,6 +42,6 @@ int typecheck_compatible(typecheck_type_t* target_type, typecheck_type_t match_t
 
 int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type);
 
-void type_args_substitute(typecheck_type_t* input_type_args, typecheck_type_t* proto_type);
+int type_args_substitute(typecheck_type_t* input_type_args, typecheck_type_t* proto_type);
 
 #endif // !TYPE

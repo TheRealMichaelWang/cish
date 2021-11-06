@@ -56,11 +56,12 @@ int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type) {
 	return 0;
 }
 
-void type_args_substitute(typecheck_type_t* input_type_args, typecheck_type_t* proto_type) {
+int type_args_substitute(typecheck_type_t* input_type_args, typecheck_type_t* proto_type) {
 	if (proto_type->type == TYPE_TYPEARG)
-		copy_typecheck_type(proto_type, input_type_args->sub_types[proto_type->match]);
+		ESCAPE_ON_FAIL(copy_typecheck_type(proto_type, input_type_args->sub_types[proto_type->match]))
 	else if (proto_type->type >= TYPE_SUPER_ARRAY) {
 		for (uint_fast8_t i = 0; i < proto_type->sub_type_count; i++)
-			type_args_substitute(input_type_args, &proto_type->sub_types[i]);
+			ESCAPE_ON_FAIL(type_args_substitute(input_type_args, &proto_type->sub_types[i]));
 	}
+	return 1;
 }

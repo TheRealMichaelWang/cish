@@ -637,7 +637,8 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				typeargs.type = TYPE_SUPER_PROC;
 				ESCAPE_ON_FAIL(parse_subtypes(ast_parser, &typeargs));
 				PANIC_ON_FAIL(typeargs.sub_type_count == call_type.match, ast_parser, ERROR_UNEXPECTED_ARGUMENT_SIZE);
-				type_args_substitute(&typeargs, &call_type);
+				PANIC_ON_FAIL(type_args_substitute(&typeargs, &call_type), ast_parser, ERROR_MEMORY);
+				free_typecheck_type(&typeargs);
 			}
 
 			PANIC_ON_FAIL(value->data.proc_call = malloc(sizeof(ast_call_proc_t)), ast_parser, ERROR_MEMORY);
@@ -681,12 +682,11 @@ static int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typech
 		value->data.binary_op->operator = LAST_TOK.type; 
 
 		value->value_type = AST_VALUE_BINARY_OP;
-		PANIC_ON_FAIL(copy_typecheck_type(&value->type, *type), ast_parser, ERROR_MEMORY);
 
 		if (value->data.binary_op->operator >= TOK_EQUALS && value->data.binary_op->operator <= TOK_LESS_EQUAL)
-			PANIC_ON_FAIL(typecheck_compatible(type, typecheck_bool), ast_parser, ERROR_UNEXPECTED_TYPE)
-		else if(value->data.binary_op->operator >= TOK_ADD && value->data.binary_op->operator <= TOK_POWER)
-			PANIC_ON_FAIL(typecheck_compatible(type, typecheck_int) || typecheck_compatible(type, typecheck_float), ast_parser, ERROR_UNEXPECTED_TYPE);
+			value->type.type = TYPE_PRIMATIVE_BOOL;
+		else if (value->data.binary_op->operator >= TOK_ADD && value->data.binary_op->operator <= TOK_POWER)
+			value->type.type = lhs.type.type;
 
 		if (value->data.binary_op->operator >= TOK_MORE && value->data.binary_op->operator <= TOK_POWER)
 			PANIC_ON_FAIL(typecheck_compatible(&lhs.type, typecheck_int) || typecheck_compatible(&lhs.type, typecheck_float), ast_parser, ERROR_UNEXPECTED_TYPE)
