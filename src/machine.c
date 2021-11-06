@@ -66,6 +66,7 @@ static int machine_execute_instruction(machine_t* machine, machine_ins_t* instru
 		PANIC_ON_FAIL(machine->position_count != machine->frame_limit, machine, ERROR_STACK_OVERFLOW);
 		machine->positions[machine->position_count++] = machine->ip;
 		machine->ip = machine->stack[AREG].ip;
+		machine->global_offset += ins.b;
 		return 1;
 	}
 	case OP_CODE_LABEL:

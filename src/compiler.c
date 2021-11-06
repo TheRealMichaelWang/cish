@@ -239,9 +239,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value) {
 				EMIT_INS(INS2(OP_CODE_MOVE, LOC_REG(i + 1 + compiler->proc_call_offsets[value.data.proc_call->id]), compiler->eval_regs[value.data.proc_call->arguments[i].id]));
 		}
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.proc_call->procedure));
-		if(compiler->proc_call_offsets[value.data.proc_call->id])
-			EMIT_INS(INS1(OP_CODE_STACK_OFFSET, GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
-		EMIT_INS(INS1(OP_CODE_JUMP_HIST, compiler->eval_regs[value.data.proc_call->procedure.id]));
+		EMIT_INS(INS2(OP_CODE_JUMP_HIST, compiler->eval_regs[value.data.proc_call->procedure.id], GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
 		if (compiler->proc_call_offsets[value.data.proc_call->id])
 			EMIT_INS(INS1(OP_CODE_STACK_DEOFFSET, GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
 		break;
