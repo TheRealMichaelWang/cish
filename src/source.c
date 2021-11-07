@@ -40,7 +40,7 @@ int main(int argc, char* argv[]) {
 		free_ast(&ast);
 
 		//print_instructions(compiler.ins_builder.instructions, compiler.ins_builder.instruction_count);
-		install_stdlib(&machine, 100);
+		install_stdlib(&machine);
 		if (!machine_execute(&machine, compiler.ins_builder.instructions, compiler.ins_builder.instruction_count))
 			ABORT(("Runtime error(%s).", get_err_msg(machine.last_err)));
 		free_machine(&machine);

@@ -85,19 +85,21 @@ static int std_in(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	return scanf("%c", &out->char_int);
 }
 
-void install_stdlib(machine_t* machine, int support_level) {
+static int std_random(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
+	out->long_int = rand();
+	return 1;
+}
+
+void install_stdlib(machine_t* machine) {
 	ffi_include_func(&machine->ffi_table, std_itof);
 	ffi_include_func(&machine->ffi_table, std_floor);
 	ffi_include_func(&machine->ffi_table, std_ceil);
 	ffi_include_func(&machine->ffi_table, std_round);
-	if (support_level >= 1) {
-		ffi_include_func(&machine->ffi_table, std_ftos);
-		ffi_include_func(&machine->ffi_table, std_stof);
-		ffi_include_func(&machine->ffi_table, std_itos);
-		ffi_include_func(&machine->ffi_table, std_stoi);
-	}
-	if (support_level >= 2) {
-		ffi_include_func(&machine->ffi_table, std_out);
-		ffi_include_func(&machine->ffi_table, std_in);
-	}
+	ffi_include_func(&machine->ffi_table, std_ftos);
+	ffi_include_func(&machine->ffi_table, std_stof);
+	ffi_include_func(&machine->ffi_table, std_itos);
+	ffi_include_func(&machine->ffi_table, std_stoi);
+	ffi_include_func(&machine->ffi_table, std_out);
+	ffi_include_func(&machine->ffi_table, std_in);
+	ffi_include_func(&machine->ffi_table, std_random);
 }

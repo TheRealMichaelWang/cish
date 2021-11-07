@@ -393,6 +393,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		ESCAPE_ON_FAIL(parse_prim_value(ast_parser, &value->data.primative));
 		value->value_type = AST_VALUE_PRIMATIVE;
 		value->type.type = TYPE_PRIMATIVE_BOOL + value->data.primative.type - AST_PRIMATIVE_BOOL;
+		value->from_gctrace = 0;
 		break;
 	case TOK_STRING: {
 		char* buffer = malloc(LAST_TOK.length);
@@ -407,6 +408,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		}
 		value->value_type = AST_VALUE_ARRAY_LITERAL;
 		value->type.type = TYPE_SUPER_ARRAY;
+		value->from_gctrace = 0;
 		PANIC_ON_FAIL(value->type.sub_types = malloc(sizeof(typecheck_type_t)), ast_parser, ERROR_MEMORY);
 		value->type.sub_types->type = TYPE_PRIMATIVE_CHAR;
 		value->type.sub_type_count = 1;
@@ -418,6 +420,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 					.type = AST_PRIMATIVE_CHAR
 				};
 				value->data.array_literal.elements[i].value_type = AST_VALUE_PRIMATIVE;
+				value->data.array_literal.elements[i].from_gctrace = 0;
 				value->data.array_literal.elements[i].type.type = TYPE_PRIMATIVE_CHAR;
 				value->data.array_literal.elements[i].id = ast_parser->ast->value_count++;
 				ast_parser->ast->total_constants++;
@@ -429,6 +432,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 	case TOK_OPEN_BRACKET: {
 		value->value_type = AST_VALUE_ARRAY_LITERAL;
 		value->type.type = TYPE_SUPER_ARRAY;
+		value->from_gctrace = 0;
 		PANIC_ON_FAIL(value->type.sub_types = malloc(sizeof(typecheck_type_t)), ast_parser, ERROR_MEMORY);
 		value->type.sub_types->type = TYPE_AUTO;
 		value->type.sub_type_count = 1;
@@ -458,6 +462,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		value->value_type = AST_VALUE_ALLOC_ARRAY;
 		value->type.type = TYPE_SUPER_ARRAY;
 		value->type.sub_type_count = 1;
+		value->from_gctrace = 0;
 		PANIC_ON_FAIL(value->type.sub_types = malloc(sizeof(typecheck_type_t)), ast_parser, ERROR_MEMORY);
 		PANIC_ON_FAIL(value->data.alloc_array = malloc(sizeof(ast_alloc_t)), ast_parser, ERROR_MEMORY);
 		value->data.alloc_array->elem_type = value->type.sub_types;
@@ -474,6 +479,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		ast_var_info_t* var_info = ast_parser_find_var(ast_parser, hash_s(LAST_TOK.str, LAST_TOK.length));
 		PANIC_ON_FAIL(var_info, ast_parser, ERROR_UNDECLARED);
 		PANIC_ON_FAIL(copy_typecheck_type(&value->type, var_info->type), ast_parser, ERROR_MEMORY);
+		value->from_gctrace = var_info->is_global;
 
 		READ_TOK;
 		if (LAST_TOK.type == TOK_SET) {
@@ -484,6 +490,8 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 			PANIC_ON_FAIL(value->data.set_var = malloc(sizeof(ast_set_var_t)), ast_parser, ERROR_UNDECLARED);
 			value->data.set_var->var_info = var_info;
 			ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.set_var->set_value, &var_info->type, 0));
+			if (value->data.set_var->set_value.from_gctrace)
+				value->from_gctrace = 1;
 		}
 		else {
 			value->value_type = AST_VALUE_VAR;
@@ -501,6 +509,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 	case TOK_HASHTAG:
 	case TOK_SUBTRACT: {
 		value->value_type = AST_VALUE_UNARY_OP;
+		value->from_gctrace = 0;
 		PANIC_ON_FAIL(value->data.unary_op = malloc(sizeof(ast_unary_op_t)), ast_parser, ERROR_MEMORY);
 		value->data.unary_op->operator = LAST_TOK.type;
 		if ((LAST_TOK.type == TOK_SUBTRACT && !typecheck_compatible(type, typecheck_int) && !typecheck_compatible(type, typecheck_float)) ||
@@ -519,6 +528,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 	case TOK_TYPECHECK_PROC: {
 		READ_TOK;
 		value->value_type = AST_VALUE_PROC;
+		value->from_gctrace = 0;
 		ESCAPE_ON_FAIL(ast_parser_new_frame(ast_parser, NULL, 0));
 		value->type.match = 0;
 
@@ -576,6 +586,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 	}
 	case TOK_FOREIGN: {
 		value->value_type = AST_VALUE_FOREIGN;
+		value->from_gctrace = 0;
 		PANIC_ON_FAIL(value->data.foreign = malloc(sizeof(ast_foreign_call_t)), ast_parser, ERROR_MEMORY);
 		PANIC_ON_FAIL(copy_typecheck_type(&value->type, *type), ast_parser, ERROR_MEMORY);
 		READ_TOK;
@@ -624,12 +635,14 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				value->data.get_index->array = array_val;
 				value->data.get_index->index = index_val;
 			}
+			value->from_gctrace = array_val.from_gctrace;
 			PANIC_ON_FAIL(copy_typecheck_type(&value->type, array_val.type.sub_types[0]), ast_parser, ERROR_MEMORY);
 		}
 		else if(LAST_TOK.type == TOK_OPEN_PAREN || (LAST_TOK.type == TOK_LESS && value->type.type == TYPE_SUPER_PROC)) {
 			PANIC_ON_FAIL(value->type.type == TYPE_SUPER_PROC, ast_parser, ERROR_UNEXPECTED_TYPE);
 			ast_value_t proc_val = *value;
 			value->value_type = AST_VALUE_PROC_CALL;
+			value->from_gctrace = 1;
 
 			typecheck_type_t call_type;
 			PANIC_ON_FAIL(copy_typecheck_type(&call_type, proc_val.type), ast_parser, ERROR_MEMORY);
@@ -683,6 +696,7 @@ static int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typech
 		value->data.binary_op->operator = LAST_TOK.type; 
 
 		value->value_type = AST_VALUE_BINARY_OP;
+		value->from_gctrace = 0;
 
 		if (value->data.binary_op->operator >= TOK_EQUALS && value->data.binary_op->operator <= TOK_LESS_EQUAL)
 			value->type.type = TYPE_PRIMATIVE_BOOL;

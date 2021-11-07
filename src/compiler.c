@@ -191,7 +191,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value) {
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_var->set_value));
 		if (compiler->move_eval[value.data.set_var->set_value.id])
 			EMIT_INS(INS2(OP_CODE_MOVE, compiler->var_regs[value.data.set_var->var_info->id], compiler->eval_regs[value.data.set_var->set_value.id]));
-		if (value.data.set_var->var_info->is_global && value.type.type == TYPE_SUPER_ARRAY)
+		if (value.from_gctrace && value.type.type == TYPE_SUPER_ARRAY)
 			EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->var_regs[value.data.set_var->var_info->id]));
 		break;
 	case AST_VALUE_SET_INDEX:
@@ -199,6 +199,8 @@ static int compile_value(compiler_t* compiler, ast_value_t value) {
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->index));
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->value));
 		EMIT_INS(INS3(OP_CODE_STORE_HEAP, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->index.id], compiler->eval_regs[value.data.set_index->value.id]));
+		if (value.from_gctrace && value.data.set_index->value.type.type == TYPE_SUPER_ARRAY)
+			EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->var_regs[value.data.set_index->value.id]));
 		break;
 	case AST_VALUE_GET_INDEX:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->array));
@@ -319,11 +321,11 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.value));
 			if (compiler->move_eval[code_block.instructions[i].data.value.id])
 				EMIT_INS(INS2(OP_CODE_MOVE, LOC_REG(0), compiler->eval_regs[code_block.instructions[i].data.value.id]));
-			if (code_block.instructions[i].data.value.type.type == TYPE_SUPER_ARRAY)
+			if (code_block.instructions[i].data.value.type.type == TYPE_SUPER_ARRAY && code_block.instructions[i].data.value.type.sub_types->type == TYPE_SUPER_ARRAY)
 				EMIT_INS(INS1(OP_CODE_HEAP_TRACE, LOC_REG(0)));
 		case AST_STATEMENT_RETURN:
 			for (uint_fast8_t i = 0; i < proc->param_count; i++)
-				if (proc->params[i].var_info.type.type == TYPE_SUPER_ARRAY)
+				if (proc->params[i].var_info.type.type == TYPE_SUPER_ARRAY && proc->params[i].var_info.type.sub_types->type == TYPE_SUPER_ARRAY)
 					EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->var_regs[proc->params[i].var_info.id]));
 			EMIT_INS(INS0(OP_CODE_HEAP_CLEAN));
 			EMIT_INS(INS0(OP_CODE_JUMP_BACK));

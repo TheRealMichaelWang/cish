@@ -84,6 +84,7 @@ typedef struct ast_value {
 	} data;
 
 	uint32_t id;
+	int from_gctrace;
 } ast_value_t;
 
 typedef struct ast_decl_var {
