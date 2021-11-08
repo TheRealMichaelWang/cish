@@ -370,6 +370,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			READ_TOK;
 			multi_scanner_visit(&ast_parser->multi_scanner, file_source);
 			free(file_source);
+			code_block->instruction_count--; 
 			break;
 		}
 		default:

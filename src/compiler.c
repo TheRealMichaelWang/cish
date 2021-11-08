@@ -49,7 +49,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	case AST_VALUE_PROC: {
 		compiler->eval_regs[value.id] = GLOB_REG(compiler->current_constant++);
 		compiler->move_eval[value.id] = 1;
-		uint16_t proc_regs = 1;
+		uint16_t proc_regs = value.data.procedure->return_type->type != TYPE_NOTHING;
 		for (uint_fast16_t i = 0; i < value.data.procedure->param_count; i++)
 			compiler->var_regs[value.data.procedure->params[i].var_info.id] = LOC_REG(proc_regs++);
 		compiler->var_regs[value.data.procedure->thisproc->id] = compiler->eval_regs[value.id];
@@ -84,8 +84,13 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		allocate_value_regs(compiler, value.data.unary_op->operand, current_reg, target_reg);
 		break;
 	case AST_VALUE_PROC_CALL: {
-		compiler->eval_regs[value.id] = LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] = extra_regs++);
-		compiler->move_eval[value.id] = 1;
+		compiler->eval_regs[value.id] = LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] = extra_regs);
+		if (value.type.type == TYPE_NOTHING || (target_reg && target_reg->offset && target_reg->reg == current_reg))
+			compiler->move_eval[value.id] = 0;
+		else {
+			compiler->move_eval[value.id] = 1;
+			extra_regs++;
+		}
 		compiler_reg_t arg_dest_regs;
 		for (uint_fast8_t i = 0; i < value.data.proc_call->argument_count; i++) {
 			arg_dest_regs = LOC_REG(extra_regs++);
@@ -110,6 +115,8 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	}
 	return current_reg;
 }
+
+#include <stdio.h>
 
 static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code_block, uint16_t current_reg) {
 	for (uint_fast32_t i = 0; i < code_block.instruction_count; i++)
@@ -234,17 +241,19 @@ static int compile_value(compiler_t* compiler, ast_value_t value) {
 		else
 			EMIT_INS(INS2(OP_CODE_NOT + value.data.unary_op->operator - TOK_NOT, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]))
 		break;
-	case AST_VALUE_PROC_CALL:
+	case AST_VALUE_PROC_CALL: {
+		uint16_t arg_dest_i = value.type.type != TYPE_NOTHING;
 		for (uint_fast8_t i = 0; i < value.data.proc_call->argument_count; i++) {
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.proc_call->arguments[i]));
 			if (compiler->move_eval[value.data.proc_call->arguments[i].id])
-				EMIT_INS(INS2(OP_CODE_MOVE, LOC_REG(i + 1 + compiler->proc_call_offsets[value.data.proc_call->id]), compiler->eval_regs[value.data.proc_call->arguments[i].id]));
+				EMIT_INS(INS2(OP_CODE_MOVE, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] + arg_dest_i++), compiler->eval_regs[value.data.proc_call->arguments[i].id]));
 		}
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.proc_call->procedure));
 		EMIT_INS(INS2(OP_CODE_JUMP_HIST, compiler->eval_regs[value.data.proc_call->procedure.id], GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
 		if (compiler->proc_call_offsets[value.data.proc_call->id])
 			EMIT_INS(INS1(OP_CODE_STACK_DEOFFSET, GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
-		break;
+		break; 
+	}
 	case AST_VALUE_FOREIGN:
 		compile_value(compiler, value.data.foreign->op_id);
 		if (value.data.foreign->has_input) {
@@ -321,7 +330,8 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.value));
 			if (compiler->move_eval[code_block.instructions[i].data.value.id])
 				EMIT_INS(INS2(OP_CODE_MOVE, LOC_REG(0), compiler->eval_regs[code_block.instructions[i].data.value.id]));
-			if (code_block.instructions[i].data.value.type.type == TYPE_SUPER_ARRAY && code_block.instructions[i].data.value.type.sub_types->type == TYPE_SUPER_ARRAY)
+			if ((code_block.instructions[i].data.value.type.type == TYPE_SUPER_ARRAY && code_block.instructions[i].data.value.type.sub_types->type == TYPE_SUPER_ARRAY)
+				|| code_block.instructions[i].data.value.value_type == AST_VALUE_FOREIGN)
 				EMIT_INS(INS1(OP_CODE_HEAP_TRACE, LOC_REG(0)));
 		case AST_STATEMENT_RETURN:
 			for (uint_fast8_t i = 0; i < proc->param_count; i++)
