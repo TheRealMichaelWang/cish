@@ -1,5 +1,15 @@
-include "buffer.txt"
+include "io.txt";
+include "string.txt";
+include "std.txt";
 
-array<int> fizzbuzz = filter(range(0, 100, 1), proc(int i) return bool {
-	return i % 5 == 0 or i % 3 == 0;
-});
+forall<int>(
+	filter<int>(irange(100), 
+		proc(int i) return bool {
+			return i % 5 == 0 or i % 3 == 0;
+		}
+	),
+	proc(int i) return nothing {
+		println(itos(i));
+		return;
+	}
+);

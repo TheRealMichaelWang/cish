@@ -1,7 +1,9 @@
-readonly auto fib = proc (int n) return int {
+include "io.txt";
+include "string.txt";
+global readonly auto fib = proc (int n) return int {
 	if(n <= 1) {
 		return n;
 	}
 	return thisproc(n - 1) + thisproc(n - 2);
 };
-global auto res = fib(35);
+println(itos(fib(35)));

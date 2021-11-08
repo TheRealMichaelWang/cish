@@ -43,3 +43,31 @@ global readonly auto filter = proc<elemType>(array<elemType> a, proc<bool, elemT
 	}
 	return output;
 };
+
+global readonly auto funcfill = proc<elemType>(array<elemType> buffer, proc<elemType> func, int start, int length) return nothing {
+	int i = start;
+	while(i < start + length) {
+		buffer[i] = func();
+		i = i + 1;
+	}
+	return;
+};
+
+global readonly auto forall = proc<elemType>(array<elemType> a, proc<nothing, array<elemType>, int> func) return nothing {
+	int i = 0;
+	while(i < #a) {
+		func(a, i);
+		i = i + 1;
+	}
+	return;
+};
+
+global readonly auto irange = proc(int n) return array<int> {
+	array<int> range = new int[n];
+	int i = 0;
+	while(i < n) {
+		range[i] = i;
+		i = i + 1;
+	}
+	return range;
+};
