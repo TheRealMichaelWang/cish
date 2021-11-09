@@ -570,7 +570,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		READ_TOK;
 		ESCAPE_ON_FAIL(parse_type(ast_parser, value->type.sub_types, 1, 1));
 
-		CURRENT_FRAME.return_type = value->data.procedure->return_type = &value->type.sub_types[0];
+		CURRENT_FRAME.return_type = value->data.procedure->return_type = value->type.sub_types;
 		
 		PANIC_ON_FAIL(value->data.procedure->thisproc = malloc(sizeof(ast_var_info_t)), ast_parser, ERROR_MEMORY);
 		*value->data.procedure->thisproc = (ast_var_info_t){
