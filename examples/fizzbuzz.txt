@@ -8,8 +8,8 @@ forall<int>(
 			return i % 5 == 0 or i % 3 == 0;
 		}
 	),
-	proc(int i) return nothing {
-		println(itos(i));
+	proc(array<int> a, int i) return nothing {
+		println(itos(a[i]));
 		return;
 	}
 );
