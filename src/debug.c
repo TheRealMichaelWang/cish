@@ -82,8 +82,6 @@ static char* error_names[] = {
 	"cannot set readonly var",
 	"unallowed type",
 
-	"missing type argument",
-
 	"expected sub types",
 
 	"undeclared",
