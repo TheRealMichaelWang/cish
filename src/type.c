@@ -27,6 +27,10 @@ int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src) {
 int typecheck_compatible(typecheck_type_t* target_type, typecheck_type_t match_type) {
 	if (target_type->type == TYPE_AUTO)
 		return copy_typecheck_type(target_type, match_type);
+	else if (match_type.type == TYPE_PRIMATIVE_BOOL)
+		return target_type->type >= TYPE_PRIMATIVE_BOOL && match_type.type <= TYPE_PRIMATIVE_LONG && match_type.type != TYPE_PRIMATIVE_CHAR;
+	else if (match_type.type >= TYPE_PRIMATIVE_CHAR && match_type.type <= TYPE_PRIMATIVE_LONG)
+		return target_type->type >= TYPE_PRIMATIVE_BOOL && target_type->type <= TYPE_PRIMATIVE_LONG;
 	else if (target_type->type < TYPE_SUPER_ARRAY)
 		return target_type->type == match_type.type;
 	else {

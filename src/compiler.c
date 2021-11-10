@@ -47,7 +47,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 			allocate_value_regs(compiler, value.data.array_literal.elements[i], current_reg, NULL);
 		break;
 	case AST_VALUE_PROC: {
-		compiler->eval_regs[value.id] = GLOB_REG(compiler->current_constant++);
+		compiler->eval_regs[value.id] = GLOB_REG(compiler->ast->total_constants + compiler->current_global++);
 		compiler->move_eval[value.id] = 1;
 		for (uint_fast16_t i = 0; i < value.data.procedure->param_count; i++)
 			compiler->var_regs[value.data.procedure->params[i].var_info.id] = LOC_REG(i);

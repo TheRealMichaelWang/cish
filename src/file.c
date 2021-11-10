@@ -7,30 +7,30 @@
 
 #define MAGIC_NUM 2187
 
-//static int read_ins(machine_ins_t* output, FILE* infile) {
-//	uint8_t op_code_buffer;
-//	ESCAPE_ON_FAIL(fread(&op_code_buffer, sizeof(uint8_t), 1, infile));
-//	output->op_code = op_code_buffer;
-//	ESCAPE_ON_FAIL(fread(&output->a_flag, sizeof(uint8_t), 1, infile));
-//	ESCAPE_ON_FAIL(fread(&output->b_flag, sizeof(uint8_t), 1, infile));
-//	ESCAPE_ON_FAIL(fread(&output->c_flag, sizeof(uint8_t), 1, infile));
-//	ESCAPE_ON_FAIL(fread(&output->a, sizeof(uint16_t), 1, infile));
-//	ESCAPE_ON_FAIL(fread(&output->b, sizeof(uint16_t), 1, infile));
-//	ESCAPE_ON_FAIL(fread(&output->c, sizeof(uint16_t), 1, infile));
-//	return 1;
-//}
-//
-//static int write_ins(machine_ins_t ins, FILE* infile) {
-//	uint8_t op_code_buffer = ins.op_code;
-//	ESCAPE_ON_FAIL(fwrite(&op_code_buffer, sizeof(uint8_t), 1, infile));
-//	ESCAPE_ON_FAIL(fwrite(&ins.a_flag, sizeof(uint8_t), 1, infile));
-//	ESCAPE_ON_FAIL(fwrite(&ins.b_flag, sizeof(uint8_t), 1, infile));
-//	ESCAPE_ON_FAIL(fwrite(&ins.c_flag, sizeof(uint8_t), 1, infile));
-//	ESCAPE_ON_FAIL(fwrite(&ins.a, sizeof(uint16_t), 1, infile));
-//	ESCAPE_ON_FAIL(fwrite(&ins.b, sizeof(uint16_t), 1, infile));
-//	ESCAPE_ON_FAIL(fwrite(&ins.c, sizeof(uint16_t), 1, infile));
-//	return 1;
-//}
+static int read_ins(machine_ins_t* output, FILE* infile) {
+	uint8_t op_code_buffer;
+	ESCAPE_ON_FAIL(fread(&op_code_buffer, sizeof(uint8_t), 1, infile));
+	output->op_code = op_code_buffer;
+	ESCAPE_ON_FAIL(fread(&output->a_flag, sizeof(uint8_t), 1, infile));
+	ESCAPE_ON_FAIL(fread(&output->b_flag, sizeof(uint8_t), 1, infile));
+	ESCAPE_ON_FAIL(fread(&output->c_flag, sizeof(uint8_t), 1, infile));
+	ESCAPE_ON_FAIL(fread(&output->a, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fread(&output->b, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fread(&output->c, sizeof(uint16_t), 1, infile));
+	return 1;
+}
+
+static int write_ins(machine_ins_t ins, FILE* infile) {
+	uint8_t op_code_buffer = ins.op_code;
+	ESCAPE_ON_FAIL(fwrite(&op_code_buffer, sizeof(uint8_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(&ins.a_flag, sizeof(uint8_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(&ins.b_flag, sizeof(uint8_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(&ins.c_flag, sizeof(uint8_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(&ins.a, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(&ins.b, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(&ins.c, sizeof(uint16_t), 1, infile));
+	return 1;
+}
 //
 //static int read_reg(machine_reg_t* reg, FILE* infile) {
 //	ESCAPE_ON_FAIL(fread(reg, sizeof(uint64_t), 1, infile));

@@ -582,7 +582,6 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		ESCAPE_ON_FAIL(ast_parser_decl_var(ast_parser, 7572967076558961, value->data.procedure->thisproc));
 		ESCAPE_ON_FAIL(parse_code_block(ast_parser, &value->data.procedure->exec_block, 1, 0));
 		ESCAPE_ON_FAIL(ast_parser_close_frame(ast_parser));
-		ast_parser->ast->total_constants++;
  		break;
 	}
 	case TOK_FOREIGN: {
