@@ -22,7 +22,7 @@ typedef struct ast_foreign_call ast_foreign_call_t;
 
 typedef struct ast_var_info {
 	uint32_t id;
-	int is_global, is_readonly;
+	int is_global, is_readonly, has_mutated;
 	typecheck_type_t type;
 } ast_var_info_t;
 

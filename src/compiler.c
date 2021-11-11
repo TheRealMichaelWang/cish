@@ -115,10 +115,10 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 		{
 		case AST_STATEMENT_DECL_VAR: {
 			ast_decl_var_t var_decl = code_block.instructions[i].data.var_decl;
-			if (var_decl.var_info->is_readonly &&
+			if (!var_decl.var_info->has_mutated &&
 				(var_decl.set_value.value_type == AST_VALUE_PRIMATIVE ||
 					var_decl.set_value.value_type == AST_VALUE_PROC ||
-					(var_decl.set_value.value_type == AST_VALUE_VAR && var_decl.set_value.data.variable->is_readonly))) {
+					(var_decl.set_value.value_type == AST_VALUE_VAR && !var_decl.set_value.data.variable->has_mutated))) {
 				current_reg = allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL);
 				compiler->var_regs[var_decl.var_info->id] = compiler->eval_regs[var_decl.set_value.id];
 				compiler->move_eval[var_decl.set_value.id] = 0;
