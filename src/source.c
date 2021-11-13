@@ -40,6 +40,8 @@ int main(int argc, char* argv[]) {
 		free_ast_parser(&parser);
 		free_ast(&ast);
 
+		//print_instructions(compiler.ins_builder.instructions, compiler.ins_builder.instruction_count);
+
 		if (!strcmp(op_flag, "-cr")) {
 			install_stdlib(&machine);
 			if (!machine_execute(&machine, compiler.ins_builder.instructions, compiler.ins_builder.instruction_count))

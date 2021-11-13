@@ -124,28 +124,38 @@ static int machine_execute_instruction(machine_t* machine, machine_ins_t* instru
 		if (machine->heap_frame == machine->frame_limit)
 			PANIC(machine, ERROR_STACK_OVERFLOW);
 		machine->heap_frame_bounds[machine->heap_frame] = machine->heap_count;
-		machine->heap_reset_bounds[machine->heap_frame++] = machine->heap_reset_count;
+		machine->trace_frame_bounds[machine->heap_frame] = machine->trace_count;
+		machine->heap_frame++;
 		break;
 	}
 	case OP_CODE_HEAP_TRACE: {
-		machine->heap_reset_count += machine_heap_trace(machine, machine->stack[AREG].heap_alloc, &machine->heap_reset_stack[machine->heap_reset_count]);
+		if (machine->trace_count == machine->trace_alloc_limit) {
+			heap_alloc_t** new_trace_stack = realloc(machine->heap_traces, (machine->trace_alloc_limit *= 2) * sizeof(heap_alloc_t*));
+			PANIC_ON_FAIL(new_trace_stack, machine, ERROR_MEMORY);
+			machine->heap_traces = new_trace_stack;
+		}
+		machine->heap_traces[machine->trace_count++] = machine->stack[AREG].heap_alloc;
 		break;
 	}
 	case OP_CODE_HEAP_CLEAN: {
 		uint16_t kept_allocs = 0;
-		uint16_t bound_start = machine->heap_frame_bounds[--machine->heap_frame];
-		for(uint_fast16_t i = bound_start; i < machine->heap_count; i++)
-			if ((*machine->heap_allocs[i]).gc_flag)
-				machine->heap_allocs[bound_start + kept_allocs++] = machine->heap_allocs[i];
+		uint16_t heap_bound_start = machine->heap_frame_bounds[--machine->heap_frame];
+		uint16_t reseted_heap_count = 0;
+		static heap_alloc_t* reset_stack[64];
+		for (uint_fast16_t i = machine->trace_frame_bounds[machine->heap_frame]; i < machine->trace_count; i++)
+			reseted_heap_count += machine_heap_trace(machine, machine->heap_traces[i], reset_stack);
+		for(uint_fast16_t i = heap_bound_start; i < machine->heap_count; i++)
+			if (machine->heap_allocs[i]->gc_flag)
+				machine->heap_allocs[heap_bound_start + kept_allocs++] = machine->heap_allocs[i];
 			else {
 				free(machine->heap_allocs[i]->registers);
 				free(machine->heap_allocs[i]->init_stat);
 				free(machine->heap_allocs[i]);
 			}
-		machine->heap_count = bound_start + kept_allocs;
-		for (uint_fast16_t i = machine->heap_reset_bounds[machine->heap_frame]; i < machine->heap_reset_count; i++)
-			machine->heap_reset_stack[i]->gc_flag = 0;
-		machine->heap_reset_count = machine->heap_reset_bounds[machine->heap_frame];
+		machine->heap_count = heap_bound_start + kept_allocs;
+		machine->trace_count = machine->trace_frame_bounds[machine->heap_frame];
+		for (uint_fast16_t i = 0; i < reseted_heap_count; i++)
+			reset_stack[i]->gc_flag = 0;
 		break;
 	}
 	case OP_CODE_AND:
@@ -232,12 +242,6 @@ static int machine_execute_instruction(machine_t* machine, machine_ins_t* instru
 	case OP_CODE_FLOAT_EXPONENTIATE:
 		machine->stack[CREG].float_int = pow(machine->stack[AREG].float_int, machine->stack[BREG].float_int);
 		break;
-	case OP_CODE_LONG_TO_FLOAT:
-		machine->stack[AREG].float_int = (double)machine->stack[BREG].long_int;
-		break;
-	case OP_CODE_FLOAT_TO_LONG:
-		machine->stack[AREG].long_int = (float)machine->stack[BREG].float_int;
-		break;
 	case OP_CODE_LONG_NEGATE:
 		machine->stack[AREG].long_int = -machine->stack[BREG].long_int;
 		break;
@@ -263,13 +267,14 @@ int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_li
 	machine->position_count = 0;
 	machine->heap_frame = 0;
 	machine->heap_count = 0;
-	machine->heap_reset_count = 0;
+	machine->trace_count = 0;
 
 	ESCAPE_ON_FAIL(machine->stack = malloc(stack_size * sizeof(machine_reg_t)));
 	ESCAPE_ON_FAIL(machine->positions = malloc(machine->frame_limit * sizeof(machine_ins_t*)));
 	ESCAPE_ON_FAIL(machine->heap_allocs = malloc(machine->heap_alloc_limit * sizeof(heap_alloc_t*)));
+	ESCAPE_ON_FAIL(machine->heap_traces = malloc((machine->trace_alloc_limit = 128) * sizeof(heap_alloc_t*)));
 	ESCAPE_ON_FAIL(machine->heap_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
-	ESCAPE_ON_FAIL(machine->heap_reset_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
+	ESCAPE_ON_FAIL(machine->trace_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
 	ESCAPE_ON_FAIL(init_ffi(&machine->ffi_table));
 	return 1;
 }
@@ -280,7 +285,8 @@ void free_machine(machine_t* machine) {
 	free(machine->positions);
 	free(machine->heap_allocs);
 	free(machine->heap_frame_bounds);
-	free(machine->heap_reset_bounds);
+	free(machine->heap_traces);
+	free(machine->trace_frame_bounds);
 }
 
 int machine_execute(machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count) {

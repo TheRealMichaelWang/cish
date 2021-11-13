@@ -20,10 +20,17 @@ typedef struct ast_cond ast_cond_t;
 typedef struct ast_proc ast_proc_t;
 typedef struct ast_foreign_call ast_foreign_call_t;
 
+typedef enum ast_gc_status {
+	GC_NONE,
+	GC_EXTERN_ALLOC,
+	GC_LOCAL_ALLOC
+} ast_gc_status_t;
+
 typedef struct ast_var_info {
 	uint32_t id;
 	int is_global, is_readonly, has_mutated;
 	typecheck_type_t type;
+	ast_gc_status_t gc_status;
 } ast_var_info_t;
 
 typedef struct ast_array_literal {
@@ -84,7 +91,7 @@ typedef struct ast_value {
 	} data;
 
 	uint32_t id;
-	int from_gctrace;
+	ast_gc_status_t gc_status;
 } ast_value_t;
 
 typedef struct ast_decl_var {
@@ -95,6 +102,7 @@ typedef struct ast_decl_var {
 typedef struct ast_set_var {
 	ast_var_info_t* var_info;
 	ast_value_t set_value;
+	int gc_trace;
 } set_var_t;
 
 typedef struct ast_alloc {
@@ -104,6 +112,7 @@ typedef struct ast_alloc {
 
 typedef struct ast_set_index {
 	ast_value_t array, index, value;
+	int gc_trace;
 } ast_set_index_t;
 
 typedef struct ast_get_index {
@@ -180,6 +189,8 @@ typedef struct ast_proc {
 	ast_var_info_t* thisproc;
 
 	ast_code_block_t exec_block;
+
+	int do_gc;
 } ast_proc_t;
 
 typedef struct ast_var_cache_entry {
@@ -205,6 +216,8 @@ typedef struct ast_parser_frame {
 	uint8_t generic_count;
 
 	ast_parser_frame_t* parent_frame;
+
+	int do_gc;
 } ast_parser_frame_t;
 
 typedef struct ast_parser {

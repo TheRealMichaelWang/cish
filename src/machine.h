@@ -72,9 +72,7 @@ typedef enum machine_op_code {
 	OP_CODE_FLOAT_EXPONENTIATE,
 
 	OP_CODE_LONG_NEGATE,
-	OP_CODE_FLOAT_NEGATE,
-	OP_CODE_LONG_TO_FLOAT,
-	OP_CODE_FLOAT_TO_LONG
+	OP_CODE_FLOAT_NEGATE
 } op_code_t;
 
 typedef struct machine_instruction {
@@ -106,13 +104,15 @@ typedef struct machine {
 	machine_ins_t* ip;
 	machine_ins_t** positions;
 
-	heap_alloc_t* heap_reset_stack[64];
 	heap_alloc_t** heap_allocs;
-	uint16_t*heap_frame_bounds, *heap_reset_bounds;
+	uint16_t* heap_frame_bounds;
+
+	heap_alloc_t** heap_traces;
+	uint16_t* trace_frame_bounds;
 
 	error_t last_err;
 	
-	uint16_t global_offset, position_count, heap_frame, heap_count, heap_reset_count, heap_alloc_limit, frame_limit;
+	uint16_t global_offset, position_count, heap_frame, frame_limit, heap_count, heap_alloc_limit, trace_count, trace_alloc_limit;
 
 	ffi_t ffi_table;
 } machine_t;
