@@ -28,10 +28,6 @@ int ins_builder_append_ins(ins_builder_t* ins_builder, machine_ins_t ins) {
 	return 1;
 }
 
-static int reg_comp(compiler_reg_t a, compiler_reg_t b) {
-	return a.reg == b.reg && a.offset == b.offset;
-}
-
 static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code_block, uint16_t current_reg);
 
 static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uint16_t current_reg, compiler_reg_t* target_reg) {

@@ -213,10 +213,12 @@ static int parse_prim_value(ast_parser_t* ast_parser, ast_primative_t* primative
 			if ((LAST_TOK.str[i] == 'f' && i == LAST_TOK.length - 1) || LAST_TOK.str[i] == '.') {
 				primative->data.float_int = strtod(LAST_TOK.str, NULL);
 				primative->type = AST_PRIMATIVE_FLOAT;
+				goto end;
 			}
 			else if (LAST_TOK.str[i] == 'h' && i == LAST_TOK.length - 1) {
 				primative->data.long_int = strtol(LAST_TOK.str, NULL, 16);
 				primative->type = AST_PRIMATIVE_LONG;
+				goto end;
 			}
 		}
 		primative->data.long_int = strtol(LAST_TOK.str, NULL, 10);
@@ -238,6 +240,7 @@ static int parse_prim_value(ast_parser_t* ast_parser, ast_primative_t* primative
 	default:
 		PANIC(ast_parser, ERROR_UNEXPECTED_TOK);
 	};
+	end:
 	ast_parser->ast->total_constants++;
 	READ_TOK;
 	return 1;
