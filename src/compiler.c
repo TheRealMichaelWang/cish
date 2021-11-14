@@ -311,18 +311,20 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 			if (compiler->move_eval[code_block.instructions[i].data.var_decl.set_value.id])
 				EMIT_INS(INS2(OP_CODE_MOVE, compiler->var_regs[code_block.instructions[i].data.var_decl.var_info->id], compiler->eval_regs[code_block.instructions[i].data.var_decl.set_value.id]));
 			break;
-		case AST_STATEMENT_COND: 
+		case AST_STATEMENT_COND:
 			ESCAPE_ON_FAIL(compile_conditional(compiler, code_block.instructions[i].data.conditional, proc, break_ip, continue_ip));
 			break;
 		case AST_STATEMENT_VALUE:
 			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.value, proc));
 			break;
-		case AST_STATEMENT_RETURN_VALUE:
+		case AST_STATEMENT_RETURN_VALUE: {
 			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.value, proc));
-			if (compiler->move_eval[code_block.instructions[i].data.value.id])
-				EMIT_INS(INS2(OP_CODE_MOVE, LOC_REG(0), compiler->eval_regs[code_block.instructions[i].data.value.id]));
+			compiler_reg_t src_reg = compiler->eval_regs[code_block.instructions[i].data.value.id];
+			if (compiler->move_eval[code_block.instructions[i].data.value.id] && !(!src_reg.reg && src_reg.offset))
+				EMIT_INS(INS2(OP_CODE_MOVE, LOC_REG(0), src_reg));
 			if (code_block.instructions[i].data.value.gc_status == GC_LOCAL_ALLOC && proc->do_gc)
-				EMIT_INS(INS1(OP_CODE_HEAP_TRACE, LOC_REG(0)));
+				EMIT_INS(INS1(OP_CODE_HEAP_TRACE, LOC_REG(0))); 
+		}
 		case AST_STATEMENT_RETURN:
 			if(proc->do_gc)
 				EMIT_INS(INS0(OP_CODE_HEAP_CLEAN));
