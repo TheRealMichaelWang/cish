@@ -32,7 +32,7 @@ static int write_ins(machine_ins_t ins, FILE* infile) {
 	return 1;
 }
 
-machine_ins_t* file_load_ins(char* path, machine_t* machine, uint16_t* instruction_count) {
+machine_ins_t* file_load_ins(const char* path, machine_t* machine, uint16_t* instruction_count) {
 	FILE* infile = fopen(path, "rb");
 	ESCAPE_ON_FAIL(infile);
 
@@ -57,7 +57,7 @@ machine_ins_t* file_load_ins(char* path, machine_t* machine, uint16_t* instructi
 	return instructions;
 }
 
-int file_save_compiled(char* path, ast_parser_t* ast_parser, machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count){
+int file_save_compiled(const char* path, ast_parser_t* ast_parser, machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count){
 	FILE* infile = fopen(path, "wb+");
 	ESCAPE_ON_FAIL(infile);
 
@@ -75,7 +75,7 @@ int file_save_compiled(char* path, ast_parser_t* ast_parser, machine_t* machine,
 	return 1;
 }
 
-char* file_read_source(char* path) {
+char* file_read_source(const char* path) {
 	FILE* infile = fopen(path, "rb");
 	ESCAPE_ON_FAIL(infile);
 

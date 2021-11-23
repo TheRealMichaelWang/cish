@@ -28,8 +28,11 @@ typedef enum token_type {
 	TOK_CONTINUE,
 	TOK_BREAK,
 	TOK_SET,
+
 	TOK_INCLUDE,
 	TOK_FOREIGN,
+	TOK_RECORD,
+	TOK_EXTEND,
 
 	TOK_FALSE,
 	TOK_TRUE,
@@ -74,7 +77,7 @@ typedef enum token_type {
 typedef struct token {
 	token_type_t type;
 
-	char* str;
+	const char* str;
 	uint32_t length;
 } token_t;
 

@@ -94,8 +94,8 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	}
 	case AST_VALUE_FOREIGN:
 		extra_regs = allocate_value_regs(compiler, value.data.foreign->op_id, extra_regs, NULL);
-		if(value.data.foreign->has_input)
-			extra_regs = allocate_value_regs(compiler, value.data.foreign->input, extra_regs, NULL);
+		if(value.data.foreign->input)
+			extra_regs = allocate_value_regs(compiler, *value.data.foreign->input, extra_regs, NULL);
 		break;
 	}
 	if (target_reg) {
@@ -140,8 +140,8 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 			ast_cond_t* conditional = code_block.instructions[i].data.conditional;
 			while (conditional)
 			{
-				if (conditional->has_cond_val)
-					allocate_value_regs(compiler, conditional->condition, current_reg, NULL);
+				if (conditional->condition)
+					allocate_value_regs(compiler, *conditional->condition, current_reg, NULL);
 				allocate_code_block_regs(compiler, conditional->exec_block, current_reg);
 				conditional = conditional->next_if_false;
 			}
@@ -165,7 +165,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 	{
 	case AST_VALUE_ALLOC_ARRAY:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.alloc_array->size, proc));
-		EMIT_INS(INS3(OP_CODE_HEAP_ALLOC, compiler->eval_regs[value.id], compiler->eval_regs[value.data.alloc_array->size.id], LOC_REG(value.data.alloc_array->elem_type->type == TYPE_SUPER_ARRAY)));
+		EMIT_INS(INS3(OP_CODE_HEAP_ALLOC, compiler->eval_regs[value.id], compiler->eval_regs[value.data.alloc_array->size.id], LOC_REG(IS_REF_TYPE(*value.data.alloc_array->elem_type))));
 		break;
 	case AST_VALUE_ARRAY_LITERAL:
 		EMIT_INS(INS2(OP_CODE_HEAP_ALLOC_I, compiler->eval_regs[value.id], GLOB_REG(value.data.array_literal.element_count)));
@@ -247,9 +247,9 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 	}
 	case AST_VALUE_FOREIGN:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.foreign->op_id, proc));
-		if (value.data.foreign->has_input) {
-			ESCAPE_ON_FAIL(compile_value(compiler, value.data.foreign->input, proc));
-			EMIT_INS(INS3(OP_CODE_FOREIGN, compiler->eval_regs[value.data.foreign->op_id.id], compiler->eval_regs[value.data.foreign->input.id], compiler->eval_regs[value.id]));
+		if (value.data.foreign->input) {
+			ESCAPE_ON_FAIL(compile_value(compiler, *value.data.foreign->input, proc));
+			EMIT_INS(INS3(OP_CODE_FOREIGN, compiler->eval_regs[value.data.foreign->op_id.id], compiler->eval_regs[value.data.foreign->input->id], compiler->eval_regs[value.id]));
 		}
 		else
 			EMIT_INS(INS3(OP_CODE_FOREIGN, compiler->eval_regs[value.data.foreign->op_id.id], LOC_REG(0), compiler->eval_regs[value.id]));
@@ -260,8 +260,8 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, ast_proc_t* proc, uint16_t break_ip, uint16_t continue_ip) {
 	if (conditional->next_if_true) {
 		uint16_t this_continue_ip = compiler->ins_builder.instruction_count;
-		ESCAPE_ON_FAIL(compile_value(compiler, conditional->condition, proc));
-		EMIT_INS(INS1(OP_CODE_CHECK, compiler->eval_regs[conditional->condition.id]));
+		ESCAPE_ON_FAIL(compile_value(compiler, *conditional->condition, proc));
+		EMIT_INS(INS1(OP_CODE_CHECK, compiler->eval_regs[conditional->condition->id]));
 		uint16_t this_break_ip = compiler->ins_builder.instruction_count;
 		EMIT_INS(INS0(OP_CODE_JUMP));
 		ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, this_break_ip, this_continue_ip));
@@ -272,7 +272,7 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 		uint16_t escape_jump_count = 0;
 		ast_cond_t* count_cond = conditional;
 		while (count_cond) {
-			if (count_cond->has_cond_val)
+			if (count_cond->condition)
 				escape_jump_count++;
 			count_cond = count_cond->next_if_false;
 		}
@@ -281,9 +281,9 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 		PANIC_ON_FAIL(escape_jumps, compiler, ERROR_MEMORY);
 		uint16_t current_escape_jump = 0;
 		while (conditional) {
-			if (conditional->has_cond_val) {
-				ESCAPE_ON_FAIL(compile_value(compiler, conditional->condition, proc));
-				EMIT_INS(INS1(OP_CODE_CHECK, compiler->eval_regs[conditional->condition.id]));
+			if (conditional->condition) {
+				ESCAPE_ON_FAIL(compile_value(compiler, *conditional->condition, proc));
+				EMIT_INS(INS1(OP_CODE_CHECK, compiler->eval_regs[conditional->condition->id]));
 				uint16_t move_next_ip = compiler->ins_builder.instruction_count;
 				EMIT_INS(INS0(OP_CODE_JUMP));
 				ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, break_ip, continue_ip));

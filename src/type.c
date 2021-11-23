@@ -13,7 +13,7 @@ void free_typecheck_type(typecheck_type_t* typecheck_type) {
 int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src) {
 	dest->type = src.type;
 	dest->sub_type_count = src.sub_type_count;
-	dest->match = src.match;
+	dest->type_id = src.type_id;
 	if (src.type >= TYPE_SUPER_ARRAY && src.sub_type_count) {
 		ESCAPE_ON_FAIL(dest->sub_types = malloc(src.sub_type_count * sizeof(typecheck_type_t)));
 		for (uint_fast8_t i = 0; i < src.sub_type_count; i++)
@@ -37,15 +37,12 @@ int typecheck_compatible(typecheck_type_t* target_type, typecheck_type_t match_t
 		if (target_type->type != match_type.type)
 			return 0;
 		if (target_type->type >= TYPE_SUPER_ARRAY) {
-			if (target_type->sub_type_count != match_type.sub_type_count)
-				return 0;
+			ESCAPE_ON_FAIL(target_type->sub_type_count == match_type.sub_type_count);
 			for (uint_fast8_t i = 0; i < target_type->sub_type_count; i++)
 				ESCAPE_ON_FAIL(typecheck_compatible(&target_type->sub_types[i], match_type.sub_types[i]));
-			if(target_type->type >= TYPE_SUPER_PROC)
-				return target_type->match == match_type.match;
 		}
-		else if (target_type->type == TYPE_TYPEARG)
-			return target_type->match == match_type.match;
+		if (target_type->type == TYPE_TYPEARG || target_type->type >= TYPE_SUPER_PROC)
+			return target_type->type_id == match_type.type_id;
 		return 1;
 	}
 }
@@ -60,9 +57,9 @@ int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type) {
 	return 0;
 }
 
-int type_args_substitute(typecheck_type_t* input_type_args, typecheck_type_t* proto_type) {
+int type_args_substitute(typecheck_type_t input_type_args, typecheck_type_t* proto_type) {
 	if (proto_type->type == TYPE_TYPEARG)
-		ESCAPE_ON_FAIL(copy_typecheck_type(proto_type, input_type_args->sub_types[proto_type->match]))
+		ESCAPE_ON_FAIL(copy_typecheck_type(proto_type, input_type_args.sub_types[proto_type->type_id]))
 	else if (proto_type->type >= TYPE_SUPER_ARRAY) {
 		for (uint_fast8_t i = 0; i < proto_type->sub_type_count; i++)
 			ESCAPE_ON_FAIL(type_args_substitute(input_type_args, &proto_type->sub_types[i]));

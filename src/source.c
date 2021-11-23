@@ -16,11 +16,11 @@
 int main(int argc, char* argv[]) {
 	int current_arg = 0;
 
-	char* working_dir = READ_ARG;
+	const char* working_dir = READ_ARG;
 	
 	if (current_arg == argc)
 		ABORT(("Expected an operation flag/argument."));
-	char* op_flag = READ_ARG;
+	const char* op_flag = READ_ARG;
 
 	if (!strcmp(op_flag, "-cr") || !strcmp(op_flag, "-c") || !strcmp(op_flag, "-cd")) {
 		ast_parser_t parser;

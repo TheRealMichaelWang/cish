@@ -19,6 +19,7 @@ typedef struct ast_call_proc ast_call_proc_t;
 typedef struct ast_cond ast_cond_t;
 typedef struct ast_proc ast_proc_t;
 typedef struct ast_foreign_call ast_foreign_call_t;
+typedef struct ast_record_proto ast_record_proto_t;
 
 typedef enum ast_gc_status {
 	GC_NONE,
@@ -138,8 +139,7 @@ typedef struct ast_call_proc {
 } ast_call_proc_t;
 
 typedef struct ast_foreign_call {
-	ast_value_t op_id, input;
-	int has_input;
+	ast_value_t op_id, *input;
 } ast_foreign_call_t;
 
 typedef struct ast_statement {
@@ -150,7 +150,8 @@ typedef struct ast_statement {
 		AST_STATEMENT_RETURN_VALUE,
 		AST_STATEMENT_RETURN,
 		AST_STATEMENT_CONTINUE,
-		AST_STATEMENT_BREAK
+		AST_STATEMENT_BREAK,
+		AST_STATEMENT_RECORD_PROTO
 	} type;
 
 	union ast_statement_data
@@ -158,6 +159,7 @@ typedef struct ast_statement {
 		ast_decl_var_t var_decl;
 		ast_cond_t* conditional;
 		ast_value_t value;
+		ast_record_proto_t* record_proto;
 	} data;
 } ast_statement_t;
 
@@ -167,8 +169,7 @@ typedef struct ast_code_block {
 } ast_code_block_t;
 
 typedef struct ast_cond {
-	ast_value_t condition;
-	int has_cond_val;
+	ast_value_t* condition;
 
 	ast_code_block_t exec_block;
 
@@ -192,6 +193,28 @@ typedef struct ast_proc {
 
 	int do_gc;
 } ast_proc_t;
+
+typedef struct ast_record_prop {
+	uint64_t hash_id;
+	uint16_t id;
+
+	typecheck_type_t type;
+
+	ast_value_t* default_value;
+} ast_record_prop_t;
+
+typedef struct ast_record_proto {
+	uint64_t hash_id;
+
+	typecheck_type_t* base_record;
+
+	ast_record_prop_t* properties;
+	uint8_t generic_arguments;
+
+	uint8_t property_count, allocated_properties;
+	uint16_t id, index_offset;
+	int defined;
+} ast_record_proto_t;
 
 typedef struct ast_var_cache_entry {
 	uint64_t id_hash;
@@ -225,8 +248,10 @@ typedef struct ast_parser {
 	uint8_t current_frame;
 
 	ast_var_cache_entry_t* globals;
+	ast_record_proto_t** record_protos;
 
 	uint16_t global_count, allocated_globals;
+	uint8_t record_count, allocated_records;
 
 	ast_t* ast;
 	multi_scanner_t multi_scanner;
@@ -234,7 +259,7 @@ typedef struct ast_parser {
 	error_t last_err;
 } ast_parser_t;
 
-int init_ast_parser(ast_parser_t* ast_parser, char* source);
+int init_ast_parser(ast_parser_t* ast_parser, const char* source);
 void free_ast_parser(ast_parser_t* ast_parser);
 
 int init_ast(ast_t* ast, ast_parser_t* ast_parser);
