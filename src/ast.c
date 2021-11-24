@@ -5,10 +5,11 @@
 #include "ast.h"
 
 #define LAST_TOK ast_parser->multi_scanner.last_tok
+#define CURRENT_FRAME ast_parser->frames[ast_parser->current_frame - 1]
+
 #define MATCH_TOK(TYPE) {if(LAST_TOK.type != TYPE) PANIC(ast_parser, ERROR_UNEXPECTED_TOK)}
 #define READ_TOK PANIC_ON_FAIL(multi_scanner_scan_tok(&ast_parser->multi_scanner), ast_parser, ast_parser->multi_scanner.last_err);
-
-#define CURRENT_FRAME ast_parser->frames[ast_parser->current_frame - 1]
+#define TYPE_COMP(A, B) typecheck_compatible(ast_parser->ast, A, B)
 
 static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_type_t* type);
 static int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typecheck_type_t* type, int min_prec);
@@ -126,30 +127,30 @@ static int ast_parser_decl_generic(ast_parser_t* ast_parser, uint64_t id) {
 }
 
 static ast_record_proto_t* ast_parser_find_record_proto(ast_parser_t* ast_parser, uint64_t id) {
-	for (uint_fast8_t i = 0; i < ast_parser->record_count; i++)
-		if (ast_parser->record_protos[i]->hash_id == id)
-			return ast_parser->record_protos[i];
+	for (uint_fast8_t i = 0; i < ast_parser->ast->record_count; i++)
+		if (ast_parser->ast->record_protos[i]->hash_id == id)
+			return ast_parser->ast->record_protos[i];
 	return NULL;
 }
 
 static ast_record_proto_t* ast_parser_decl_record(ast_parser_t* ast_parser, uint64_t id) {
 	if (ast_parser_find_record_proto(ast_parser, id))
 		PANIC(ast_parser, ERROR_REDECLARATION);
-	if (ast_parser->record_count == ast_parser->allocated_records) {
-		ast_record_proto_t** new_records = realloc(ast_parser->record_protos, (ast_parser->allocated_records *= 2) * sizeof(ast_record_proto_t*));
+	if (ast_parser->ast->record_count == ast_parser->ast->allocated_records) {
+		ast_record_proto_t** new_records = realloc(ast_parser->ast->record_protos, (ast_parser->ast->allocated_records *= 2) * sizeof(ast_record_proto_t*));
 		PANIC_ON_FAIL(new_records, ast_parser, ERROR_MEMORY);
-		ast_parser->record_protos = new_records;
+		ast_parser->ast->record_protos = new_records;
 	}
 	ast_record_proto_t* new_rec = malloc(sizeof(ast_record_proto_t));
 	PANIC_ON_FAIL(new_rec, ast_parser, ERROR_MEMORY);
 	new_rec->hash_id = id;
-	new_rec->id = ast_parser->record_count;
+	new_rec->id = ast_parser->ast->record_count;
 	new_rec->base_record = NULL;
 	PANIC_ON_FAIL(new_rec->properties = malloc((new_rec->allocated_properties = 4) * sizeof(ast_record_prop_t)), ast_parser, ERROR_MEMORY);
 	new_rec->property_count = 0;
 	new_rec->defined = 0;
 	new_rec->index_offset = 0;
-	ast_parser->record_protos[ast_parser->record_count++] = new_rec;
+	ast_parser->ast->record_protos[ast_parser->ast->record_count++] = new_rec;
 	return new_rec;
 }
 
@@ -160,12 +161,12 @@ static ast_record_prop_t* ast_record_find_prop(ast_parser_t* ast_parser, ast_rec
 		if (record->properties[i].hash_id == id)
 			return &record->properties[i];
 	if (record->base_record)
-		return ast_record_find_prop(ast_parser, ast_parser->record_protos[record->base_record->type_id], id);
+		return ast_record_find_prop(ast_parser, ast_parser->ast->record_protos[record->base_record->type_id], id);
 	return NULL;
 }
 
 static int ast_record_sub_prop_type(ast_parser_t* ast_parser, typecheck_type_t record_type, uint64_t id, typecheck_type_t* out_type) {
-	ast_record_proto_t* record = ast_parser->record_protos[record_type.type_id];
+	ast_record_proto_t* record = ast_parser->ast->record_protos[record_type.type_id];
 	PANIC_ON_FAIL(record->defined, ast_parser, ERROR_UNDECLARED);
 	PANIC_ON_FAIL(record_type.sub_type_count == record->generic_arguments, ast_parser, ERROR_UNEXPECTED_ARGUMENT_SIZE);
 
@@ -201,11 +202,9 @@ static ast_record_prop_t* ast_record_decl_prop(ast_parser_t* ast_parser, ast_rec
 
 int init_ast_parser(ast_parser_t* ast_parser, const char* file_path) {
 	PANIC_ON_FAIL(ast_parser->globals = malloc((ast_parser->allocated_globals = 16) * sizeof(ast_var_cache_entry_t)), ast_parser, ERROR_MEMORY);
-	PANIC_ON_FAIL(ast_parser->record_protos = malloc((ast_parser->allocated_records = 4) * sizeof(ast_record_proto_t*)), ast_parser, ERROR_MEMORY);
 	ast_parser->current_frame = 0;
 	ast_parser->last_err = ERROR_NONE;
 	ast_parser->global_count = 0;
-	ast_parser->record_count = 0;
 	PANIC_ON_FAIL(init_multi_scanner(&ast_parser->multi_scanner, file_path), ast_parser, ast_parser->multi_scanner.last_err);
 	return 1;
 }
@@ -215,7 +214,6 @@ void free_ast_parser(ast_parser_t* ast_parser) {
 	while (ast_parser->current_frame)
 		ast_parser_close_frame(ast_parser);
 	free(ast_parser->globals);
-	free(ast_parser->record_protos);
 }
 
 static int parse_subtypes(ast_parser_t* ast_parser, typecheck_type_t* super_type) {
@@ -257,21 +255,27 @@ static int parse_type(ast_parser_t* ast_parser, typecheck_type_t* type, int allo
 		else {
 			type->type = TYPE_SUPER_RECORD;
 			ast_record_proto_t* proto = ast_parser_find_record_proto(ast_parser, hash_id);
-			if (proto)
+			READ_TOK;
+			type->sub_type_count = 0;
+			if (proto) {
 				type->type_id = proto->id;
-			else {
-				type->type_id = ast_parser->record_count;
-				ESCAPE_ON_FAIL(ast_parser_decl_record(ast_parser, hash_id));
+				if (LAST_TOK.type == TOK_LESS)
+					ESCAPE_ON_FAIL(parse_subtypes(ast_parser, type))
+				ESCAPE_ON_FAIL(type->sub_type_count == proto->generic_arguments);
 			}
+			else {
+				type->type_id = ast_parser->ast->record_count;
+				if (LAST_TOK.type == TOK_LESS)
+					ESCAPE_ON_FAIL(parse_subtypes(ast_parser, type))
+				ESCAPE_ON_FAIL(proto = ast_parser_decl_record(ast_parser, hash_id));
+				proto->generic_arguments = type->sub_type_count;
+			}
+			return 1;
 		}
 	}
 	else
 		PANIC(ast_parser, ERROR_UNEXPECTED_TOK);
 	READ_TOK;
-	if (type->type == TYPE_SUPER_RECORD && LAST_TOK.type != TOK_LESS) {
-		type->sub_type_count = 0;
-		return 1;
-	}
 	if (type->type >= TYPE_SUPER_ARRAY) {
 		ESCAPE_ON_FAIL(parse_subtypes(ast_parser, type));
 		if (type->type == TYPE_SUPER_ARRAY && type->sub_type_count != 1)
@@ -281,6 +285,7 @@ static int parse_type(ast_parser_t* ast_parser, typecheck_type_t* type, int allo
 }
 
 static int parse_type_params(ast_parser_t* ast_parser, uint8_t* decled_type_params) {
+	*decled_type_params = 0;
 	MATCH_TOK(TOK_LESS);
 	while (LAST_TOK.type != TOK_MORE) {
 		READ_TOK;
@@ -466,7 +471,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			memcpy(file_source, LAST_TOK.str, LAST_TOK.length * sizeof(char));
 			file_source[LAST_TOK.length] = 0;
 			READ_TOK;
-			multi_scanner_visit(&ast_parser->multi_scanner, file_source);
+			PANIC_ON_FAIL(multi_scanner_visit(&ast_parser->multi_scanner, file_source), ast_parser, ast_parser->multi_scanner.last_err);
 			free(file_source);
 			code_block->instruction_count--; 
 			break;
@@ -484,8 +489,10 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			ESCAPE_ON_FAIL(ast_parser_new_frame(ast_parser, NULL, 0));
 
 			READ_TOK;
+			record_proto->generic_arguments = 0;
 			if (LAST_TOK.type == TOK_LESS)
 				ESCAPE_ON_FAIL(parse_type_params(ast_parser, &record_proto->generic_arguments));
+
 			if (LAST_TOK.type == TOK_EXTEND) {
 				READ_TOK;
 				PANIC_ON_FAIL(record_proto->base_record = malloc(sizeof(typecheck_type_t)), ast_parser, ERROR_MEMORY);
@@ -664,9 +671,9 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		value->gc_status = GC_NONE;
 		PANIC_ON_FAIL(value->data.unary_op = malloc(sizeof(ast_unary_op_t)), ast_parser, ERROR_MEMORY);
 		value->data.unary_op->operator = LAST_TOK.type;
-		if ((LAST_TOK.type == TOK_SUBTRACT && !typecheck_compatible(type, typecheck_int) && !typecheck_compatible(type, typecheck_float)) ||
-			(LAST_TOK.type == TOK_HASHTAG && !typecheck_compatible(type, typecheck_int) ||
-			(LAST_TOK.type == TOK_NOT && !typecheck_compatible(type, typecheck_bool))))
+		if ((LAST_TOK.type == TOK_SUBTRACT && !TYPE_COMP(type, typecheck_int) && !TYPE_COMP(type, typecheck_float)) ||
+			(LAST_TOK.type == TOK_HASHTAG && !TYPE_COMP(type, typecheck_int) ||
+			(LAST_TOK.type == TOK_NOT && !TYPE_COMP(type, typecheck_bool))))
 			PANIC(ast_parser, ERROR_UNEXPECTED_TYPE);
 		READ_TOK;
 		typecheck_type_t array_typecheck = typecheck_array;
@@ -831,7 +838,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		}
 		value->id = ast_parser->ast->value_count++;
 	}
-	PANIC_ON_FAIL(typecheck_compatible(type, value->type), ast_parser, ERROR_UNEXPECTED_TYPE);
+	PANIC_ON_FAIL(TYPE_COMP(type, value->type), ast_parser, ERROR_UNEXPECTED_TYPE);
 	return 1;
 }
 
@@ -858,20 +865,20 @@ static int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typech
 			value->type.type = lhs.type.type;
 
 		if (value->data.binary_op->operator >= TOK_MORE && value->data.binary_op->operator <= TOK_POWER)
-			PANIC_ON_FAIL(typecheck_compatible(&lhs.type, typecheck_int) || typecheck_compatible(&lhs.type, typecheck_float), ast_parser, ERROR_UNEXPECTED_TYPE)
+			PANIC_ON_FAIL(TYPE_COMP(&lhs.type, typecheck_int) || TYPE_COMP(&lhs.type, typecheck_float), ast_parser, ERROR_UNEXPECTED_TYPE)
 		else if (value->data.binary_op->operator == TOK_AND || value->data.binary_op->operator == TOK_OR) {
-			PANIC_ON_FAIL(typecheck_compatible(type, typecheck_bool), ast_parser, ERROR_UNEXPECTED_TYPE);
-			PANIC_ON_FAIL(typecheck_compatible(&lhs.type, typecheck_bool), ast_parser, ERROR_UNEXPECTED_TYPE);
+			PANIC_ON_FAIL(TYPE_COMP(type, typecheck_bool), ast_parser, ERROR_UNEXPECTED_TYPE);
+			PANIC_ON_FAIL(TYPE_COMP(&lhs.type, typecheck_bool), ast_parser, ERROR_UNEXPECTED_TYPE);
 		}
 		READ_TOK;
 		ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.binary_op->rhs, &lhs.type, op_precs[value->data.binary_op->operator -TOK_EQUALS]));
 		value->id = ast_parser->ast->value_count++;
 		lhs = *value;
 	}
-	if (lhs.type.type == TYPE_AUTO)
-		PANIC_ON_FAIL(copy_typecheck_type(&lhs.type, *type), ast_parser, ERROR_MEMORY)
+	if (type->type == TYPE_AUTO)
+		PANIC_ON_FAIL(copy_typecheck_type(type, lhs.type), ast_parser, ERROR_MEMORY)
 	else
-		PANIC_ON_FAIL(typecheck_compatible(type, lhs.type), ast_parser, ERROR_UNEXPECTED_TYPE);
+		PANIC_ON_FAIL(TYPE_COMP(&lhs.type, *type), ast_parser, ERROR_UNEXPECTED_TYPE);
 	*value = lhs;
 	return 1;
 }
@@ -882,12 +889,16 @@ int init_ast(ast_t* ast, ast_parser_t* ast_parser) {
 	ast->value_count = 0;
 	ast->total_constants = 0;
 	ast->total_var_decls = 0;
+
+	PANIC_ON_FAIL(ast->record_protos = malloc((ast->allocated_records = 4) * sizeof(ast_record_proto_t*)), ast_parser, ERROR_MEMORY);
+	ast->record_count = 0;
+
 	READ_TOK;
 	ESCAPE_ON_FAIL(ast_parser_new_frame(ast_parser, NULL, 0));
 	ESCAPE_ON_FAIL(parse_code_block(ast_parser, &ast->exec_block, 0, 0));
 	ESCAPE_ON_FAIL(ast_parser_close_frame(ast_parser));
-	for (uint_fast8_t i = 0; i < ast_parser->record_count; i++)
-		PANIC_ON_FAIL(ast_parser->record_protos[i]->defined, ast_parser, ERROR_UNDECLARED);
+	for (uint_fast8_t i = 0; i < ast->record_count; i++)
+		PANIC_ON_FAIL(ast->record_protos[i]->defined, ast_parser, ERROR_UNDECLARED);
 	return 1;
 }
 
@@ -1008,4 +1019,5 @@ static void free_ast_code_block(ast_code_block_t* code_block) {
 
 void free_ast(ast_t* ast) {
 	free_ast_code_block(&ast->exec_block);
+	free(ast->record_protos);
 }

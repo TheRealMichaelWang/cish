@@ -8,6 +8,7 @@
 #define TYPE_MAX_SUBTYPES 100
 
 typedef struct typecheck_type typecheck_type_t;
+typedef struct ast ast_t;
 
 typedef enum typecheck_base_type {
 	TYPE_AUTO,
@@ -42,7 +43,7 @@ static typecheck_type_t typecheck_array = { .type = TYPE_SUPER_ARRAY };
 void free_typecheck_type(typecheck_type_t* typecheck_type);
 int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src);
 
-int typecheck_compatible(typecheck_type_t* target_type, typecheck_type_t match_type);
+int typecheck_compatible(ast_t* ast, typecheck_type_t* target_type, typecheck_type_t match_type);
 
 int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type);
 

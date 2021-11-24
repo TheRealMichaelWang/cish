@@ -223,6 +223,10 @@ typedef struct ast_var_cache_entry {
 
 typedef struct ast {
 	ast_code_block_t exec_block;
+
+	ast_record_proto_t** record_protos;
+	uint8_t record_count, allocated_records;
+
 	uint32_t value_count, proc_call_count;
 	uint16_t total_var_decls, total_constants;
 } ast_t;
@@ -248,10 +252,7 @@ typedef struct ast_parser {
 	uint8_t current_frame;
 
 	ast_var_cache_entry_t* globals;
-	ast_record_proto_t** record_protos;
-
 	uint16_t global_count, allocated_globals;
-	uint8_t record_count, allocated_records;
 
 	ast_t* ast;
 	multi_scanner_t multi_scanner;
