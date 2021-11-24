@@ -20,6 +20,8 @@ typedef struct ast_cond ast_cond_t;
 typedef struct ast_proc ast_proc_t;
 typedef struct ast_foreign_call ast_foreign_call_t;
 typedef struct ast_record_proto ast_record_proto_t;
+typedef struct ast_get_prop ast_get_prop_t;
+typedef struct ast_set_prop ast_set_prop_t;
 
 typedef enum ast_gc_status {
 	GC_NONE,
@@ -64,12 +66,15 @@ typedef struct ast_value {
 	enum ast_value_type {
 		AST_VALUE_PRIMATIVE,
 		AST_VALUE_ALLOC_ARRAY,
+		AST_VALUE_ALLOC_RECORD,
 		AST_VALUE_ARRAY_LITERAL,
 		AST_VALUE_PROC,
 		AST_VALUE_VAR,
 		AST_VALUE_SET_VAR,
 		AST_VALUE_SET_INDEX,
+		AST_VALUE_SET_PROP,
 		AST_VALUE_GET_INDEX,
+		AST_VALUE_GET_PROP,
 		AST_VALUE_BINARY_OP,
 		AST_VALUE_UNARY_OP,
 		AST_VALUE_PROC_CALL,
@@ -79,12 +84,15 @@ typedef struct ast_value {
 	union ast_value_data {
 		ast_primative_t primative;
 		ast_alloc_t* alloc_array;
+		ast_record_proto_t* alloc_record;
 		ast_array_literal_t array_literal;
 		ast_proc_t* procedure;
 		ast_var_info_t* variable;
 		ast_set_var_t* set_var;
 		ast_set_index_t* set_index;
+		ast_set_prop_t* set_prop;
 		ast_get_index_t* get_index;
+		ast_get_prop_t* get_prop;
 		ast_binary_op_t* binary_op;
 		ast_unary_op_t* unary_op;
 		ast_call_proc_t* proc_call;
@@ -215,6 +223,16 @@ typedef struct ast_record_proto {
 	uint16_t id, index_offset;
 	int defined;
 } ast_record_proto_t;
+
+typedef struct ast_get_prop {
+	ast_value_t record;
+	ast_record_prop_t* property;
+} ast_get_prop_t;
+
+typedef struct ast_set_prop {
+	ast_value_t record, value;
+	ast_record_prop_t* property;
+} ast_set_prop_t;
 
 typedef struct ast_var_cache_entry {
 	uint64_t id_hash;

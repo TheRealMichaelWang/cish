@@ -71,6 +71,7 @@ typedef enum token_type {
 	TOK_CLOSE_BRACKET,
 
 	TOK_COMMA,
+	TOK_PERIOD,
 	TOK_SEMICOLON
 } token_type_t;
 

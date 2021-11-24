@@ -248,6 +248,8 @@ int scanner_scan_tok(scanner_t* scanner) {
 			SET_TOK_TYPE(TOK_CLOSE_BRACKET);
 		case ',':
 			SET_TOK_TYPE(TOK_COMMA);
+		case '.':
+			SET_TOK_TYPE(TOK_PERIOD);
 		case 0:
 			SET_TOK_TYPE(TOK_EOF);
 		default:
