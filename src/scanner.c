@@ -22,7 +22,7 @@ static char scanner_read_char(scanner_t* scanner) {
 	return scanner->last_char = scanner->source[scanner->position++];
 }
 
-void init_scanner(scanner_t* scanner, char* source, uint32_t length) {
+void init_scanner(scanner_t* scanner, const char* source, uint32_t length) {
 	scanner->source = source;
 	scanner->length = length;
 	scanner->position = 0;
@@ -77,6 +77,8 @@ int scanner_scan_tok(scanner_t* scanner) {
 		uint64_t id_hash = hash_s(scanner->last_tok.str, scanner->last_tok.length);
 		switch (id_hash)
 		{
+		case 229465117490944:
+			SET_TOK_TYPE(TOK_EXTEND);
 		case 7572877634356771:
 			SET_TOK_TYPE(TOK_READONLY);
 		case 229466054363183:
@@ -123,6 +125,8 @@ int scanner_scan_tok(scanner_t* scanner) {
 			SET_TOK_TYPE(TOK_NEW);
 		case 229469872107401:
 			SET_TOK_TYPE(TOK_INCLUDE);
+		case 6953974036516:
+			SET_TOK_TYPE(TOK_RECORD);
 		case 193504585: //rem
 			do {
 				scanner_read_char(scanner);
@@ -244,6 +248,8 @@ int scanner_scan_tok(scanner_t* scanner) {
 			SET_TOK_TYPE(TOK_CLOSE_BRACKET);
 		case ',':
 			SET_TOK_TYPE(TOK_COMMA);
+		case '.':
+			SET_TOK_TYPE(TOK_PERIOD);
 		case 0:
 			SET_TOK_TYPE(TOK_EOF);
 		default:
@@ -254,7 +260,7 @@ int scanner_scan_tok(scanner_t* scanner) {
 	return 1;
 }
 
-int init_multi_scanner(multi_scanner_t* scanner, char* path) {
+int init_multi_scanner(multi_scanner_t* scanner, const char* path) {
 	scanner->visited_files = 0;
 	scanner->current_file = 0;
 	scanner->last_err = ERROR_NONE;
@@ -269,7 +275,7 @@ void free_multi_scanner(multi_scanner_t* scanner) {
 	}
 }
 
-int multi_scanner_visit(multi_scanner_t* scanner, char* file) {
+int multi_scanner_visit(multi_scanner_t* scanner, const char* file) {
 	uint64_t id = hash(file);
 	for (uint_fast8_t i = 0; i < scanner->visited_files; i++)
 		if (id == scanner->visited_hashes[i])
