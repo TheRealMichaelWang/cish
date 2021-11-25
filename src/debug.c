@@ -20,6 +20,7 @@ static const char* opcode_names[] = {
 	"ldheap_i   ",
 	"stoheap    ",
 	"stoheap_i  ",
+	"conft_i    ",
 	
 	"offset     ",
 	"deoffset   ",

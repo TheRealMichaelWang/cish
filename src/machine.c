@@ -16,16 +16,18 @@ static uint64_t longpow(uint64_t base, uint64_t exp) {
 	return result;
 }
 
-heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, int trace_children) {
+heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode_t trace_mode) {
 	if (machine->heap_count == machine->heap_alloc_limit)
 		PANIC(machine, ERROR_STACK_OVERFLOW);
 	heap_alloc_t* heap_alloc = malloc(sizeof(heap_alloc_t));
+	heap_alloc->limit = req_size;
+	heap_alloc->gc_flag = 0;
+	heap_alloc->trace_mode = trace_mode;
 	PANIC_ON_FAIL(heap_alloc, machine, ERROR_MEMORY);
 	PANIC_ON_FAIL(heap_alloc->registers = malloc(req_size * sizeof(machine_reg_t)), machine, ERROR_MEMORY);
 	PANIC_ON_FAIL(heap_alloc->init_stat = calloc(req_size, sizeof(int)), machine, ERROR_MEMORY);
-	heap_alloc->limit = req_size;
-	heap_alloc->gc_flag = 0;
-	heap_alloc->trace_children = trace_children;
+	if (trace_mode == GC_TRACE_SOME)
+		PANIC_ON_FAIL(heap_alloc->trace_stat = calloc(req_size, sizeof(int)), machine, ERROR_MEMORY);
 	machine->heap_allocs[machine->heap_count++] = heap_alloc;
 	return heap_alloc;
 }
@@ -35,11 +37,19 @@ static uint16_t machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc,
 
 	heap_alloc->gc_flag = 1;
 	*(reset_stack++) = heap_alloc;
-
-	if (heap_alloc->trace_children)
+	switch (heap_alloc->trace_mode)
+	{
+	case GC_TRACE_ALL:
 		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
-			if(heap_alloc->init_stat[i])
+			if (heap_alloc->init_stat[i])
 				traced += machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack);
+		break;
+	case GC_TRACE_SOME:
+		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
+			if(heap_alloc->init_stat[i] && heap_alloc->trace_stat[i])
+				traced += machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack);
+		break;
+	}
 	return traced;
 }
 
@@ -108,6 +118,9 @@ static int machine_execute_instruction(machine_t* machine, machine_ins_t* instru
 		array_register.heap_alloc->init_stat[ins.b] = 1;
 		break;
 	}
+	case OP_CODE_HEAP_TRACE_I:
+		machine->stack[AREG].heap_alloc->trace_stat[ins.b] = ins.c;
+		break;
 	case OP_CODE_STACK_OFFSET:
 		machine->global_offset += ins.a;
 		break;
@@ -150,6 +163,8 @@ static int machine_execute_instruction(machine_t* machine, machine_ins_t* instru
 			else {
 				free(machine->heap_allocs[i]->registers);
 				free(machine->heap_allocs[i]->init_stat);
+				if (machine->heap_allocs[i]->gc_flag == GC_TRACE_SOME)
+					free(machine->heap_allocs[i]->trace_stat);
 				free(machine->heap_allocs[i]);
 			}
 		machine->heap_count = heap_bound_start + kept_allocs;
