@@ -1,0 +1,31 @@
+include "io.txt";
+include "string.txt";
+
+record node<elemType> {
+	node<elemType> next;
+	bool hasChildren = false;
+}
+
+record queue<elemTypeArg2> extends list<elemTypeArg2> {
+	int extraAssProperty;
+}
+
+record list<elemTypeArg> {
+	node<elemTypeArg> head = new node<elemTypeArg>;
+}
+
+global auto a = proc(list<int> list) return auto {
+	return list;
+};
+
+auto b = proc(queue<int> q) return auto {
+	return a(q);
+};
+
+queue<int> q = new queue<int>;
+array<list<int>> arr = new list<int>[10];
+b(q);
+q.extraAssProperty = 7;
+bool k = q.head.hasChildren;
+
+print(itos(k));
