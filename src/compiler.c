@@ -223,7 +223,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		if(value.data.procedure->do_gc)
 			EMIT_INS(INS0(OP_CODE_HEAP_NEW_FRAME));
 		compile_code_block(compiler, value.data.procedure->exec_block, value.data.procedure, 0 ,0);
-		EMIT_INS(INS0(OP_CODE_ABORT));
+		EMIT_INS(INS1(OP_CODE_ABORT, GLOB_REG(0)));
 		compiler->ins_builder.instructions[start_ip + 1].a = compiler->ins_builder.instruction_count;
 		break;
 	}
@@ -246,7 +246,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->record, proc));
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->value, proc));
 		EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.data.set_prop->record.id], GLOB_REG(value.data.set_prop->property->id), compiler->eval_regs[value.data.set_prop->value.id]));
-		if (value.data.set_prop->gc_trace)
+		if (value.data.set_prop->gc_trace && proc->do_gc)
 			EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->eval_regs[value.data.set_prop->value.id]));
 		break;
 	case AST_VALUE_GET_INDEX:
@@ -328,7 +328,7 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 				escape_jump_count++;
 			count_cond = count_cond->next_if_false;
 		}
-		escape_jump_count--;
+		//escape_jump_count--;
 		uint16_t* escape_jumps = malloc(escape_jump_count * sizeof(uint16_t));
 		PANIC_ON_FAIL(escape_jumps, compiler, ERROR_MEMORY);
 		uint16_t current_escape_jump = 0;
@@ -351,6 +351,7 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 		}
 		for (uint_fast16_t i = 0; i < escape_jump_count; i++)
 			compiler->ins_builder.instructions[escape_jumps[i]].a = compiler->ins_builder.instruction_count;
+		free(escape_jumps);
 	}
 	return 1;
 }
@@ -413,6 +414,7 @@ int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
 	EMIT_INS(INS0(OP_CODE_HEAP_NEW_FRAME));
 	ESCAPE_ON_FAIL(compile_code_block(compiler, ast->exec_block, NULL, 0, 0));
 	EMIT_INS(INS0(OP_CODE_HEAP_CLEAN));
+	EMIT_INS(INS1(OP_CODE_ABORT, GLOB_REG(1)));
 
 	free(compiler->eval_regs);
 	free(compiler->move_eval);

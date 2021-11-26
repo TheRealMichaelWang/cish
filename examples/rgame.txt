@@ -1,0 +1,8 @@
+include "io.txt";
+include "string.txt";
+
+println("Romance Game[Japan]: Romance Game: Japan Romance");
+
+global readonly auto flirt = proc(array<char> msg) return nothing {
+	
+}

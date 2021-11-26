@@ -460,6 +460,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 		case TOK_BREAK:
 			PANIC_ON_FAIL(in_loop, ast_parser, ERROR_CANNOT_CONTINUE + LAST_TOK.type - TOK_CONTINUE);
 			statement->type = AST_STATEMENT_CONTINUE + LAST_TOK.type - TOK_CONTINUE;
+			READ_TOK;
 			break;
 		case TOK_RETURN:
 			READ_TOK;

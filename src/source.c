@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
 
 		if (!strcmp(op_flag, "-cr")) {
 			install_stdlib(&machine);
-			if (!machine_execute(&machine, compiler.ins_builder.instructions, compiler.ins_builder.instruction_count))
+			if (!machine_execute(&machine, compiler.ins_builder.instructions))
 				ABORT(("Runtime error(%s).", get_err_msg(machine.last_err)));
 		}
 		else if (!strcmp(op_flag, "-c")) {
@@ -66,7 +66,7 @@ int main(int argc, char* argv[]) {
 			ABORT(("Unable to load binaries from file."));
 		if (!strcmp(op_flag, "-r")) {
 			install_stdlib(&machine);
-			if (!machine_execute(&machine, instructions, instruction_count))
+			if (!machine_execute(&machine, instructions))
 				ABORT(("Runtime error(%s).", get_err_msg(machine.last_err)))
 		}
 		else

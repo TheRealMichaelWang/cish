@@ -109,7 +109,6 @@ typedef union machine_register {
 typedef struct machine {
 	machine_reg_t* stack;
 
-	machine_ins_t* ip;
 	machine_ins_t** positions;
 
 	heap_alloc_t** heap_allocs;
@@ -128,7 +127,7 @@ typedef struct machine {
 int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_limit, uint16_t frame_limit);
 void free_machine(machine_t* machine);
 
-int machine_execute(machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count);
+int machine_execute(machine_t* machine, machine_ins_t* instructions);
 
 heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode_t trace_mode);
 #endif // !OPCODE_H
