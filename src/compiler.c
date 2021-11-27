@@ -46,6 +46,19 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		for (uint_fast16_t i = 0; i < value.data.array_literal.element_count; i++)
 			allocate_value_regs(compiler, value.data.array_literal.elements[i], current_reg, NULL);
 		break;
+	case AST_VALUE_ALLOC_RECORD: {
+		ast_record_proto_t* current_proto = value.data.alloc_record;
+		do {
+			for (uint_fast8_t i = 0; i < current_proto->property_count; i++)
+				if (current_proto->properties[i].default_value)
+					allocate_value_regs(compiler, *current_proto->properties[i].default_value, current_reg, NULL);
+			if (current_proto->base_record)
+				current_proto = compiler->ast->record_protos[current_proto->base_record->type_id];
+			else
+				current_proto = NULL;
+		} while (current_proto);
+		break;
+	}
 	case AST_VALUE_PROC: {
 		compiler->eval_regs[value.id] = GLOB_REG(compiler->ast->total_constants + compiler->current_global++);
 		compiler->move_eval[value.id] = 1;
@@ -62,22 +75,34 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	case AST_VALUE_SET_VAR:
 		compiler->eval_regs[value.id] = compiler->var_regs[value.data.set_var->var_info->id];
 		allocate_value_regs(compiler, value.data.set_var->set_value, current_reg, &compiler->eval_regs[value.id]);
-		compiler->move_eval[value.id] = 1;
+		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_var->set_value.id];
+		compiler->move_eval[value.id] = compiler->move_eval[value.data.set_var->set_value.id];
 		return current_reg;
 	case AST_VALUE_SET_INDEX:
 		extra_regs = allocate_value_regs(compiler, value.data.set_index->array, extra_regs, NULL);
-		extra_regs = allocate_value_regs(compiler, value.data.set_index->index, extra_regs, NULL);
-		extra_regs = allocate_value_regs(compiler, value.data.set_index->value, extra_regs, NULL);
+		if(value.data.set_index->index.value_type != AST_VALUE_PRIMATIVE)
+			extra_regs = allocate_value_regs(compiler, value.data.set_index->index, extra_regs, NULL);
+		allocate_value_regs(compiler, value.data.set_index->value, extra_regs, NULL);
 		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_index->value.id];
 		compiler->move_eval[value.id] = compiler->move_eval[value.data.set_index->value.id];
 		return current_reg;
+	case AST_VALUE_SET_PROP:
+		extra_regs = allocate_value_regs(compiler, value.data.set_prop->record, extra_regs, NULL);
+		allocate_value_regs(compiler, value.data.set_prop->value, extra_regs, NULL);
+		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_prop->value.id];
+		compiler->move_eval[value.id] = compiler->move_eval[value.data.set_prop->value.id];
+		return current_reg;
 	case AST_VALUE_GET_INDEX:
 		extra_regs = allocate_value_regs(compiler, value.data.get_index->array, extra_regs, NULL);
-		extra_regs = allocate_value_regs(compiler, value.data.get_index->index, extra_regs, NULL);
+		if(value.data.set_index->index.value_type != AST_VALUE_PRIMATIVE)
+			allocate_value_regs(compiler, value.data.get_index->index, extra_regs, NULL);
+		break;
+	case AST_VALUE_GET_PROP:
+		allocate_value_regs(compiler, value.data.get_prop->record, extra_regs, NULL);
 		break;
 	case AST_VALUE_BINARY_OP:
 		extra_regs = allocate_value_regs(compiler, value.data.binary_op->lhs, extra_regs, NULL);
-		extra_regs = allocate_value_regs(compiler, value.data.binary_op->rhs, extra_regs, NULL);
+		allocate_value_regs(compiler, value.data.binary_op->rhs, extra_regs, NULL);
 		break;
 	case AST_VALUE_UNARY_OP:
 		allocate_value_regs(compiler, value.data.unary_op->operand, current_reg, NULL);
@@ -95,7 +120,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	case AST_VALUE_FOREIGN:
 		extra_regs = allocate_value_regs(compiler, value.data.foreign->op_id, extra_regs, NULL);
 		if(value.data.foreign->input)
-			extra_regs = allocate_value_regs(compiler, *value.data.foreign->input, extra_regs, NULL);
+			allocate_value_regs(compiler, *value.data.foreign->input, extra_regs, NULL);
 		break;
 	}
 	if (target_reg) {
@@ -165,15 +190,33 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 	{
 	case AST_VALUE_ALLOC_ARRAY:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.alloc_array->size, proc));
-		EMIT_INS(INS3(OP_CODE_HEAP_ALLOC, compiler->eval_regs[value.id], compiler->eval_regs[value.data.alloc_array->size.id], LOC_REG(IS_REF_TYPE(*value.data.alloc_array->elem_type))));
+		EMIT_INS(INS3(OP_CODE_HEAP_ALLOC, compiler->eval_regs[value.id], compiler->eval_regs[value.data.alloc_array->size.id], GLOB_REG(IS_REF_TYPE(*value.data.alloc_array->elem_type))));
 		break;
 	case AST_VALUE_ARRAY_LITERAL:
-		EMIT_INS(INS2(OP_CODE_HEAP_ALLOC_I, compiler->eval_regs[value.id], GLOB_REG(value.data.array_literal.element_count)));
+		EMIT_INS(INS3(OP_CODE_HEAP_ALLOC_I, compiler->eval_regs[value.id], GLOB_REG(value.data.array_literal.element_count), GLOB_REG(IS_REF_TYPE(*value.data.array_literal.elem_type))));
 		for (uint_fast32_t i = 0; i < value.data.array_literal.element_count; i++) {
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.array_literal.elements[i], proc));
 			EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.id], GLOB_REG(i), compiler->eval_regs[value.data.array_literal.elements[i].id]));
 		}
 		break;
+	case AST_VALUE_ALLOC_RECORD: {
+		EMIT_INS(INS3(OP_CODE_HEAP_ALLOC_I, compiler->eval_regs[value.id], GLOB_REG(value.data.alloc_record->index_offset + value.data.alloc_record->property_count), GLOB_REG(value.data.alloc_record->do_gc ? GC_TRACE_SOME : GC_NO_TRACE)));
+		ast_record_proto_t* current_proto = value.data.alloc_record;
+		do {
+			for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
+				if (current_proto->properties[i].default_value) {
+					ESCAPE_ON_FAIL(compile_value(compiler, *current_proto->properties[i].default_value, proc));
+					EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), compiler->eval_regs[current_proto->properties[i].default_value->id]));
+				}
+				EMIT_INS(INS3(OP_CODE_HEAP_TRACE_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), GLOB_REG(IS_REF_TYPE(current_proto->properties[i].type))));
+			}
+			if (current_proto->base_record)
+				current_proto = compiler->ast->record_protos[current_proto->base_record->type_id];
+			else
+				current_proto = NULL;
+		} while (current_proto);
+		break;
+	}
 	case AST_VALUE_PROC: {
 		uint16_t start_ip = compiler->ins_builder.instruction_count;
 		EMIT_INS(INS1(OP_CODE_LABEL, compiler->eval_regs[value.id]));
@@ -182,7 +225,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		if(value.data.procedure->do_gc)
 			EMIT_INS(INS0(OP_CODE_HEAP_NEW_FRAME));
 		compile_code_block(compiler, value.data.procedure->exec_block, value.data.procedure, 0 ,0);
-		EMIT_INS(INS0(OP_CODE_ABORT));
+		EMIT_INS(INS1(OP_CODE_ABORT, GLOB_REG(0)));
 		compiler->ins_builder.instructions[start_ip + 1].a = compiler->ins_builder.instruction_count;
 		break;
 	}
@@ -195,16 +238,35 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		break;
 	case AST_VALUE_SET_INDEX:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->array, proc));
-		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->index, proc));
+		if(value.data.set_index->index.value_type != AST_VALUE_PRIMATIVE)
+			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->index, proc));
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->value, proc));
-		EMIT_INS(INS3(OP_CODE_STORE_HEAP, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->index.id], compiler->eval_regs[value.data.set_index->value.id]));
+		if (value.data.set_index->index.value_type == AST_VALUE_PRIMATIVE)
+			EMIT_INS(INS3(OP_CODE_STORE_HEAP_I_BOUND, compiler->eval_regs[value.data.set_index->array.id], GLOB_REG(value.data.set_index->index.data.primative.data.long_int), compiler->eval_regs[value.data.set_index->value.id]))
+		else
+			EMIT_INS(INS3(OP_CODE_STORE_HEAP, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->index.id], compiler->eval_regs[value.data.set_index->value.id]));
 		if (value.data.set_index->gc_trace && proc->do_gc)
-			EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->var_regs[value.data.set_index->value.id]));
+			EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->eval_regs[value.data.set_index->value.id]));
+		break;
+	case AST_VALUE_SET_PROP:
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->record, proc));
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->value, proc));
+		EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.data.set_prop->record.id], GLOB_REG(value.data.set_prop->property->id), compiler->eval_regs[value.data.set_prop->value.id]));
+		if (value.data.set_prop->gc_trace && proc->do_gc)
+			EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->eval_regs[value.data.set_prop->value.id]));
 		break;
 	case AST_VALUE_GET_INDEX:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->array, proc));
-		ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->index, proc));
-		EMIT_INS(INS3(OP_CODE_LOAD_HEAP, compiler->eval_regs[value.data.get_index->array.id], compiler->eval_regs[value.data.get_index->index.id], compiler->eval_regs[value.id]));
+		if(value.data.get_index->index.value_type == AST_VALUE_PRIMATIVE)
+			EMIT_INS(INS3(OP_CODE_LOAD_HEAP_I_BOUND, compiler->eval_regs[value.data.get_index->array.id], GLOB_REG(value.data.get_index->index.data.primative.data.long_int), compiler->eval_regs[value.id]))
+		else {
+			ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->index, proc));
+			EMIT_INS(INS3(OP_CODE_LOAD_HEAP, compiler->eval_regs[value.data.get_index->array.id], compiler->eval_regs[value.data.get_index->index.id], compiler->eval_regs[value.id]));
+		}
+		break;
+	case AST_VALUE_GET_PROP:
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_prop->record, proc));
+		EMIT_INS(INS3(OP_CODE_LOAD_HEAP_I, compiler->eval_regs[value.data.get_prop->record.id], GLOB_REG(value.data.get_prop->property->id), compiler->eval_regs[value.id]));
 		break;
 	case AST_VALUE_BINARY_OP: {
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.binary_op->lhs, proc));
@@ -276,7 +338,7 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 				escape_jump_count++;
 			count_cond = count_cond->next_if_false;
 		}
-		escape_jump_count--;
+		//escape_jump_count--;
 		uint16_t* escape_jumps = malloc(escape_jump_count * sizeof(uint16_t));
 		PANIC_ON_FAIL(escape_jumps, compiler, ERROR_MEMORY);
 		uint16_t current_escape_jump = 0;
@@ -299,6 +361,7 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 		}
 		for (uint_fast16_t i = 0; i < escape_jump_count; i++)
 			compiler->ins_builder.instructions[escape_jumps[i]].a = compiler->ins_builder.instruction_count;
+		free(escape_jumps);
 	}
 	return 1;
 }
@@ -361,6 +424,7 @@ int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
 	EMIT_INS(INS0(OP_CODE_HEAP_NEW_FRAME));
 	ESCAPE_ON_FAIL(compile_code_block(compiler, ast->exec_block, NULL, 0, 0));
 	EMIT_INS(INS0(OP_CODE_HEAP_CLEAN));
+	EMIT_INS(INS1(OP_CODE_ABORT, GLOB_REG(1)));
 
 	free(compiler->eval_regs);
 	free(compiler->move_eval);

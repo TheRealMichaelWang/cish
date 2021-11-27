@@ -24,8 +24,11 @@ typedef enum machine_op_code {
 
 	OP_CODE_LOAD_HEAP,
 	OP_CODE_LOAD_HEAP_I,
+	OP_CODE_LOAD_HEAP_I_BOUND,
 	OP_CODE_STORE_HEAP,
 	OP_CODE_STORE_HEAP_I,
+	OP_CODE_STORE_HEAP_I_BOUND,
+	OP_CODE_HEAP_TRACE_I,
 
 	OP_CODE_STACK_OFFSET,
 	OP_CODE_STACK_DEOFFSET,
@@ -75,6 +78,12 @@ typedef enum machine_op_code {
 	OP_CODE_FLOAT_NEGATE
 } op_code_t;
 
+typedef enum gc_trace_mode {
+	GC_NO_TRACE,
+	GC_TRACE_ALL,
+	GC_TRACE_SOME
+} gc_trace_mode_t;
+
 typedef struct machine_instruction {
 	op_code_t op_code;
 	uint16_t a, b, c;
@@ -83,10 +92,11 @@ typedef struct machine_instruction {
 
 typedef struct machine_heap_alloc {
 	machine_reg_t* registers;
-	int* init_stat;
+	int* init_stat, *trace_stat;
 	uint16_t limit;
 
-	int gc_flag, trace_children;
+	int gc_flag;
+	gc_trace_mode_t trace_mode;
 } heap_alloc_t;
 
 typedef union machine_register {
@@ -101,7 +111,6 @@ typedef union machine_register {
 typedef struct machine {
 	machine_reg_t* stack;
 
-	machine_ins_t* ip;
 	machine_ins_t** positions;
 
 	heap_alloc_t** heap_allocs;
@@ -120,7 +129,7 @@ typedef struct machine {
 int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_limit, uint16_t frame_limit);
 void free_machine(machine_t* machine);
 
-int machine_execute(machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count);
+int machine_execute(machine_t* machine, machine_ins_t* instructions);
 
-heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, int trace_children);
+heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode_t trace_mode);
 #endif // !OPCODE_H

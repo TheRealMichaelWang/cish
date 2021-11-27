@@ -221,7 +221,7 @@ typedef struct ast_record_proto {
 
 	uint8_t property_count, allocated_properties;
 	uint16_t id, index_offset;
-	int defined;
+	int defined, do_gc;
 } ast_record_proto_t;
 
 typedef struct ast_get_prop {
@@ -232,6 +232,7 @@ typedef struct ast_get_prop {
 typedef struct ast_set_prop {
 	ast_value_t record, value;
 	ast_record_prop_t* property;
+	int gc_trace;
 } ast_set_prop_t;
 
 typedef struct ast_var_cache_entry {

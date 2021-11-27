@@ -421,7 +421,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 		case TOK_TYPECHECK_LONG:
 		case TOK_TYPECHECK_ARRAY:
 		case TOK_TYPECHECK_PROC:
-			ast_var_decl:
+		ast_var_decl:
 			statement->type = AST_STATEMENT_DECL_VAR;
 			ESCAPE_ON_FAIL(parse_var_decl(ast_parser, &statement->data.var_decl));
 			break;
@@ -443,8 +443,10 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			goto no_check_semicolon;
 		}
 		case TOK_FOREIGN:
+			goto statment_value;
 		case TOK_IDENTIFIER: {
 			if (ast_parser_find_var(ast_parser, hash_s(LAST_TOK.str, LAST_TOK.length))) {
+			statment_value:
 				statement->type = AST_STATEMENT_VALUE;
 				typecheck_type_t type = { .type = TYPE_AUTO };
 				ESCAPE_ON_FAIL(parse_expression(ast_parser, &statement->data.value, &type, 0));
@@ -458,6 +460,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 		case TOK_BREAK:
 			PANIC_ON_FAIL(in_loop, ast_parser, ERROR_CANNOT_CONTINUE + LAST_TOK.type - TOK_CONTINUE);
 			statement->type = AST_STATEMENT_CONTINUE + LAST_TOK.type - TOK_CONTINUE;
+			READ_TOK;
 			break;
 		case TOK_RETURN:
 			READ_TOK;
@@ -836,6 +839,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				value->data.set_prop->property = property;
 				READ_TOK;
 				ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.set_prop->value, &value->type, 0));
+				value->data.set_prop->gc_trace = record_val.gc_status == GC_EXTERN_ALLOC && value->data.set_prop->value.gc_status == GC_LOCAL_ALLOC;
 			}
 			else {
 				value->value_type = AST_VALUE_GET_PROP;
@@ -928,6 +932,22 @@ static int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typech
 	return 1;
 }
 
+static int get_ast_record_index_offset(ast_t* ast, ast_record_proto_t* record) {
+	if (!record->defined) {
+		if (record->base_record) {
+			record->index_offset = get_ast_record_index_offset(ast, ast->record_protos[record->base_record->type_id]);
+			record->do_gc = ast->record_protos[record->base_record->type_id]->do_gc;
+		}
+		for (uint_fast8_t i = 0; i < record->property_count; i++) {
+			if (IS_REF_TYPE(record->properties[i].type))
+				record->do_gc = 1;
+			record->properties[i].id += record->index_offset;
+		}
+		record->defined = 1;
+	}
+	return record->index_offset + record->property_count;
+}
+
 int init_ast(ast_t* ast, ast_parser_t* ast_parser) {
 	ast_parser->ast = ast;
 	ast->proc_call_count = 0;
@@ -942,8 +962,12 @@ int init_ast(ast_t* ast, ast_parser_t* ast_parser) {
 	ESCAPE_ON_FAIL(ast_parser_new_frame(ast_parser, NULL, 0));
 	ESCAPE_ON_FAIL(parse_code_block(ast_parser, &ast->exec_block, 0, 0));
 	ESCAPE_ON_FAIL(ast_parser_close_frame(ast_parser));
-	for (uint_fast8_t i = 0; i < ast->record_count; i++)
+	for (uint_fast8_t i = 0; i < ast->record_count; i++) {
 		PANIC_ON_FAIL(ast->record_protos[i]->defined, ast_parser, ERROR_UNDECLARED);
+		ast->record_protos[i]->defined = 0;
+	}
+	for (uint_fast8_t i = 0; i < ast->record_count; i++)
+		get_ast_record_index_offset(ast, ast->record_protos[i]);
 	return 1;
 }
 
@@ -1039,7 +1063,7 @@ static void free_ast_record_proto(ast_record_proto_t* record_proto) {
 		free_typecheck_type(record_proto->base_record);
 		free(record_proto->base_record);
 	}
-	for (uint_fast16_t i = 0; i < record_proto->property_count; i++) {
+	for (uint_fast8_t i = 0; i < record_proto->property_count; i++) {
 		free_typecheck_type(&record_proto->properties[i].type);
 		if (record_proto->properties[i].default_value) {
 			free_ast_value(record_proto->properties[i].default_value);
