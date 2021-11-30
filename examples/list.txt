@@ -1,0 +1,56 @@
+include "io.txt";
+include "string.txt";
+
+record node<elemType> {
+	node<elemType> next_node;
+	bool has_next = false;
+
+	elemType element;
+}
+
+record list<elemType> {
+	node<elemType> head;
+	node<elemType> tail;
+	int count = 0;
+}
+
+global readonly auto push_front = proc<elemType>(list<elemType> list, elemType element) return node<elemType> {
+	node<elemType> next_node = new node<elemType>;
+	next_node.element = element;
+	if(list.count > 0) {
+		list.tail.next_node = next_node;
+		list.tail.has_next = true;
+		list.tail = next_node;
+	}
+	else {
+		list.head = list.tail = next_node;
+	}
+	list.count = list.count + 1;
+	return next_node;
+};
+
+global readonly auto forall = proc<elemType>(list<elemType> list, proc<nothing, elemType> todo) return nothing {
+	node<elemType> current = list.head;
+	while(true) {
+		todo(current.element);
+		if(current.has_next) {
+			current = current.next_node;
+		}
+		else {
+			break;
+		}
+	}
+	return;
+};
+
+list<int> list = new list<int>;
+int i = 0; 
+while(i < 10) {
+	push_front<int>(list, i);
+	i = i + 1;
+}
+
+forall<int>(list, proc(int i) return nothing {
+	println(itos(i));
+	return;
+});
