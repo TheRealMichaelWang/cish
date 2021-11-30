@@ -20,6 +20,7 @@ heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode
 	if (machine->heap_count == machine->heap_alloc_limit)
 		PANIC(machine, ERROR_STACK_OVERFLOW);
 	heap_alloc_t* heap_alloc = malloc(sizeof(heap_alloc_t));
+	PANIC_ON_FAIL(heap_alloc, machine, ERROR_MEMORY);
 	heap_alloc->limit = req_size;
 	heap_alloc->gc_flag = 0;
 	heap_alloc->trace_mode = trace_mode;
@@ -139,7 +140,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			break;
 		case OP_CODE_LOAD_HEAP_I_BOUND:
 			array_register = machine->stack[AREG].heap_alloc;
-			if (ip->b < 0 || ip->b > array_register->limit)
+			if (ip->b > array_register->limit)
 				PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
 			goto load_heap_i;
 		}
@@ -160,7 +161,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			break;
 		case OP_CODE_STORE_HEAP_I_BOUND:
 			array_register = machine->stack[AREG].heap_alloc;
-			if (ip->b < 0 || ip->b > array_register->limit)
+			if (ip->b > array_register->limit)
 				PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
 			goto store_heap_i;
 		}

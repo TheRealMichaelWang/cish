@@ -800,6 +800,8 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 			ast_value_t array_val, index_val;
 			array_val = *value;
 			ESCAPE_ON_FAIL(parse_expression(ast_parser, &index_val, &typecheck_int, 0));
+			if (index_val.value_type == AST_VALUE_PRIMATIVE && index_val.data.primative.data.long_int < 0)
+				PANIC(ast_parser, ERROR_INDEX_OUT_OF_RANGE);
 			MATCH_TOK(TOK_CLOSE_BRACKET);
 			READ_TOK;
 			if (LAST_TOK.type == TOK_SET) {
