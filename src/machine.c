@@ -99,14 +99,16 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 		case OP_CODE_MOVE:
 			machine->stack[AREG] = machine->stack[BREG];
 			break;
-		case OP_CODE_CHECK:
-			if (machine->stack[AREG].bool_flag)
-				ip++;
-			break;
 		case OP_CODE_JUMP:
 			ip = &instructions[ip->a];
 			continue;
-		case OP_CODE_JUMP_HIST: {
+		case OP_CODE_JUMP_CHECK:
+			if (!machine->stack[AREG].bool_flag) {
+				ip = &instructions[ip->b];
+				continue;
+			}
+			break;
+		case OP_CODE_CALL: {
 			PANIC_ON_FAIL(machine->position_count != machine->frame_limit, machine, ERROR_STACK_OVERFLOW);
 			machine->positions[machine->position_count++] = ip;
 			uint16_t prev_a = AREG;
@@ -117,7 +119,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 		case OP_CODE_LABEL:
 			machine->stack[AREG].ip = &instructions[ip->b];
 			break;
-		case OP_CODE_JUMP_BACK: {
+		case OP_CODE_RETURN: {
 			ip = machine->positions[--machine->position_count];
 			break;
 		}

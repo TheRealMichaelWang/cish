@@ -8,12 +8,12 @@ static const char* opcode_names[] = {
 	"foreign    ",
 
 	"mov        ",
-	"check      ",
 
 	"jmp        ",
+	"jmpcheck   ",
 
-	"jmphist    ",
-	"jmpback    ",
+	"call       ",
+	"return     ",
 	"lbl        ",
 	
 	"ldheap     ",

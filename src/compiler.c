@@ -183,7 +183,7 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 	}
 }
 
-static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block, ast_proc_t* proc, uint16_t break_ip, uint16_t continue_ip);
+static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block, ast_proc_t* proc, uint16_t continue_ip, uint16_t* break_jumps, uint8_t* break_jump_top);
 
 static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* proc) {
 	switch (value.value_type)
@@ -224,7 +224,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		compiler->ins_builder.instructions[start_ip].b = compiler->ins_builder.instruction_count;
 		if(value.data.procedure->do_gc)
 			EMIT_INS(INS0(OP_CODE_HEAP_NEW_FRAME));
-		compile_code_block(compiler, value.data.procedure->exec_block, value.data.procedure, 0 ,0);
+		compile_code_block(compiler, value.data.procedure->exec_block, value.data.procedure, 0 , NULL, 0);
 		EMIT_INS(INS1(OP_CODE_ABORT, GLOB_REG(0)));
 		compiler->ins_builder.instructions[start_ip + 1].a = compiler->ins_builder.instruction_count;
 		break;
@@ -302,7 +302,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 				EMIT_INS(INS2(OP_CODE_MOVE, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] + i), compiler->eval_regs[value.data.proc_call->arguments[i].id]));
 		}
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.proc_call->procedure, proc));
-		EMIT_INS(INS2(OP_CODE_JUMP_HIST, compiler->eval_regs[value.data.proc_call->procedure.id], GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
+		EMIT_INS(INS2(OP_CODE_CALL, compiler->eval_regs[value.data.proc_call->procedure.id], GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
 		if (compiler->proc_call_offsets[value.data.proc_call->id])
 			EMIT_INS(INS1(OP_CODE_STACK_DEOFFSET, GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
 		break; 
@@ -319,16 +319,21 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 	return 1;
 }
 
-static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, ast_proc_t* proc, uint16_t break_ip, uint16_t continue_ip) {
+static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, ast_proc_t* proc, uint16_t continue_ip, uint16_t* break_jumps, uint8_t* break_jump_top) {
 	if (conditional->next_if_true) {
 		uint16_t this_continue_ip = compiler->ins_builder.instruction_count;
 		ESCAPE_ON_FAIL(compile_value(compiler, *conditional->condition, proc));
-		EMIT_INS(INS1(OP_CODE_CHECK, compiler->eval_regs[conditional->condition->id]));
 		uint16_t this_break_ip = compiler->ins_builder.instruction_count;
-		EMIT_INS(INS0(OP_CODE_JUMP));
-		ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, this_break_ip, this_continue_ip));
+
+		static uint16_t lp_break_jumps[64];
+		uint8_t lp_break_jump_count = 0;
+
+		EMIT_INS(INS1(OP_CODE_JUMP_CHECK, compiler->eval_regs[conditional->condition->id]));
+		ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, this_continue_ip, lp_break_jumps, &lp_break_jump_count));
 		EMIT_INS(INS1(OP_CODE_JUMP, GLOB_REG(this_continue_ip)));
-		compiler->ins_builder.instructions[this_break_ip].a = compiler->ins_builder.instruction_count;
+		compiler->ins_builder.instructions[this_break_ip].b = compiler->ins_builder.instruction_count;
+		for (uint_fast8_t i = 0; i < lp_break_jump_count; i++)
+			compiler->ins_builder.instructions[lp_break_jumps[i]].a = compiler->ins_builder.instruction_count;
 	}
 	else {
 		uint16_t escape_jump_count = 0;
@@ -345,18 +350,17 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 		while (conditional) {
 			if (conditional->condition) {
 				ESCAPE_ON_FAIL(compile_value(compiler, *conditional->condition, proc));
-				EMIT_INS(INS1(OP_CODE_CHECK, compiler->eval_regs[conditional->condition->id]));
 				uint16_t move_next_ip = compiler->ins_builder.instruction_count;
-				EMIT_INS(INS0(OP_CODE_JUMP));
-				ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, break_ip, continue_ip));
+				EMIT_INS(INS1(OP_CODE_JUMP_CHECK, compiler->eval_regs[conditional->condition->id]));
+				ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, continue_ip, break_jumps, break_jump_top));
 				if (current_escape_jump != escape_jump_count) {
 					escape_jumps[current_escape_jump++] = compiler->ins_builder.instruction_count;
 					EMIT_INS(INS0(OP_CODE_JUMP));
 				}
-				compiler->ins_builder.instructions[move_next_ip].a = compiler->ins_builder.instruction_count;
+				compiler->ins_builder.instructions[move_next_ip].b = compiler->ins_builder.instruction_count;
 			}
 			else
-				ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, break_ip, continue_ip));
+				ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, continue_ip, break_jumps, break_jump_top));
 			conditional = conditional->next_if_false;
 		}
 		for (uint_fast16_t i = 0; i < escape_jump_count; i++)
@@ -366,7 +370,7 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 	return 1;
 }
 
-static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block, ast_proc_t* proc, uint16_t break_ip, uint16_t continue_ip) {
+static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block, ast_proc_t* proc, uint16_t continue_ip, uint16_t* break_jumps, uint8_t* break_jump_top) {
 	for (uint_fast32_t i = 0; i < code_block.instruction_count; i++)
 		switch (code_block.instructions[i].type) {
 		case AST_STATEMENT_DECL_VAR:
@@ -375,7 +379,7 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 				EMIT_INS(INS2(OP_CODE_MOVE, compiler->var_regs[code_block.instructions[i].data.var_decl.var_info->id], compiler->eval_regs[code_block.instructions[i].data.var_decl.set_value.id]));
 			break;
 		case AST_STATEMENT_COND:
-			ESCAPE_ON_FAIL(compile_conditional(compiler, code_block.instructions[i].data.conditional, proc, break_ip, continue_ip));
+			ESCAPE_ON_FAIL(compile_conditional(compiler, code_block.instructions[i].data.conditional, proc, continue_ip, break_jumps, break_jump_top));
 			break;
 		case AST_STATEMENT_VALUE:
 			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.value, proc));
@@ -391,10 +395,13 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 		case AST_STATEMENT_RETURN:
 			if(proc->do_gc)
 				EMIT_INS(INS0(OP_CODE_HEAP_CLEAN));
-			EMIT_INS(INS0(OP_CODE_JUMP_BACK));
+			EMIT_INS(INS0(OP_CODE_RETURN));
 			break;
 		case AST_STATEMENT_BREAK:
-			EMIT_INS(INS1(OP_CODE_JUMP, GLOB_REG(break_ip)));
+			if (break_jump_top == 64)
+				PANIC(compiler, ERROR_INTERNAL);
+			break_jumps[(*break_jump_top)++] = compiler->ins_builder.instruction_count;
+			EMIT_INS(INS1(OP_CODE_JUMP, GLOB_REG(0)));
 			break;
 		case AST_STATEMENT_CONTINUE:
 			EMIT_INS(INS1(OP_CODE_JUMP, GLOB_REG(continue_ip)));
@@ -422,7 +429,7 @@ int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
 	
 	EMIT_INS(INS1(OP_CODE_STACK_OFFSET, GLOB_REG(compiler->ast->total_constants + compiler->current_global)));
 	EMIT_INS(INS0(OP_CODE_HEAP_NEW_FRAME));
-	ESCAPE_ON_FAIL(compile_code_block(compiler, ast->exec_block, NULL, 0, 0));
+	ESCAPE_ON_FAIL(compile_code_block(compiler, ast->exec_block, NULL, 0, NULL, 0));
 	EMIT_INS(INS0(OP_CODE_HEAP_CLEAN));
 	EMIT_INS(INS1(OP_CODE_ABORT, GLOB_REG(1)));
 
