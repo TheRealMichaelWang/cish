@@ -43,15 +43,15 @@ typedef struct ast_array_literal {
 	uint16_t element_count;
 } ast_array_literal_t;
 
-typedef struct ast_primative {
-	enum ast_primative_type {
-		AST_PRIMATIVE_BOOL,
-		AST_PRIMATIVE_CHAR,
-		AST_PRIMATIVE_LONG,
-		AST_PRIMATIVE_FLOAT
+typedef struct ast_primitive {
+	enum ast_primitive_type {
+		AST_PRIMITIVE_BOOL,
+		AST_PRIMITIVE_CHAR,
+		AST_PRIMITIVE_LONG,
+		AST_PRIMITIVE_FLOAT
 	} type;
 
-	union ast_primative_data
+	union ast_primitive_data
 	{
 		int bool_flag;
 		char character;
@@ -64,7 +64,7 @@ typedef struct ast_value {
 	typecheck_type_t type;
 
 	enum ast_value_type {
-		AST_VALUE_PRIMATIVE,
+		AST_VALUE_PRIMITIVE,
 		AST_VALUE_ALLOC_ARRAY,
 		AST_VALUE_ALLOC_RECORD,
 		AST_VALUE_ARRAY_LITERAL,
@@ -82,7 +82,7 @@ typedef struct ast_value {
 	} value_type;
 
 	union ast_value_data {
-		ast_primative_t primative;
+		ast_primitive_t primitive;
 		ast_alloc_t* alloc_array;
 		ast_record_proto_t* alloc_record;
 		ast_array_literal_t array_literal;
