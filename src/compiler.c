@@ -34,7 +34,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	uint16_t extra_regs = current_reg;
 	switch (value.value_type)
 	{
-	case AST_VALUE_PRIMATIVE:
+	case AST_VALUE_PRIMITIVE:
 		memcpy(&compiler->target_machine->stack[compiler->current_constant], &value.data.primative.data, sizeof(uint64_t));
 		compiler->eval_regs[value.id] = GLOB_REG(compiler->current_constant++);
 		compiler->move_eval[value.id] = 1;
@@ -80,7 +80,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		return current_reg;
 	case AST_VALUE_SET_INDEX:
 		extra_regs = allocate_value_regs(compiler, value.data.set_index->array, extra_regs, NULL);
-		if(value.data.set_index->index.value_type != AST_VALUE_PRIMATIVE)
+		if(value.data.set_index->index.value_type != AST_VALUE_PRIMITIVE)
 			extra_regs = allocate_value_regs(compiler, value.data.set_index->index, extra_regs, NULL);
 		allocate_value_regs(compiler, value.data.set_index->value, extra_regs, NULL);
 		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_index->value.id];
@@ -94,7 +94,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		return current_reg;
 	case AST_VALUE_GET_INDEX:
 		extra_regs = allocate_value_regs(compiler, value.data.get_index->array, extra_regs, NULL);
-		if(value.data.set_index->index.value_type != AST_VALUE_PRIMATIVE)
+		if(value.data.set_index->index.value_type != AST_VALUE_PRIMITIVE)
 			allocate_value_regs(compiler, value.data.get_index->index, extra_regs, NULL);
 		break;
 	case AST_VALUE_GET_PROP:
@@ -141,7 +141,7 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 		case AST_STATEMENT_DECL_VAR: {
 			ast_decl_var_t var_decl = code_block.instructions[i].data.var_decl;
 			if (!var_decl.var_info->has_mutated &&
-				(var_decl.set_value.value_type == AST_VALUE_PRIMATIVE ||
+				(var_decl.set_value.value_type == AST_VALUE_PRIMITIVE ||
 					var_decl.set_value.value_type == AST_VALUE_PROC ||
 					(var_decl.set_value.value_type == AST_VALUE_VAR && !var_decl.set_value.data.variable->has_mutated))) {
 				current_reg = allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL);
@@ -238,10 +238,10 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		break;
 	case AST_VALUE_SET_INDEX:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->array, proc));
-		if(value.data.set_index->index.value_type != AST_VALUE_PRIMATIVE)
+		if(value.data.set_index->index.value_type != AST_VALUE_PRIMITIVE)
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->index, proc));
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->value, proc));
-		if (value.data.set_index->index.value_type == AST_VALUE_PRIMATIVE)
+		if (value.data.set_index->index.value_type == AST_VALUE_PRIMITIVE)
 			EMIT_INS(INS3(OP_CODE_STORE_HEAP_I_BOUND, compiler->eval_regs[value.data.set_index->array.id], GLOB_REG(value.data.set_index->index.data.primative.data.long_int), compiler->eval_regs[value.data.set_index->value.id]))
 		else
 			EMIT_INS(INS3(OP_CODE_STORE_HEAP, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->index.id], compiler->eval_regs[value.data.set_index->value.id]));
@@ -257,7 +257,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		break;
 	case AST_VALUE_GET_INDEX:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->array, proc));
-		if(value.data.get_index->index.value_type == AST_VALUE_PRIMATIVE)
+		if(value.data.get_index->index.value_type == AST_VALUE_PRIMITIVE)
 			EMIT_INS(INS3(OP_CODE_LOAD_HEAP_I_BOUND, compiler->eval_regs[value.data.get_index->array.id], GLOB_REG(value.data.get_index->index.data.primative.data.long_int), compiler->eval_regs[value.id]))
 		else {
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->index, proc));
@@ -274,14 +274,14 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		compiler_reg_t lhs = compiler->eval_regs[value.data.binary_op->lhs.id];
 		compiler_reg_t rhs = compiler->eval_regs[value.data.binary_op->rhs.id];
  		if (value.data.binary_op->operator == TOK_EQUALS || value.data.binary_op->operator == TOK_NOT_EQUAL) {
-			EMIT_INS(INS3(OP_CODE_BOOL_EQUAL + value.data.binary_op->lhs.type.type - TYPE_PRIMATIVE_BOOL, lhs, rhs, compiler->eval_regs[value.id]));
+			EMIT_INS(INS3(OP_CODE_BOOL_EQUAL + value.data.binary_op->lhs.type.type - TYPE_PRIMITIVE_BOOL, lhs, rhs, compiler->eval_regs[value.id]));
 			if (value.data.binary_op->operator == TOK_NOT_EQUAL)
 				EMIT_INS(INS2(OP_CODE_NOT, compiler->eval_regs[value.id], compiler->eval_regs[value.id]));
 		}
 		else if (value.data.binary_op->operator == TOK_AND || value.data.binary_op->operator == TOK_OR)
 			EMIT_INS(INS3(OP_CODE_AND + value.data.binary_op->operator - TOK_AND, rhs, lhs, compiler->eval_regs[value.id]))
 		else {
-			if (value.data.binary_op->lhs.type.type == TYPE_PRIMATIVE_LONG)
+			if (value.data.binary_op->lhs.type.type == TYPE_PRIMITIVE_LONG)
 				EMIT_INS(INS3(OP_CODE_LONG_MORE + (value.data.binary_op->operator - TOK_MORE), lhs, rhs, compiler->eval_regs[value.id]))
 			else
 				EMIT_INS(INS3(OP_CODE_FLOAT_MORE + (value.data.binary_op->operator - TOK_MORE), lhs, rhs, compiler->eval_regs[value.id]))
@@ -291,7 +291,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 	case AST_VALUE_UNARY_OP:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.unary_op->operand, proc));
 		if (value.data.unary_op->operator == TOK_SUBTRACT)
-			EMIT_INS(INS2(OP_CODE_LONG_NEGATE + value.type.type - TYPE_PRIMATIVE_LONG, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]))
+			EMIT_INS(INS2(OP_CODE_LONG_NEGATE + value.type.type - TYPE_PRIMITIVE_LONG, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]))
 		else
 			EMIT_INS(INS2(OP_CODE_NOT + value.data.unary_op->operator - TOK_NOT, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]))
 		break;

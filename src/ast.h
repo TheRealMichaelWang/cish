@@ -45,10 +45,10 @@ typedef struct ast_array_literal {
 
 typedef struct ast_primative {
 	enum ast_primative_type {
-		AST_PRIMATIVE_BOOL,
-		AST_PRIMATIVE_CHAR,
-		AST_PRIMATIVE_LONG,
-		AST_PRIMATIVE_FLOAT
+		AST_PRIMITIVE_BOOL,
+		AST_PRIMITIVE_CHAR,
+		AST_PRIMITIVE_LONG,
+		AST_PRIMITIVE_FLOAT
 	} type;
 
 	union ast_primative_data
@@ -64,7 +64,7 @@ typedef struct ast_value {
 	typecheck_type_t type;
 
 	enum ast_value_type {
-		AST_VALUE_PRIMATIVE,
+		AST_VALUE_PRIMITIVE,
 		AST_VALUE_ALLOC_ARRAY,
 		AST_VALUE_ALLOC_RECORD,
 		AST_VALUE_ARRAY_LITERAL,
