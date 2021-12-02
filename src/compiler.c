@@ -34,8 +34,8 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	uint16_t extra_regs = current_reg;
 	switch (value.value_type)
 	{
-	case AST_VALUE_PRIMITIVE:
-		memcpy(&compiler->target_machine->stack[compiler->current_constant], &value.data.primitive.data, sizeof(uint64_t));
+	case AST_VALUE_PRIMATIVE:
+		memcpy(&compiler->target_machine->stack[compiler->current_constant], &value.data.primative.data, sizeof(uint64_t));
 		compiler->eval_regs[value.id] = GLOB_REG(compiler->current_constant++);
 		compiler->move_eval[value.id] = 1;
 		return current_reg;

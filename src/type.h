@@ -15,10 +15,10 @@ typedef enum typecheck_base_type {
 	TYPE_NOTHING,
 	TYPE_TYPEARG,
 
-	TYPE_PRIMITIVE_BOOL,
-	TYPE_PRIMITIVE_CHAR,
-	TYPE_PRIMITIVE_LONG,
-	TYPE_PRIMITIVE_FLOAT,
+	TYPE_PRIMATIVE_BOOL,
+	TYPE_PRIMATIVE_CHAR,
+	TYPE_PRIMATIVE_LONG,
+	TYPE_PRIMATIVE_FLOAT,
 
 	TYPE_SUPER_ARRAY,
 	TYPE_SUPER_PROC,
@@ -34,10 +34,10 @@ typedef struct typecheck_type {
 
 #define IS_REF_TYPE(TYPE) (TYPE).type == TYPE_SUPER_ARRAY || (TYPE).type == TYPE_SUPER_RECORD
 
-static typecheck_type_t typecheck_int = { .type = TYPE_PRIMITIVE_LONG };
-static typecheck_type_t typecheck_float = { .type = TYPE_PRIMITIVE_FLOAT };
-static typecheck_type_t typecheck_char = { .type = TYPE_PRIMITIVE_CHAR };
-static typecheck_type_t typecheck_bool = { .type = TYPE_PRIMITIVE_BOOL };
+static typecheck_type_t typecheck_int = { .type = TYPE_PRIMATIVE_LONG };
+static typecheck_type_t typecheck_float = { .type = TYPE_PRIMATIVE_FLOAT };
+static typecheck_type_t typecheck_char = { .type = TYPE_PRIMATIVE_CHAR };
+static typecheck_type_t typecheck_bool = { .type = TYPE_PRIMATIVE_BOOL };
 static typecheck_type_t typecheck_array = { .type = TYPE_SUPER_ARRAY };
 
 void free_typecheck_type(typecheck_type_t* typecheck_type);
