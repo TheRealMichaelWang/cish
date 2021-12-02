@@ -35,7 +35,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	switch (value.value_type)
 	{
 	case AST_VALUE_PRIMITIVE:
-		memcpy(&compiler->target_machine->stack[compiler->current_constant], &value.data.primative.data, sizeof(uint64_t));
+		memcpy(&compiler->target_machine->stack[compiler->current_constant], &value.data.primitive.data, sizeof(uint64_t));
 		compiler->eval_regs[value.id] = GLOB_REG(compiler->current_constant++);
 		compiler->move_eval[value.id] = 1;
 		return current_reg;
@@ -242,7 +242,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->index, proc));
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->value, proc));
 		if (value.data.set_index->index.value_type == AST_VALUE_PRIMITIVE)
-			EMIT_INS(INS3(OP_CODE_STORE_HEAP_I_BOUND, compiler->eval_regs[value.data.set_index->array.id], GLOB_REG(value.data.set_index->index.data.primative.data.long_int), compiler->eval_regs[value.data.set_index->value.id]))
+			EMIT_INS(INS3(OP_CODE_STORE_HEAP_I_BOUND, compiler->eval_regs[value.data.set_index->array.id], GLOB_REG(value.data.set_index->index.data.primitive.data.long_int), compiler->eval_regs[value.data.set_index->value.id]))
 		else
 			EMIT_INS(INS3(OP_CODE_STORE_HEAP, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->index.id], compiler->eval_regs[value.data.set_index->value.id]));
 		if (value.data.set_index->gc_trace && proc->do_gc)
@@ -258,7 +258,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 	case AST_VALUE_GET_INDEX:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->array, proc));
 		if(value.data.get_index->index.value_type == AST_VALUE_PRIMITIVE)
-			EMIT_INS(INS3(OP_CODE_LOAD_HEAP_I_BOUND, compiler->eval_regs[value.data.get_index->array.id], GLOB_REG(value.data.get_index->index.data.primative.data.long_int), compiler->eval_regs[value.id]))
+			EMIT_INS(INS3(OP_CODE_LOAD_HEAP_I_BOUND, compiler->eval_regs[value.data.get_index->array.id], GLOB_REG(value.data.get_index->index.data.primitive.data.long_int), compiler->eval_regs[value.id]))
 		else {
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->index, proc));
 			EMIT_INS(INS3(OP_CODE_LOAD_HEAP, compiler->eval_regs[value.data.get_index->array.id], compiler->eval_regs[value.data.get_index->index.id], compiler->eval_regs[value.id]));
@@ -398,7 +398,7 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 			EMIT_INS(INS0(OP_CODE_RETURN));
 			break;
 		case AST_STATEMENT_BREAK:
-			if (break_jump_top == 64)
+			if (*break_jump_top == 64)
 				PANIC(compiler, ERROR_INTERNAL);
 			break_jumps[(*break_jump_top)++] = compiler->ins_builder.instruction_count;
 			EMIT_INS(INS1(OP_CODE_JUMP, GLOB_REG(0)));
