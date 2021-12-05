@@ -15,8 +15,9 @@ record list<elemType> {
 }
 
 global readonly auto push_front = proc<elemType>(list<elemType> list, elemType element) return node<elemType> {
-	node<elemType> next_node = new node<elemType>;
-	next_node.element = element;
+	node<elemType> next_node = new node<elemType> {
+		element = element;
+	};
 	if(list.count > 0) {
 		list.tail.next_node = next_node;
 		list.tail.has_next = true;
@@ -45,7 +46,7 @@ global readonly auto forall = proc<elemType>(list<elemType> list, proc<nothing, 
 
 list<int> list = new list<int>;
 int i = 0; 
-while(i < 10) {
+while(i < 100) {
 	push_front<int>(list, i);
 	i = i + 1;
 }
