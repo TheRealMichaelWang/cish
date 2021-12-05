@@ -20,6 +20,7 @@ typedef struct ast_cond ast_cond_t;
 typedef struct ast_proc ast_proc_t;
 typedef struct ast_foreign_call ast_foreign_call_t;
 typedef struct ast_record_proto ast_record_proto_t;
+typedef struct ast_record_prop ast_record_prop_t;
 typedef struct ast_get_prop ast_get_prop_t;
 typedef struct ast_set_prop ast_set_prop_t;
 
@@ -42,6 +43,15 @@ typedef struct ast_array_literal {
 	ast_value_t* elements;
 	uint16_t element_count;
 } ast_array_literal_t;
+
+typedef struct ast_alloc_record {
+	ast_record_proto_t* proto;
+	struct ast_alloc_record_init_value {
+		ast_record_prop_t* property;
+		ast_value_t* value;
+	}* init_values;
+	uint8_t init_value_count;
+} ast_alloc_record_t;
 
 typedef struct ast_primitive {
 	enum ast_primitive_type {
@@ -84,7 +94,7 @@ typedef struct ast_value {
 	union ast_value_data {
 		ast_primitive_t primitive;
 		ast_alloc_t* alloc_array;
-		ast_record_proto_t* alloc_record;
+		ast_alloc_record_t alloc_record;
 		ast_array_literal_t array_literal;
 		ast_proc_t* procedure;
 		ast_var_info_t* variable;

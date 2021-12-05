@@ -47,11 +47,18 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 			allocate_value_regs(compiler, value.data.array_literal.elements[i], current_reg, NULL);
 		break;
 	case AST_VALUE_ALLOC_RECORD: {
-		ast_record_proto_t* current_proto = value.data.alloc_record;
+		ast_record_proto_t* current_proto = value.data.alloc_record.proto;
 		do {
-			for (uint_fast8_t i = 0; i < current_proto->property_count; i++)
+			for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
+				for (uint_fast16_t j = 0; j < value.data.alloc_record.init_value_count; j++)
+					if (value.data.alloc_record.init_values[j].property == &current_proto->properties[i]) {
+						allocate_value_regs(compiler, *value.data.alloc_record.init_values[j].value, current_reg, NULL);
+						goto break_continue;
+					}
 				if (current_proto->properties[i].default_value)
 					allocate_value_regs(compiler, *current_proto->properties[i].default_value, current_reg, NULL);
+			break_continue:;
+			}
 			if (current_proto->base_record)
 				current_proto = compiler->ast->record_protos[current_proto->base_record->type_id];
 			else
@@ -200,14 +207,21 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		}
 		break;
 	case AST_VALUE_ALLOC_RECORD: {
-		EMIT_INS(INS3(OP_CODE_HEAP_ALLOC_I, compiler->eval_regs[value.id], GLOB_REG(value.data.alloc_record->index_offset + value.data.alloc_record->property_count), GLOB_REG(value.data.alloc_record->do_gc ? GC_TRACE_SOME : GC_NO_TRACE)));
-		ast_record_proto_t* current_proto = value.data.alloc_record;
+		ast_record_proto_t* current_proto = value.data.alloc_record.proto;
+		EMIT_INS(INS3(OP_CODE_HEAP_ALLOC_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->index_offset + current_proto->property_count), GLOB_REG(current_proto->do_gc ? GC_TRACE_SOME : GC_NO_TRACE)));
 		do {
 			for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
+				for(uint_fast16_t j = 0; j < value.data.alloc_record.init_value_count; j++)
+					if (value.data.alloc_record.init_values[j].property == &current_proto->properties[i]) {
+						ESCAPE_ON_FAIL(compile_value(compiler, *value.data.alloc_record.init_values[j].value, proc));
+						EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), compiler->eval_regs[value.data.alloc_record.init_values[j].value->id]));
+						goto heap_trace;
+					}
 				if (current_proto->properties[i].default_value) {
 					ESCAPE_ON_FAIL(compile_value(compiler, *current_proto->properties[i].default_value, proc));
 					EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), compiler->eval_regs[current_proto->properties[i].default_value->id]));
 				}
+			heap_trace:
 				EMIT_INS(INS3(OP_CODE_HEAP_TRACE_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), GLOB_REG(IS_REF_TYPE(current_proto->properties[i].type))));
 			}
 			if (current_proto->base_record)

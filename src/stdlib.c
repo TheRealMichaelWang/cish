@@ -56,7 +56,7 @@ static int std_itos(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	char output[50];
 	sprintf(output, "%" PRIi64, in->long_int);
 	uint8_t len = strlen(output);
-	out->heap_alloc = machine_alloc(machine, len, GC_NO_TRACE);
+	ESCAPE_ON_FAIL(out->heap_alloc = machine_alloc(machine, len, GC_NO_TRACE));
 	for (uint_fast8_t i = 0; i < len; i++) {
 		out->heap_alloc->registers[i].char_int = output[i];
 		out->heap_alloc->init_stat[i] = 1;

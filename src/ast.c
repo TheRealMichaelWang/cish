@@ -649,8 +649,36 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		else {
 			PANIC_ON_FAIL(type_alloc_buf.type == TYPE_SUPER_RECORD, ast_parser, ERROR_UNEXPECTED_TYPE);
 			value->value_type = AST_VALUE_ALLOC_RECORD;
-			value->data.alloc_record = ast_parser->ast->record_protos[type_alloc_buf.type_id];
+			ast_record_proto_t* current_proto = value->data.alloc_record.proto = ast_parser->ast->record_protos[type_alloc_buf.type_id];
+			value->data.alloc_record.init_value_count = 0;
 			value->type = type_alloc_buf;
+			if (LAST_TOK.type == TOK_OPEN_BRACE) {
+				PANIC_ON_FAIL(current_proto->defined, ast_parser, ERROR_UNDECLARED);
+				READ_TOK;
+				uint16_t alloced_set_vals = 3;
+				PANIC_ON_FAIL(value->data.alloc_record.init_values = malloc(alloced_set_vals * sizeof(struct ast_alloc_record_init_value)), ast_parser, ERROR_MEMORY);
+				do {
+					MATCH_TOK(TOK_IDENTIFIER);
+					uint64_t prop_id = hash_s(LAST_TOK.str, LAST_TOK.length);
+					if (value->data.alloc_record.init_value_count == alloced_set_vals) {
+						struct ast_alloc_record_init_value* new_init_values = realloc(value->data.alloc_record.init_values, (alloced_set_vals += 2) * sizeof(struct ast_alloc_record_init_value));
+						PANIC_ON_FAIL(new_init_values, ast_parser, ERROR_MEMORY);
+						value->data.alloc_record.init_values = new_init_values;
+					}
+					PANIC_ON_FAIL(value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].property = ast_record_find_prop(ast_parser, current_proto, prop_id), ast_parser, ERROR_UNDECLARED);
+					READ_TOK;
+					MATCH_TOK(TOK_SET);
+					READ_TOK;
+					typecheck_type_t prop_expected_type;
+					ESCAPE_ON_FAIL(ast_record_sub_prop_type(ast_parser, value->type, prop_id, &prop_expected_type));
+					PANIC_ON_FAIL(value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value = malloc(sizeof(ast_value_t)), ast_parser, ERROR_MEMORY);
+					ESCAPE_ON_FAIL(parse_expression(ast_parser, value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value, &prop_expected_type, 0));
+					value->data.alloc_record.init_value_count++;
+					MATCH_TOK(TOK_SEMICOLON);
+					READ_TOK;
+				} while (LAST_TOK.type != TOK_CLOSE_BRACE);
+				READ_TOK;
+			}
 		}
 		break; 
 	}
@@ -985,6 +1013,15 @@ static void free_ast_value(ast_value_t* value) {
 	case AST_VALUE_ALLOC_ARRAY:
 		free_ast_value(&value->data.alloc_array->size);
 		free(value->data.alloc_array);
+		break;
+	case AST_VALUE_ALLOC_RECORD:
+		if (value->data.alloc_record.init_value_count) {
+			for (uint_fast16_t i = 0; i < value->data.alloc_record.init_value_count; i++) {
+				free_ast_value(value->data.alloc_record.init_values[i].value);
+				free(value->data.alloc_record.init_values[i].value);
+			}
+			free(value->data.alloc_record.init_values);
+		}
 		break;
 	case AST_VALUE_ARRAY_LITERAL:
 		for (uint_fast16_t i = 0; i < value->data.array_literal.element_count; i++)
