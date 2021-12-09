@@ -927,6 +927,7 @@ static int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typech
 		3, 3, 4, 4, 4, 5,
 		1, 1
 	};
+
 	ast_value_t lhs;
 	lhs.type = (typecheck_type_t){ .type = TYPE_AUTO };
 	ESCAPE_ON_FAIL(parse_value(ast_parser, &lhs, &lhs.type));

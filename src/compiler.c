@@ -53,16 +53,10 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 				for (uint_fast16_t j = 0; j < value.data.alloc_record.init_value_count; j++)
 					if (value.data.alloc_record.init_values[j].property == &current_proto->properties[i]) {
 						allocate_value_regs(compiler, *value.data.alloc_record.init_values[j].value, current_reg, NULL);
-						goto break_continue;
+						break;
 					}
-				if (current_proto->properties[i].default_value)
-					allocate_value_regs(compiler, *current_proto->properties[i].default_value, current_reg, NULL);
-			break_continue:;
 			}
-			if (current_proto->base_record)
-				current_proto = compiler->ast->record_protos[current_proto->base_record->type_id];
-			else
-				current_proto = NULL;
+			current_proto = current_proto->base_record ? compiler->ast->record_protos[current_proto->base_record->type_id] : NULL;
 		} while (current_proto);
 		break;
 	}
@@ -179,6 +173,18 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 			}
 			break;
 		}
+		case AST_STATEMENT_RECORD_PROTO: {
+			ast_record_proto_t* current_proto = code_block.instructions[i].data.record_proto;
+			do {
+				for (uint_fast8_t i = 0; i < current_proto->property_count; i++)
+					if (current_proto->properties[i].default_value) {
+						compiler_reg_t target_reg = GLOB_REG(compiler->ast->total_constants + compiler->current_global++);
+						allocate_value_regs(compiler, *current_proto->properties[i].default_value, current_reg, &target_reg);
+					}
+				current_proto = current_proto->base_record ? compiler->ast->record_protos[current_proto->base_record->type_id] : NULL;
+			} while (current_proto);
+			break;
+		}
 		case AST_STATEMENT_VALUE:
 			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, NULL);
 			break;
@@ -217,10 +223,8 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 						EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), compiler->eval_regs[value.data.alloc_record.init_values[j].value->id]));
 						goto heap_trace;
 					}
-				if (current_proto->properties[i].default_value) {
-					ESCAPE_ON_FAIL(compile_value(compiler, *current_proto->properties[i].default_value, proc));
+				if (current_proto->properties[i].default_value)
 					EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), compiler->eval_regs[current_proto->properties[i].default_value->id]));
-				}
 			heap_trace:
 				EMIT_INS(INS3(OP_CODE_HEAP_TRACE_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), GLOB_REG(IS_REF_TYPE(current_proto->properties[i].type))));
 			}
@@ -259,14 +263,14 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 			EMIT_INS(INS3(OP_CODE_STORE_HEAP_I_BOUND, compiler->eval_regs[value.data.set_index->array.id], GLOB_REG(value.data.set_index->index.data.primitive.data.long_int), compiler->eval_regs[value.data.set_index->value.id]))
 		else
 			EMIT_INS(INS3(OP_CODE_STORE_HEAP, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->index.id], compiler->eval_regs[value.data.set_index->value.id]));
-		if (value.data.set_index->gc_trace && proc->do_gc)
+		if (proc && value.data.set_index->gc_trace && proc->do_gc)
 			EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->eval_regs[value.data.set_index->value.id]));
 		break;
 	case AST_VALUE_SET_PROP:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->record, proc));
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->value, proc));
 		EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.data.set_prop->record.id], GLOB_REG(value.data.set_prop->property->id), compiler->eval_regs[value.data.set_prop->value.id]));
-		if (value.data.set_prop->gc_trace && proc->do_gc)
+		if (proc && value.data.set_prop->gc_trace && proc->do_gc)
 			EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->eval_regs[value.data.set_prop->value.id]));
 		break;
 	case AST_VALUE_GET_INDEX:
@@ -357,7 +361,6 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 				escape_jump_count++;
 			count_cond = count_cond->next_if_false;
 		}
-		//escape_jump_count--;
 		uint16_t* escape_jumps = malloc(escape_jump_count * sizeof(uint16_t));
 		PANIC_ON_FAIL(escape_jumps, compiler, ERROR_MEMORY);
 		uint16_t current_escape_jump = 0;
@@ -395,6 +398,16 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 		case AST_STATEMENT_COND:
 			ESCAPE_ON_FAIL(compile_conditional(compiler, code_block.instructions[i].data.conditional, proc, continue_ip, break_jumps, break_jump_top));
 			break;
+		case AST_STATEMENT_RECORD_PROTO: {
+			ast_record_proto_t* current_proto = code_block.instructions[i].data.record_proto;
+			do {
+				for (uint_fast8_t i = 0; i < current_proto->property_count; i++)
+					if (current_proto->properties[i].default_value)
+						ESCAPE_ON_FAIL(compile_value(compiler, *current_proto->properties[i].default_value, NULL));
+				current_proto = current_proto->base_record ? compiler->ast->record_protos[current_proto->base_record->type_id] : NULL;
+			} while (current_proto);
+			break;
+		}
 		case AST_STATEMENT_VALUE:
 			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.value, proc));
 			break;

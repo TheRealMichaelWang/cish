@@ -320,7 +320,11 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			else
 				PANIC(machine, ERROR_ABORT);
 		case OP_CODE_FOREIGN:
-			PANIC_ON_FAIL(ffi_invoke(&machine->ffi_table, machine, &machine->stack[AREG], &machine->stack[BREG], &machine->stack[CREG]), machine, ERROR_FOREIGN);
+			if (!ffi_invoke(&machine->ffi_table, machine, &machine->stack[AREG], &machine->stack[BREG], &machine->stack[CREG]))
+				if (machine->last_err == ERROR_NONE)
+					machine->last_err = ERROR_FOREIGN;
+				else
+					return 0;
 			break;
 		}
 		ip++;
