@@ -214,6 +214,9 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		break;
 	case AST_VALUE_ALLOC_RECORD: {
 		ast_record_proto_t* current_proto = value.data.alloc_record.proto;
+		static typecheck_type_t type_args[TYPE_MAX_SUBTYPES];
+		memcpy(type_args, value.type.sub_types, value.type.sub_type_count * sizeof(typecheck_type_t));
+
 		EMIT_INS(INS3(OP_CODE_HEAP_ALLOC_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->index_offset + current_proto->property_count), GLOB_REG(current_proto->do_gc ? GC_TRACE_SOME : GC_NO_TRACE)));
 		do {
 			for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
@@ -226,10 +229,20 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 				if (current_proto->properties[i].default_value)
 					EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), compiler->eval_regs[current_proto->properties[i].default_value->id]));
 			heap_trace:
-				EMIT_INS(INS3(OP_CODE_HEAP_TRACE_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), GLOB_REG(IS_REF_TYPE(current_proto->properties[i].type))));
+				if (IS_REF_TYPE(current_proto->properties[i].type) || (current_proto->properties[i].type.type == TYPE_TYPEARG && IS_REF_TYPE(type_args[current_proto->properties[i].type.type_id])))
+					EMIT_INS(INS3(OP_CODE_HEAP_TRACE_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), GLOB_REG(1)))
+				else
+					EMIT_INS(INS3(OP_CODE_HEAP_TRACE_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), GLOB_REG(0)));
 			}
-			if (current_proto->base_record)
+			if (current_proto->base_record) {
+				static typecheck_type_t new_type_args[TYPE_MAX_SUBTYPES];
+				memcpy(new_type_args, current_proto->base_record->sub_types, current_proto->base_record->sub_type_count * sizeof(typecheck_type_t));
+				for (uint_fast8_t i = 0; i < current_proto->base_record->sub_type_count; i++)
+					if (new_type_args[i].type == TYPE_TYPEARG)
+						new_type_args[i] = type_args[new_type_args[i].type_id];
+				memcpy(type_args, new_type_args, current_proto->base_record->sub_type_count * sizeof(typecheck_type_t));
 				current_proto = compiler->ast->record_protos[current_proto->base_record->type_id];
+			}
 			else
 				current_proto = NULL;
 		} while (current_proto);
