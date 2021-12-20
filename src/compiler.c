@@ -214,11 +214,12 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		break;
 	case AST_VALUE_ALLOC_RECORD: {
 		ast_record_proto_t* current_proto = value.data.alloc_record.proto;
-		static typecheck_type_t type_args[TYPE_MAX_SUBTYPES];
-		memcpy(type_args, value.type.sub_types, value.type.sub_type_count * sizeof(typecheck_type_t));
+
+		int* new_trace_context = malloc(current_proto->generic_arguments * sizeof(int));
+		PANIC_ON_FAIL(new_trace_context, compiler, ERROR_MEMORY);
 
 		EMIT_INS(INS3(OP_CODE_HEAP_ALLOC_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->index_offset + current_proto->property_count), GLOB_REG(current_proto->do_gc ? GC_TRACE_SOME : GC_NO_TRACE)));
-		do {
+		for(;;) {
 			for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
 				for(uint_fast16_t j = 0; j < value.data.alloc_record.init_value_count; j++)
 					if (value.data.alloc_record.init_values[j].property == &current_proto->properties[i]) {
@@ -229,23 +230,13 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 				if (current_proto->properties[i].default_value)
 					EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), compiler->eval_regs[current_proto->properties[i].default_value->id]));
 			heap_trace:
-				if (IS_REF_TYPE(current_proto->properties[i].type) || (current_proto->properties[i].type.type == TYPE_TYPEARG && IS_REF_TYPE(type_args[current_proto->properties[i].type.type_id])))
-					EMIT_INS(INS3(OP_CODE_HEAP_TRACE_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), GLOB_REG(1)))
-				else
-					EMIT_INS(INS3(OP_CODE_HEAP_TRACE_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), GLOB_REG(0)));
+				EMIT_INS(INS3(OP_CODE_HEAP_TRACE_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), GLOB_REG(IS_REF_TYPE(current_proto->properties[i].type))));
 			}
-			if (current_proto->base_record) {
-				static typecheck_type_t new_type_args[TYPE_MAX_SUBTYPES];
-				memcpy(new_type_args, current_proto->base_record->sub_types, current_proto->base_record->sub_type_count * sizeof(typecheck_type_t));
-				for (uint_fast8_t i = 0; i < current_proto->base_record->sub_type_count; i++)
-					if (new_type_args[i].type == TYPE_TYPEARG)
-						new_type_args[i] = type_args[new_type_args[i].type_id];
-				memcpy(type_args, new_type_args, current_proto->base_record->sub_type_count * sizeof(typecheck_type_t));
+			if (current_proto->base_record)
 				current_proto = compiler->ast->record_protos[current_proto->base_record->type_id];
-			}
 			else
-				current_proto = NULL;
-		} while (current_proto);
+				break;
+		}
 		break;
 	}
 	case AST_VALUE_PROC: {
@@ -256,7 +247,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		if(value.data.procedure->do_gc)
 			EMIT_INS(INS0(OP_CODE_HEAP_NEW_FRAME));
 		compile_code_block(compiler, value.data.procedure->exec_block, value.data.procedure, 0 , NULL, 0);
-		EMIT_INS(INS1(OP_CODE_ABORT, GLOB_REG(0)));
+		EMIT_INS(INS1(OP_CODE_ABORT, GLOB_REG(ERROR_ABORT)));
 		compiler->ins_builder.instructions[start_ip + 1].a = compiler->ins_builder.instruction_count;
 		break;
 	}
@@ -471,7 +462,7 @@ int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
 	EMIT_INS(INS0(OP_CODE_HEAP_NEW_FRAME));
 	ESCAPE_ON_FAIL(compile_code_block(compiler, ast->exec_block, NULL, 0, NULL, 0));
 	EMIT_INS(INS0(OP_CODE_HEAP_CLEAN));
-	EMIT_INS(INS1(OP_CODE_ABORT, GLOB_REG(1)));
+	EMIT_INS(INS1(OP_CODE_ABORT, GLOB_REG(ERROR_NONE)));
 
 	free(compiler->eval_regs);
 	free(compiler->move_eval);

@@ -315,10 +315,10 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			machine->stack[AREG].float_int = -machine->stack[BREG].float_int;
 			break;
 		case OP_CODE_ABORT:
-			if (ip->a)
+			if (ip->a == ERROR_NONE)
 				return 1;
 			else
-				PANIC(machine, ERROR_ABORT);
+				PANIC(machine, ip->a);
 		case OP_CODE_FOREIGN:
 			if (!ffi_invoke(&machine->ffi_table, machine, &machine->stack[AREG], &machine->stack[BREG], &machine->stack[CREG]))
 				if (machine->last_err == ERROR_NONE)
@@ -329,4 +329,5 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 		}
 		ip++;
 	}
+	return 1;
 }
