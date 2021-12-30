@@ -27,7 +27,7 @@ heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode
 	PANIC_ON_FAIL(heap_alloc, machine, ERROR_MEMORY);
 	PANIC_ON_FAIL(heap_alloc->registers = malloc(req_size * sizeof(machine_reg_t)), machine, ERROR_MEMORY);
 	PANIC_ON_FAIL(heap_alloc->init_stat = calloc(req_size, sizeof(int)), machine, ERROR_MEMORY);
-	if (trace_mode == GC_TRACE_SOME)
+	if (trace_mode == GC_TRACE_MODE_SOME)
 		PANIC_ON_FAIL(heap_alloc->trace_stat = calloc(req_size, sizeof(int)), machine, ERROR_MEMORY);
 	machine->heap_allocs[machine->heap_count++] = heap_alloc;
 	return heap_alloc;
@@ -43,12 +43,12 @@ static uint16_t machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc,
 	*(reset_stack++) = heap_alloc;
 	switch (heap_alloc->trace_mode)
 	{
-	case GC_TRACE_ALL:
+	case GC_TRACE_MODE_ALL:
 		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
 			if (heap_alloc->init_stat[i])
 				traced += machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack);
 		break;
-	case GC_TRACE_SOME:
+	case GC_TRACE_MODE_SOME:
 		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
 			if(heap_alloc->init_stat[i] && heap_alloc->trace_stat[i])
 				traced += machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack);
@@ -167,7 +167,11 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 				PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
 			goto store_heap_i;
 		}
-		case OP_CODE_HEAP_TRACE_I:
+		case OP_CODE_HEAP_DYNAMIC_CONF_TRACE:
+			if(machine->stack[CREG].bool_flag)
+				machine->stack[AREG].heap_alloc->trace_stat[ip->b] = GC_TRACE_MODE_ALL;
+			break;
+		case OP_CODE_HEAP_CONF_TRACE:
 			machine->stack[AREG].heap_alloc->trace_stat[ip->b] = ip->c;
 			break;
 		case OP_CODE_STACK_OFFSET:
@@ -190,7 +194,10 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			machine->heap_frame++;
 			break;
 		}
-		case OP_CODE_HEAP_TRACE: {
+		case OP_CODE_HEAP_DYNAMIC_TRACE: {
+			if (!machine->stack[BREG].bool_flag)
+				break;
+		case OP_CODE_HEAP_TRACE:
 			if (machine->trace_count == machine->trace_alloc_limit) {
 				heap_alloc_t** new_trace_stack = realloc(machine->heap_traces, (machine->trace_alloc_limit *= 2) * sizeof(heap_alloc_t*));
 				PANIC_ON_FAIL(new_trace_stack, machine, ERROR_MEMORY);
@@ -214,7 +221,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 				else {
 					free(machine->heap_allocs[i]->registers);
 					free(machine->heap_allocs[i]->init_stat);
-					if (machine->heap_allocs[i]->trace_mode == GC_TRACE_SOME)
+					if (machine->heap_allocs[i]->trace_mode == GC_TRACE_MODE_SOME)
 						free(machine->heap_allocs[i]->trace_stat);
 					free(machine->heap_allocs[i]);
 				}

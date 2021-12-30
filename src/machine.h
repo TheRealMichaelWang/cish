@@ -28,7 +28,8 @@ typedef enum machine_op_code {
 	OP_CODE_STORE_HEAP,
 	OP_CODE_STORE_HEAP_I,
 	OP_CODE_STORE_HEAP_I_BOUND,
-	OP_CODE_HEAP_TRACE_I,
+	OP_CODE_HEAP_CONF_TRACE,
+	OP_CODE_HEAP_DYNAMIC_CONF_TRACE,
 
 	OP_CODE_STACK_OFFSET,
 	OP_CODE_STACK_DEOFFSET,
@@ -38,6 +39,7 @@ typedef enum machine_op_code {
 
 	OP_CODE_HEAP_NEW_FRAME,
 	OP_CODE_HEAP_TRACE,
+	OP_CODE_HEAP_DYNAMIC_TRACE,
 	OP_CODE_HEAP_CLEAN,
 
 	OP_CODE_AND,
@@ -79,9 +81,9 @@ typedef enum machine_op_code {
 } op_code_t;
 
 typedef enum gc_trace_mode {
-	GC_NO_TRACE,
-	GC_TRACE_ALL,
-	GC_TRACE_SOME
+	GC_TRACE_MODE_NONE,
+	GC_TRACE_MODE_ALL,
+	GC_TRACE_MODE_SOME
 } gc_trace_mode_t;
 
 typedef struct machine_instruction {

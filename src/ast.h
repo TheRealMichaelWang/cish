@@ -28,12 +28,13 @@ typedef enum ast_gc_status {
 	GC_NONE,
 	GC_LOCAL_ALLOC,
 	GC_EXTERN_ALLOC,
-	GC_DYNAMIC_LOCAL
+	GC_LOCAL_DYNAMIC,
+	GC_EXTERN_DYNAMIC,
 } ast_gc_status_t;
 
 typedef enum ast_trace_status {
-	TRACE_CHILDREN,
 	TRACE_NONE,
+	TRACE_CHILDREN,
 	TRACE_DYNAMIC
 } ast_trace_status_t;
 
@@ -59,6 +60,7 @@ typedef struct ast_alloc_record {
 	
 	struct ast_alloc_record_init_value {
 		ast_record_prop_t* property;
+		ast_trace_status_t gc_trace;
 		ast_value_t* value;
 	}* init_values;
 
@@ -226,7 +228,6 @@ typedef struct ast_proc {
 
 	ast_code_block_t exec_block;
 
-	ast_trace_status_t* typearg_traces;
 	int do_gc, has_typeargs;
 } ast_proc_t;
 
@@ -291,7 +292,7 @@ typedef struct ast_parser_frame {
 
 	ast_parser_frame_t* parent_frame;
 
-	int do_gc;
+	int do_gc; //, do_dynamic_trace;
 } ast_parser_frame_t;
 
 typedef struct ast_parser {
@@ -299,10 +300,12 @@ typedef struct ast_parser {
 	uint8_t current_frame;
 
 	ast_var_cache_entry_t* globals;
-	uint16_t global_count, allocated_globals;
+	uint16_t global_count, allocated_globals, top_level_local_count;
 
 	ast_t* ast;
 	multi_scanner_t multi_scanner;
+
+	ast_gc_status_t* top_level_global_gc_stats;
 
 	error_t last_err;
 } ast_parser_t;

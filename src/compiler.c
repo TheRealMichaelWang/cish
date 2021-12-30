@@ -44,7 +44,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		break;
 	case AST_VALUE_ARRAY_LITERAL:
 		for (uint_fast16_t i = 0; i < value.data.array_literal.element_count; i++)
-			allocate_value_regs(compiler, value.data.array_literal.elements[i], current_reg, NULL);
+			allocate_value_regs(compiler, value.data.array_literal.elements[i], current_reg + 1, NULL);
 		break;
 	case AST_VALUE_ALLOC_RECORD: {
 		ast_record_proto_t* current_proto = value.data.alloc_record.proto;
@@ -52,7 +52,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 			for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
 				for (uint_fast16_t j = 0; j < value.data.alloc_record.init_value_count; j++)
 					if (value.data.alloc_record.init_values[j].property == &current_proto->properties[i]) {
-						allocate_value_regs(compiler, *value.data.alloc_record.init_values[j].value, current_reg, NULL);
+						allocate_value_regs(compiler, *value.data.alloc_record.init_values[j].value, current_reg + 1, NULL);
 						break;
 					}
 			}
@@ -66,7 +66,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		for (uint_fast16_t i = 0; i < value.data.procedure->param_count; i++)
 			compiler->var_regs[value.data.procedure->params[i].var_info.id] = LOC_REG(i);
 		compiler->var_regs[value.data.procedure->thisproc->id] = compiler->eval_regs[value.id];
-		allocate_code_block_regs(compiler, value.data.procedure->exec_block, value.data.procedure->param_count);
+		allocate_code_block_regs(compiler, value.data.procedure->exec_block, value.data.procedure->param_count + value.type.type_id);
 		return current_reg;
 	}
 	case AST_VALUE_VAR:
@@ -215,22 +215,26 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 	case AST_VALUE_ALLOC_RECORD: {
 		ast_record_proto_t* current_proto = value.data.alloc_record.proto;
 
-		int* new_trace_context = malloc(current_proto->generic_arguments * sizeof(int));
-		PANIC_ON_FAIL(new_trace_context, compiler, ERROR_MEMORY);
-
-		EMIT_INS(INS3(OP_CODE_HEAP_ALLOC_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->index_offset + current_proto->property_count), GLOB_REG(current_proto->do_gc ? GC_TRACE_SOME : GC_NO_TRACE)));
+		EMIT_INS(INS3(OP_CODE_HEAP_ALLOC_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->index_offset + current_proto->property_count), GLOB_REG(current_proto->do_gc ? GC_TRACE_MODE_SOME : GC_TRACE_MODE_NONE)));
 		for(;;) {
 			for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
 				for(uint_fast16_t j = 0; j < value.data.alloc_record.init_value_count; j++)
 					if (value.data.alloc_record.init_values[j].property == &current_proto->properties[i]) {
 						ESCAPE_ON_FAIL(compile_value(compiler, *value.data.alloc_record.init_values[j].value, proc));
 						EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), compiler->eval_regs[value.data.alloc_record.init_values[j].value->id]));
+						if (value.data.alloc_record.init_values[i].gc_trace == TRACE_DYNAMIC)
+							EMIT_INS(INS2(OP_CODE_HEAP_DYNAMIC_TRACE, compiler->eval_regs[value.data.alloc_record.init_values[j].value->id], LOC_REG(proc->param_count + value.data.alloc_record.init_values[i].value->type.type_id)))
+						else if (value.data.alloc_record.init_values[i].gc_trace == TRACE_CHILDREN)
+							EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->eval_regs[value.data.alloc_record.init_values[j].value->id]));
 						goto heap_trace;
 					}
 				if (current_proto->properties[i].default_value)
 					EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), compiler->eval_regs[current_proto->properties[i].default_value->id]));
 			heap_trace:
-				EMIT_INS(INS3(OP_CODE_HEAP_TRACE_I, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), GLOB_REG(IS_REF_TYPE(current_proto->properties[i].type))));
+				if (value.data.alloc_record.typearg_traces[current_proto->properties[i].id] == TRACE_CHILDREN)
+					EMIT_INS(INS3(OP_CODE_HEAP_CONF_TRACE, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), GLOB_REG(GC_TRACE_MODE_ALL)))
+				else if (value.data.alloc_record.typearg_traces[current_proto->properties[i].id] == TRACE_DYNAMIC)
+					EMIT_INS(INS3(OP_CODE_HEAP_DYNAMIC_CONF_TRACE, compiler->eval_regs[value.id], GLOB_REG(current_proto->properties[i].id), LOC_REG(proc->param_count + current_proto->properties[i].type.type_id)));
 			}
 			if (current_proto->base_record)
 				current_proto = compiler->ast->record_protos[current_proto->base_record->type_id];
@@ -255,7 +259,9 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_var->set_value, proc));
 		if (compiler->move_eval[value.data.set_var->set_value.id])
 			EMIT_INS(INS2(OP_CODE_MOVE, compiler->var_regs[value.data.set_var->var_info->id], compiler->eval_regs[value.data.set_var->set_value.id]));
-		if (value.data.set_var->gc_trace && proc->do_gc)
+		if (value.data.set_var->gc_trace == TRACE_DYNAMIC)
+			EMIT_INS(INS2(OP_CODE_HEAP_DYNAMIC_TRACE, compiler->var_regs[value.data.set_var->var_info->id], LOC_REG(proc->param_count + value.data.set_var->set_value.type.type_id)))
+		else if(value.data.set_var->gc_trace == TRACE_CHILDREN)
 			EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->var_regs[value.data.set_var->var_info->id]));
 		break;
 	case AST_VALUE_SET_INDEX:
@@ -267,14 +273,18 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 			EMIT_INS(INS3(OP_CODE_STORE_HEAP_I_BOUND, compiler->eval_regs[value.data.set_index->array.id], GLOB_REG(value.data.set_index->index.data.primitive.data.long_int), compiler->eval_regs[value.data.set_index->value.id]))
 		else
 			EMIT_INS(INS3(OP_CODE_STORE_HEAP, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->index.id], compiler->eval_regs[value.data.set_index->value.id]));
-		if (proc && value.data.set_index->gc_trace && proc->do_gc)
+		if (value.data.set_index->gc_trace == TRACE_DYNAMIC)
+			EMIT_INS(INS2(OP_CODE_HEAP_DYNAMIC_TRACE, compiler->eval_regs[value.data.set_index->value.id], LOC_REG(proc->param_count + value.data.set_index->value.type.type_id)))
+		else if(value.data.set_index->gc_trace == TRACE_CHILDREN)
 			EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->eval_regs[value.data.set_index->value.id]));
 		break;
 	case AST_VALUE_SET_PROP:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->record, proc));
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->value, proc));
 		EMIT_INS(INS3(OP_CODE_STORE_HEAP_I, compiler->eval_regs[value.data.set_prop->record.id], GLOB_REG(value.data.set_prop->property->id), compiler->eval_regs[value.data.set_prop->value.id]));
-		if (proc && value.data.set_prop->gc_trace && proc->do_gc)
+		if(value.data.set_prop->gc_trace == TRACE_DYNAMIC)
+			EMIT_INS(INS2(OP_CODE_HEAP_DYNAMIC_TRACE, compiler->eval_regs[value.data.set_prop->value.id], LOC_REG(proc->param_count + value.data.set_prop->value.type.type_id)))
+		else if (value.data.set_prop->gc_trace == TRACE_CHILDREN)
 			EMIT_INS(INS1(OP_CODE_HEAP_TRACE, compiler->eval_regs[value.data.set_prop->value.id]));
 		break;
 	case AST_VALUE_GET_INDEX:

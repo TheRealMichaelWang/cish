@@ -4,7 +4,7 @@
 #include "type.h"
 
 void free_typecheck_type(typecheck_type_t* typecheck_type) {
-	if (typecheck_type->type >= TYPE_SUPER_ARRAY) {
+	if (typecheck_type->type >= TYPE_SUPER_ARRAY && typecheck_type->sub_type_count) {
 		for (uint_fast8_t i = 0; i < typecheck_type->sub_type_count; i++)
 			free_typecheck_type(&typecheck_type->sub_types[i]);
 		free(typecheck_type->sub_types);
