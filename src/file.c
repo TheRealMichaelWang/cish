@@ -63,10 +63,10 @@ int file_save_compiled(const char* path, ast_parser_t* ast_parser, machine_t* ma
 
 	uint16_t magic_num = MAGIC_NUM; 
 	ESCAPE_ON_FAIL(fwrite(&magic_num, sizeof(uint16_t), 1, infile));
-	ESCAPE_ON_FAIL(fwrite(&ast_parser->ast->total_constants, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(&ast_parser->ast->constant_count, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fwrite(&instruction_count, sizeof(uint16_t), 1, infile));
 	
-	for (uint_fast16_t i = 0; i < ast_parser->ast->total_constants; i++)
+	for (uint_fast16_t i = 0; i < ast_parser->ast->constant_count; i++)
 		ESCAPE_ON_FAIL(fwrite(&machine->stack[i], sizeof(uint64_t), 1, infile));
 
 	for (uint_fast16_t i = 0; i < instruction_count; i++)

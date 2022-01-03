@@ -43,7 +43,7 @@ int typecheck_compatible(ast_t* ast, typecheck_type_t* target_type, typecheck_ty
 
 				typecheck_type_t next_rec_type;
 				ESCAPE_ON_FAIL(copy_typecheck_type(&next_rec_type, *record_proto->base_record));
-				ESCAPE_ON_FAIL(type_args_substitute(current_rec_type, &next_rec_type));
+				ESCAPE_ON_FAIL(typeargs_substitute(current_rec_type.sub_types, &next_rec_type));
 				free_typecheck_type(&current_rec_type);
 				current_rec_type = next_rec_type;
 				record_proto = ast->record_protos[current_rec_type.type_id];
@@ -71,12 +71,12 @@ int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type) {
 	return 0;
 }
 
-int type_args_substitute(typecheck_type_t input_type_args, typecheck_type_t* proto_type) {
+int typeargs_substitute(typecheck_type_t* input_typeargs, typecheck_type_t* proto_type) {
 	if (proto_type->type == TYPE_TYPEARG)
-		ESCAPE_ON_FAIL(copy_typecheck_type(proto_type, input_type_args.sub_types[proto_type->type_id]))
+		ESCAPE_ON_FAIL(copy_typecheck_type(proto_type, input_typeargs[proto_type->type_id]))
 	else if (proto_type->type >= TYPE_SUPER_ARRAY) {
 		for (uint_fast8_t i = 0; i < proto_type->sub_type_count; i++)
-			ESCAPE_ON_FAIL(type_args_substitute(input_type_args, &proto_type->sub_types[i]));
+			ESCAPE_ON_FAIL(typeargs_substitute(input_typeargs, &proto_type->sub_types[i]));
 	}
 	return 1;
 }

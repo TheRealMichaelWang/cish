@@ -84,7 +84,7 @@ static int ast_parser_decl_var(ast_parser_t* ast_parser, uint64_t id, ast_var_in
 			PANIC_ON_FAIL(new_globals, ast_parser, ERROR_MEMORY);
 			ast_parser->globals = new_globals;
 		}
-		var_info->id = ast_parser->ast->total_var_decls++;
+		var_info->id = ast_parser->ast->var_decl_count++;
 		var_info->scope_id = ast_parser->global_count;
 		ast_parser->globals[ast_parser->global_count++] = (ast_var_cache_entry_t){
 			.id_hash = id,
@@ -97,7 +97,7 @@ static int ast_parser_decl_var(ast_parser_t* ast_parser, uint64_t id, ast_var_in
 			PANIC_ON_FAIL(new_locals, ast_parser, ERROR_MEMORY);
 			current_frame->locals = new_locals;
 		}
-		var_info->id = ast_parser->ast->total_var_decls++;
+		var_info->id = ast_parser->ast->var_decl_count++;
 
 		current_frame->locals[current_frame->local_count++] = (ast_var_cache_entry_t){
 			.id_hash = id,
@@ -182,12 +182,12 @@ static int ast_record_sub_prop_type(ast_parser_t* ast_parser, typecheck_type_t r
 	for(uint_fast8_t i = 0; i < record->property_count; i++)
 		if (record->properties[i].hash_id == id) {
 			PANIC_ON_FAIL(copy_typecheck_type(out_type, record->properties[i].type), ast_parser, ERROR_MEMORY);
-			PANIC_ON_FAIL(type_args_substitute(record_type, out_type), ast_parser, ERROR_MEMORY);
+			PANIC_ON_FAIL(typeargs_substitute(record_type.sub_types, out_type), ast_parser, ERROR_MEMORY);
 			return 1;
 		}
 	if (record->base_record) {
 		ESCAPE_ON_FAIL(ast_record_sub_prop_type(ast_parser, *record->base_record, id, out_type));
-		PANIC_ON_FAIL(type_args_substitute(record_type, out_type), ast_parser, ERROR_MEMORY);
+		PANIC_ON_FAIL(typeargs_substitute(record_type.sub_types, out_type), ast_parser, ERROR_MEMORY);
 		return 1;
 	}
 	PANIC(ast_parser, ERROR_UNDECLARED);
@@ -239,9 +239,10 @@ static int parse_subtypes(ast_parser_t* ast_parser, typecheck_type_t* super_type
 	} while (LAST_TOK.type == TOK_COMMA);
 	MATCH_TOK(TOK_MORE);
 	READ_TOK;
-	if(super_type->sub_type_count)
+	if (super_type->sub_type_count) {
 		PANIC_ON_FAIL(super_type->sub_types = malloc(super_type->sub_type_count * sizeof(typecheck_type_t)), ast_parser, ERROR_MEMORY);
-	memcpy(super_type->sub_types, sub_types, super_type->sub_type_count * sizeof(typecheck_type_t));
+		memcpy(super_type->sub_types, sub_types, super_type->sub_type_count * sizeof(typecheck_type_t));
+	}
 	free(sub_types);
 	return 1;
 }
@@ -346,7 +347,7 @@ static int parse_prim_value(ast_parser_t* ast_parser, ast_primitive_t* primitive
 		PANIC(ast_parser, ERROR_UNEXPECTED_TOK);
 	};
 	end:
-	ast_parser->ast->total_constants++;
+	ast_parser->ast->constant_count++;
 	READ_TOK;
 	return 1;
 }
@@ -503,6 +504,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			READ_TOK;
 			MATCH_TOK(TOK_IDENTIFIER);
 			uint64_t hash_id = hash_s(LAST_TOK.str, LAST_TOK.length);
+			uint16_t old_const_count = ast_parser->ast->constant_count;
 
 			ast_record_proto_t* record_proto;
 			if (!(record_proto = ast_parser_find_record_proto(ast_parser, hash_id)))
@@ -545,6 +547,8 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			} while (LAST_TOK.type != TOK_CLOSE_BRACE);
 			READ_TOK;
 
+			record_proto->constant_count = ast_parser->ast->constant_count - old_const_count;
+			ast_parser->ast->constant_count = old_const_count;
 			statement->type = AST_STATEMENT_RECORD_PROTO;
 			statement->data.record_proto = record_proto;
 			ast_parser_close_frame(ast_parser);
@@ -601,7 +605,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				value->data.array_literal.elements[i].value_type = AST_VALUE_PRIMITIVE;
 				value->data.array_literal.elements[i].type.type = TYPE_PRIMITIVE_CHAR;
 				value->data.array_literal.elements[i].id = ast_parser->ast->value_count++;
-				ast_parser->ast->total_constants++;
+				ast_parser->ast->constant_count++;
 			}
 		free(buffer);
 		READ_TOK;
@@ -661,17 +665,18 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 			value->value_type = AST_VALUE_ALLOC_RECORD;
 			ast_record_proto_t* current_proto = value->data.alloc_record.proto = ast_parser->ast->record_protos[type_alloc_buf.type_id];
 			value->data.alloc_record.init_value_count = 0;
+			value->data.alloc_record.allocated_init_values = 0;
 			value->type = type_alloc_buf;
+
 			if (LAST_TOK.type == TOK_OPEN_BRACE) {
 				PANIC_ON_FAIL(current_proto->defined, ast_parser, ERROR_UNDECLARED);
 				READ_TOK;
-				uint16_t alloced_set_vals = 3;
-				PANIC_ON_FAIL(value->data.alloc_record.init_values = malloc(alloced_set_vals * sizeof(struct ast_alloc_record_init_value)), ast_parser, ERROR_MEMORY);
+				PANIC_ON_FAIL(value->data.alloc_record.init_values = malloc((value->data.alloc_record.allocated_init_values = 5) * sizeof(struct ast_alloc_record_init_value)), ast_parser, ERROR_MEMORY);
 				do {
 					MATCH_TOK(TOK_IDENTIFIER);
 					uint64_t prop_id = hash_s(LAST_TOK.str, LAST_TOK.length);
-					if (value->data.alloc_record.init_value_count == alloced_set_vals) {
-						struct ast_alloc_record_init_value* new_init_values = realloc(value->data.alloc_record.init_values, (alloced_set_vals += 64) * sizeof(struct ast_alloc_record_init_value));
+					if (value->data.alloc_record.init_value_count == value->data.alloc_record.allocated_init_values) {
+						struct ast_alloc_record_init_value* new_init_values = realloc(value->data.alloc_record.init_values, (value->data.alloc_record.allocated_init_values += 4) * sizeof(struct ast_alloc_record_init_value));
 						PANIC_ON_FAIL(new_init_values, ast_parser, ERROR_MEMORY);
 						value->data.alloc_record.init_values = new_init_values;
 					}
@@ -683,6 +688,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 					ESCAPE_ON_FAIL(ast_record_sub_prop_type(ast_parser, value->type, prop_id, &prop_expected_type));
 					PANIC_ON_FAIL(value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value = malloc(sizeof(ast_value_t)), ast_parser, ERROR_MEMORY);
 					ESCAPE_ON_FAIL(parse_expression(ast_parser, value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value, &prop_expected_type, 0));
+					value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].is_default = 1;
 					value->data.alloc_record.init_value_count++;
 					free_typecheck_type(&prop_expected_type);
 					MATCH_TOK(TOK_SEMICOLON);
@@ -754,7 +760,6 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		value->data.procedure->param_count = 0;
 		MATCH_TOK(TOK_OPEN_PAREN);
 		READ_TOK;
-		value->data.procedure->has_typeargs = value->type.type > 0;
 		while (LAST_TOK.type != TOK_CLOSE_PAREN)
 		{
 			if (value->data.procedure->param_count == TYPE_MAX_SUBTYPES - 1)
@@ -883,23 +888,20 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				value->data.get_prop->property = property;
 			}
 		}
-		else if(LAST_TOK.type == TOK_OPEN_PAREN || (LAST_TOK.type == TOK_LESS && value->type.type == TYPE_SUPER_PROC)) {
+		else if (LAST_TOK.type == TOK_OPEN_PAREN || (LAST_TOK.type == TOK_LESS && value->type.type == TYPE_SUPER_PROC)) {
 			PANIC_ON_FAIL(value->type.type == TYPE_SUPER_PROC, ast_parser, ERROR_UNEXPECTED_TYPE);
 			ast_value_t proc_val = *value;
 			value->value_type = AST_VALUE_PROC_CALL;
+			PANIC_ON_FAIL(value->data.proc_call = malloc(sizeof(ast_call_proc_t)), ast_parser, ERROR_MEMORY);
 
 			typecheck_type_t call_type;
 			PANIC_ON_FAIL(copy_typecheck_type(&call_type, proc_val.type), ast_parser, ERROR_MEMORY);
 			if (call_type.type_id) {
-				typecheck_type_t typeargs;
-				typeargs.type = TYPE_SUPER_PROC;
-				ESCAPE_ON_FAIL(parse_subtypes(ast_parser, &typeargs));
-				PANIC_ON_FAIL(typeargs.sub_type_count == call_type.type_id, ast_parser, ERROR_UNEXPECTED_ARGUMENT_SIZE);
-				PANIC_ON_FAIL(type_args_substitute(typeargs, &call_type), ast_parser, ERROR_MEMORY);
-				free_typecheck_type(&typeargs);
+				ESCAPE_ON_FAIL(parse_subtypes(ast_parser, &value->type));
+				PANIC_ON_FAIL(value->type.sub_type_count == call_type.type_id, ast_parser, ERROR_UNEXPECTED_ARGUMENT_SIZE);
+				PANIC_ON_FAIL(typeargs_substitute(value->data.proc_call->typeargs = value->type.sub_types, &call_type), ast_parser, ERROR_MEMORY);
 			}
 
-			PANIC_ON_FAIL(value->data.proc_call = malloc(sizeof(ast_call_proc_t)), ast_parser, ERROR_MEMORY);
 			value->data.proc_call->procedure = proc_val;
 			value->data.proc_call->argument_count = 0;
 			value->data.proc_call->id = ast_parser->ast->proc_call_count++;
@@ -981,21 +983,21 @@ static int get_ast_record_index_offset(ast_t* ast, ast_record_proto_t* record) {
 	return record->index_offset + record->property_count;
 }
 
-static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, ast_gc_status_t* global_gc_stats, ast_gc_status_t* local_gc_stats);
+static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, ast_trace_status_t* trace_stats, ast_gc_status_t* global_gc_stats, ast_gc_status_t* local_gc_stats);
 
-static int ast_postproc_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_block, ast_gc_status_t* global_gc_stats, ast_gc_status_t* local_gc_stats, uint16_t local_scope_size, int is_top_level) {
+static int ast_postproc_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_block, ast_trace_status_t* trace_stats, ast_gc_status_t* global_gc_stats, ast_gc_status_t* local_gc_stats, uint16_t local_scope_size, int is_top_level) {
 	for(uint_fast32_t i = 0; i < code_block->instruction_count; i++)
 		switch (code_block->instructions[i].type)
 		{
 		case AST_STATEMENT_DECL_VAR: {
 			ast_var_info_t* var_info = code_block->instructions[i].data.var_decl.var_info;
 			ast_value_t* set_value = &code_block->instructions[i].data.var_decl.set_value;
-			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, set_value, is_top_level ? ast_parser->top_level_global_gc_stats : global_gc_stats, local_gc_stats));
+			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, set_value, trace_stats, is_top_level ? ast_parser->top_level_global_gc_stats : global_gc_stats, local_gc_stats));
 			if (var_info->is_global)
 				switch (set_value->gc_status) {
 				case GC_NONE:
 				case GC_EXTERN_ALLOC:
-					global_gc_stats[var_info->scope_id] = GC_NONE;
+					ast_parser->top_level_global_gc_stats[var_info->scope_id] = global_gc_stats[var_info->scope_id] = GC_NONE;
 					break;
 				case GC_LOCAL_ALLOC:
 					global_gc_stats[var_info->scope_id] = GC_EXTERN_ALLOC;
@@ -1009,44 +1011,31 @@ static int ast_postproc_code_block(ast_parser_t* ast_parser, ast_code_block_t* c
 			ast_cond_t* current_cond = code_block->instructions[i].data.conditional;
 			while (current_cond) {
 				if(current_cond->condition)
-					ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, current_cond->condition, is_top_level ? ast_parser->top_level_global_gc_stats : global_gc_stats, local_gc_stats))
+					ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, current_cond->condition, trace_stats, is_top_level ? ast_parser->top_level_global_gc_stats : global_gc_stats, local_gc_stats))
 
 				ast_gc_status_t* new_gc_context = malloc(local_scope_size * sizeof(ast_gc_status_t));
 				PANIC_ON_FAIL(new_gc_context, ast_parser, ERROR_MEMORY);
 				memcpy(new_gc_context, local_gc_stats, local_scope_size * sizeof(ast_gc_status_t));
 
-				ESCAPE_ON_FAIL(ast_postproc_code_block(ast_parser, &current_cond->exec_block, is_top_level ? ast_parser->top_level_global_gc_stats : global_gc_stats, new_gc_context, local_scope_size, is_top_level));
+				ESCAPE_ON_FAIL(ast_postproc_code_block(ast_parser, &current_cond->exec_block, trace_stats, is_top_level ? ast_parser->top_level_global_gc_stats : global_gc_stats, new_gc_context, local_scope_size, is_top_level));
 				free(new_gc_context);
 				current_cond = current_cond->next_if_false;
 			}
 			break;
 		}
 		case AST_STATEMENT_VALUE:
-			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &code_block->instructions[i].data.value, is_top_level ? ast_parser->top_level_global_gc_stats : global_gc_stats, local_gc_stats));
+			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &code_block->instructions[i].data.value, trace_stats, is_top_level ? ast_parser->top_level_global_gc_stats : global_gc_stats, local_gc_stats));
 			break;
 		case AST_STATEMENT_RETURN_VALUE:
-			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &code_block->instructions[i].data.value, global_gc_stats, local_gc_stats));
+			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &code_block->instructions[i].data.value, trace_stats, global_gc_stats, local_gc_stats));
 			break;
-		case AST_STATEMENT_RECORD_PROTO: {
-			ast_record_proto_t* current_proto = code_block->instructions[i].data.record_proto;
-			for (;;) {
-				for (uint_fast8_t i = 0; i < current_proto->property_count; i++)
-					if (current_proto->properties[i].default_value)
-						ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, current_proto->properties[i].default_value, ast_parser->top_level_global_gc_stats, local_gc_stats));
-				if (current_proto->base_record)
-					current_proto = ast_parser->ast->record_protos[current_proto->base_record->type_id];
-				else
-					break;
-			}
-			break;
-		}
 		}
 	return 1;
 }
 
-static void ast_gcproc_setchild(ast_gc_status_t parent_gc_stat, ast_gc_status_t child_gc_stat, ast_trace_status_t* trace_stat, ast_gc_status_t* set_stat) {
+static void ast_gcproc_setchild(ast_gc_status_t parent_gc_stat, ast_value_t child, ast_trace_status_t* trace_stat, ast_gc_status_t* set_stat, ast_trace_status_t* typearg_traces) {
 	if (parent_gc_stat == GC_EXTERN_ALLOC) {
-		switch (child_gc_stat) {
+		switch (child.gc_status) {
 		case GC_EXTERN_ALLOC:
 		case GC_EXTERN_DYNAMIC:
 		case GC_NONE:
@@ -1056,12 +1045,12 @@ static void ast_gcproc_setchild(ast_gc_status_t parent_gc_stat, ast_gc_status_t 
 			*trace_stat = TRACE_CHILDREN;
 			break;
 		case GC_LOCAL_DYNAMIC:
-			*trace_stat = TRACE_DYNAMIC;
+			*trace_stat = typearg_traces[child.type.type_id];
 			break;
 		}
 	}
 	else {
-		switch (child_gc_stat) {
+		switch (child.gc_status) {
 		case GC_LOCAL_ALLOC:
 		case GC_LOCAL_DYNAMIC:
 		case GC_EXTERN_DYNAMIC:
@@ -1074,7 +1063,7 @@ static void ast_gcproc_setchild(ast_gc_status_t parent_gc_stat, ast_gc_status_t 
 		}
 	}
 	if(set_stat)
-		*set_stat = child_gc_stat;
+		*set_stat = child.gc_status;
 }
 
 static ast_gc_status_t ast_getchild_gc_status(typecheck_type_t parent_type, ast_gc_status_t parent_gc_stat) {
@@ -1092,15 +1081,15 @@ static ast_gc_status_t ast_getchild_gc_status(typecheck_type_t parent_type, ast_
 		return GC_NONE;
 }
 
-static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, ast_gc_status_t* global_gc_stats, ast_gc_status_t* local_gc_stats) {
+static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, ast_trace_status_t* typearg_traces, ast_gc_status_t* global_gc_stats, ast_gc_status_t* local_gc_stats) {
 	switch (value->value_type) {
 	case AST_VALUE_PRIMITIVE:
 		value->gc_status = GC_NONE;
 		break;
 	case AST_VALUE_ALLOC_ARRAY:
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.alloc_array->size, global_gc_stats, local_gc_stats));
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.alloc_array->size, typearg_traces, global_gc_stats, local_gc_stats));
 		if (value->data.alloc_array->elem_type->type == TYPE_TYPEARG)
-			value->data.alloc_array->gc_trace = TRACE_DYNAMIC;
+			value->data.alloc_array->gc_trace = typearg_traces[value->data.alloc_array->elem_type->type_id];
 		else
 			value->data.alloc_array->gc_trace = IS_REF_TYPE(*value->data.alloc_array->elem_type);
 		value->gc_status = GC_LOCAL_ALLOC;
@@ -1108,36 +1097,61 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, ast_
 	case AST_VALUE_ALLOC_RECORD: {
 		PANIC_ON_FAIL(value->data.alloc_record.typearg_traces = malloc((value->data.alloc_record.proto->index_offset + value->data.alloc_record.proto->property_count) * sizeof(ast_trace_status_t)), ast_parser, ERROR_MEMORY); 
 		
-		static typecheck_type_t current_type_args[TYPE_MAX_SUBTYPES];
-		memcpy(current_type_args, value->type.sub_types, value->type.sub_type_count * sizeof(typecheck_type_t));
+		static typecheck_type_t current_typeargs[TYPE_MAX_SUBTYPES];
+		memcpy(current_typeargs, value->type.sub_types, value->type.sub_type_count * sizeof(typecheck_type_t));
+
+		int* overriden_defaults = calloc(value->data.alloc_record.proto->property_count + value->data.alloc_record.proto->index_offset, sizeof(int));
+		PANIC_ON_FAIL(overriden_defaults, ast_parser, ERROR_MEMORY);
+		for (uint_fast8_t i = 0; i < value->data.alloc_record.init_value_count; i++)
+			overriden_defaults[value->data.alloc_record.init_values[i].property->id] = 1;
 
 		ast_record_proto_t* current_proto = value->data.alloc_record.proto;
 		for (;;) {
 			for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
 				typecheck_type_t actual_type;
 				if (current_proto->properties[i].type.type == TYPE_TYPEARG)
-					actual_type = current_type_args[current_proto->properties[i].type.type_id];
-				else
+					actual_type = current_typeargs[current_proto->properties[i].type.type_id];
+				else {
 					actual_type = current_proto->properties[i].type;
+					if (current_proto->properties[i].default_value && !overriden_defaults[current_proto->properties[i].id]) {
+						if (value->data.alloc_record.init_value_count == value->data.alloc_record.allocated_init_values) {
+							if (value->data.alloc_record.allocated_init_values) {
+								struct ast_alloc_record_init_value* new_init_values = realloc(value->data.alloc_record.init_values, (value->data.alloc_record.allocated_init_values += 2) * sizeof(struct ast_alloc_record_init_value));
+								PANIC_ON_FAIL(new_init_values, ast_parser, ERROR_MEMORY);
+								value->data.alloc_record.init_values = new_init_values;
+							}
+							else
+								PANIC_ON_FAIL(value->data.alloc_record.init_values = malloc((value->data.alloc_record.allocated_init_values = 5) * sizeof(struct ast_alloc_record_init_value)), ast_parser, ERROR_MEMORY);
+						}
+						value->data.alloc_record.init_values[value->data.alloc_record.init_value_count++] = (struct ast_alloc_record_init_value){
+							.value = current_proto->properties[i].default_value,
+							.property = &current_proto->properties[i],
+							.is_default = 0
+						};
+					}
+				}
 				if (actual_type.type == TYPE_TYPEARG)
 					value->data.alloc_record.typearg_traces[current_proto->properties[i].id] = TRACE_DYNAMIC;
 				else
 					value->data.alloc_record.typearg_traces[current_proto->properties[i].id] = IS_REF_TYPE(actual_type);
 			}
+			ast_parser->ast->constant_count += current_proto->constant_count;
 			if (current_proto->base_record) {
-				static typecheck_type_t new_type_args[TYPE_MAX_SUBTYPES];
-				memcpy(new_type_args, current_proto->base_record->sub_types, current_proto->base_record->sub_type_count * sizeof(typecheck_type_t));
+				static typecheck_type_t new_typeargs[TYPE_MAX_SUBTYPES];
+				memcpy(new_typeargs, current_proto->base_record->sub_types, current_proto->base_record->sub_type_count * sizeof(typecheck_type_t));
 				for (uint_fast8_t i = 0; i < current_proto->base_record->sub_type_count; i++)
 					if (current_proto->base_record->sub_types[i].type == TYPE_TYPEARG)
-						new_type_args[i] = current_type_args[current_proto->base_record->sub_types[i].type_id];
-				memcpy(current_type_args, new_type_args, current_proto->base_record->sub_type_count * sizeof(typecheck_type_t));
+						new_typeargs[i] = current_typeargs[current_proto->base_record->sub_types[i].type_id];
+				memcpy(current_typeargs, new_typeargs, current_proto->base_record->sub_type_count * sizeof(typecheck_type_t));
 				current_proto = ast_parser->ast->record_protos[current_proto->base_record->type_id];
 			}
 			else break;
 		}
+		free(overriden_defaults);
+
 		for (uint_fast16_t i = 0; i < value->data.alloc_record.init_value_count; i++) {
-			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, value->data.alloc_record.init_values[i].value, global_gc_stats, local_gc_stats));
-			ast_gcproc_setchild(GC_LOCAL_ALLOC, value->data.alloc_record.init_values[i].value->gc_status, &value->data.alloc_record.init_values[i].gc_trace, NULL);
+			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, value->data.alloc_record.init_values[i].value, value->data.alloc_record.typearg_traces, global_gc_stats, local_gc_stats));
+			ast_gcproc_setchild(GC_LOCAL_ALLOC, *value->data.alloc_record.init_values[i].value, &value->data.alloc_record.init_values[i].gc_trace, NULL, value->data.alloc_record.typearg_traces);
 		}
 		value->gc_status = GC_LOCAL_ALLOC;
 		break;
@@ -1145,9 +1159,9 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, ast_
 	case AST_VALUE_ARRAY_LITERAL:
 		value->gc_status = GC_LOCAL_ALLOC;
 		for (uint_fast16_t i = 0; i < value->data.array_literal.element_count; i++)
-			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.array_literal.elements[i], global_gc_stats, local_gc_stats));
+			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.array_literal.elements[i], typearg_traces, global_gc_stats, local_gc_stats));
 		if (value->data.array_literal.elem_type->type == TYPE_TYPEARG)
-			value->data.array_literal.gc_trace = TRACE_DYNAMIC;
+			value->data.array_literal.gc_trace = typearg_traces[value->data.array_literal.elem_type->type_id];
 		else
 			value->data.array_literal.gc_trace = IS_REF_TYPE(*value->data.array_literal.elem_type);
 		break;
@@ -1155,6 +1169,9 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, ast_
 		value->gc_status = GC_NONE;
 		ast_gc_status_t* new_local_stats = malloc(value->data.procedure->scope_size * sizeof(ast_gc_status_t));
 		PANIC_ON_FAIL(new_local_stats, ast_parser, ERROR_MEMORY);
+		ast_trace_status_t* typearg_traces = malloc(value->type.type_id * sizeof(ast_trace_status_t));
+		for (uint_fast8_t i = 0; i < value->type.type_id; i++)
+			typearg_traces[i] = TRACE_DYNAMIC;
 		for (uint_fast8_t i = 0; i < value->data.procedure->param_count; i++)
 			if (value->data.procedure->params[i].var_info.type.type == TYPE_TYPEARG)
 				new_local_stats[value->data.procedure->params[i].var_info.scope_id] = GC_EXTERN_DYNAMIC;
@@ -1162,8 +1179,9 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, ast_
 				new_local_stats[value->data.procedure->params[i].var_info.scope_id] = GC_EXTERN_ALLOC;
 			else
 				new_local_stats[value->data.procedure->params[i].var_info.scope_id] = GC_NONE;
-		ESCAPE_ON_FAIL(ast_postproc_code_block(ast_parser, &value->data.procedure->exec_block, global_gc_stats, new_local_stats, value->data.procedure->scope_size, 0));
+		ESCAPE_ON_FAIL(ast_postproc_code_block(ast_parser, &value->data.procedure->exec_block, typearg_traces, global_gc_stats, new_local_stats, value->data.procedure->scope_size, 0));
 		free(new_local_stats);
+		free(typearg_traces);
 		break; 
 	}
 	case AST_VALUE_VAR:
@@ -1173,7 +1191,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, ast_
 			value->gc_status = local_gc_stats[value->data.variable->scope_id];
 		break;
 	case AST_VALUE_SET_VAR:
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_var->set_value, global_gc_stats, local_gc_stats));
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_var->set_value, typearg_traces, global_gc_stats, local_gc_stats));
 		if (value->data.set_var->var_info->is_global) {
 			if (value->data.set_var->set_value.gc_status == GC_LOCAL_ALLOC)
 				value->data.set_var->gc_trace = TRACE_CHILDREN;
@@ -1190,44 +1208,52 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, ast_
 		}
 		break;
 	case AST_VALUE_SET_INDEX:
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_index->array, global_gc_stats, local_gc_stats));
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_index->index, global_gc_stats, local_gc_stats));
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_index->value, global_gc_stats, local_gc_stats));
-		ast_gcproc_setchild(value->data.set_index->array.gc_status, value->data.set_index->value.gc_status, &value->data.set_index->gc_trace, &value->gc_status);
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_index->array, typearg_traces, global_gc_stats, local_gc_stats));
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_index->index, typearg_traces, global_gc_stats, local_gc_stats));
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_index->value, typearg_traces, global_gc_stats, local_gc_stats));
+		ast_gcproc_setchild(value->data.set_index->array.gc_status, value->data.set_index->value, &value->data.set_index->gc_trace, &value->gc_status, typearg_traces);
 		break;
 	case AST_VALUE_GET_INDEX:
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.get_index->array, global_gc_stats, local_gc_stats));
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.get_index->index, global_gc_stats, local_gc_stats));
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.get_index->array, typearg_traces, global_gc_stats, local_gc_stats));
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.get_index->index, typearg_traces, global_gc_stats, local_gc_stats));
 		value->gc_status = ast_getchild_gc_status(value->type, value->data.get_index->array.gc_status);
 		break;
 	case AST_VALUE_SET_PROP:
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->record, global_gc_stats, local_gc_stats));
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->value, global_gc_stats, local_gc_stats));
-		ast_gcproc_setchild(value->data.set_prop->record.gc_status, value->data.set_prop->value.gc_status, &value->data.set_prop->gc_trace, &value->gc_status);
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->record, typearg_traces, global_gc_stats, local_gc_stats));
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->value, typearg_traces, global_gc_stats, local_gc_stats));
+		ast_gcproc_setchild(value->data.set_prop->record.gc_status, value->data.set_prop->value, &value->data.set_prop->gc_trace, &value->gc_status, typearg_traces);
 		break;
 	case AST_VALUE_GET_PROP:
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->record, global_gc_stats, local_gc_stats));
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->record, typearg_traces, global_gc_stats, local_gc_stats));
 		value->gc_status = ast_getchild_gc_status(value->type, value->data.set_prop->record.gc_status);
 		break;
 	case AST_VALUE_BINARY_OP:
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.binary_op->lhs, global_gc_stats, local_gc_stats));
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.binary_op->rhs, global_gc_stats, local_gc_stats));
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.binary_op->lhs, typearg_traces, global_gc_stats, local_gc_stats));
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.binary_op->rhs, typearg_traces, global_gc_stats, local_gc_stats));
 		value->gc_status = GC_NONE;
 		break;
 	case AST_VALUE_UNARY_OP:
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.unary_op->operand, global_gc_stats, local_gc_stats));
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.unary_op->operand, typearg_traces, global_gc_stats, local_gc_stats));
 		value->gc_status = GC_NONE;
 		break;
 	case AST_VALUE_PROC_CALL:
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.proc_call->procedure, global_gc_stats, local_gc_stats));
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.proc_call->procedure, typearg_traces, global_gc_stats, local_gc_stats));
+		PANIC_ON_FAIL(value->data.proc_call->typearg_traces = malloc(value->data.proc_call->procedure.type.type_id * sizeof(ast_trace_status_t)), ast_parser, ERROR_MEMORY);
+		if (value->data.proc_call->procedure.type.type_id) {
+			for (uint_fast8_t i = 0; i < value->data.proc_call->procedure.type.type_id; i++)
+				if (value->data.proc_call->typeargs[i].type == TYPE_TYPEARG)
+					value->data.proc_call->typearg_traces[i] = typearg_traces[value->data.proc_call->typeargs[i].type_id];
+				else
+					value->data.proc_call->typearg_traces[i] = IS_REF_TYPE(value->data.proc_call->typeargs[i]);
+		}
 		for (uint_fast8_t i = 0; i < value->data.proc_call->argument_count; i++)
-			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.proc_call->arguments[i], global_gc_stats, local_gc_stats));
+			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.proc_call->arguments[i], typearg_traces, global_gc_stats, local_gc_stats));
 		value->gc_status = ast_getchild_gc_status(value->type, GC_LOCAL_ALLOC);
 		break;
 	case AST_VALUE_FOREIGN:
-		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.foreign->op_id, global_gc_stats, local_gc_stats));
+		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.foreign->op_id, typearg_traces, global_gc_stats, local_gc_stats));
 		if(value->data.foreign->input)
-			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, value->data.foreign->input, global_gc_stats, local_gc_stats));
+			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, value->data.foreign->input, typearg_traces, global_gc_stats, local_gc_stats));
 		value->gc_status = ast_getchild_gc_status(value->type, GC_LOCAL_ALLOC);
 		break;
 	}
@@ -1240,7 +1266,7 @@ static int ast_postproc(ast_parser_t* ast_parser) {
 	PANIC_ON_FAIL(global_gc_stats, ast_parser, ERROR_MEMORY);
 	ast_gc_status_t* top_level_locals = malloc(ast_parser->top_level_local_count * sizeof(ast_gc_status_t));
 	PANIC_ON_FAIL(top_level_locals, ast_parser, ERROR_MEMORY);
-	ESCAPE_ON_FAIL(ast_postproc_code_block(ast_parser, &ast_parser->ast->exec_block, global_gc_stats, top_level_locals, ast_parser->top_level_local_count, 1));
+	ESCAPE_ON_FAIL(ast_postproc_code_block(ast_parser, &ast_parser->ast->exec_block, NULL, global_gc_stats, top_level_locals, ast_parser->top_level_local_count, 1));
 	free(global_gc_stats);
 	free(top_level_locals);
 	free(ast_parser->top_level_global_gc_stats);
@@ -1251,8 +1277,8 @@ int init_ast(ast_t* ast, ast_parser_t* ast_parser) {
 	ast_parser->ast = ast;
 	ast->proc_call_count = 0;
 	ast->value_count = 0;
-	ast->total_constants = 0;
-	ast->total_var_decls = 0;
+	ast->constant_count = 0;
+	ast->var_decl_count = 0;
 
 	PANIC_ON_FAIL(ast->record_protos = malloc((ast->allocated_records = 4) * sizeof(ast_record_proto_t*)), ast_parser, ERROR_MEMORY);
 	ast->record_count = 0;
@@ -1287,10 +1313,11 @@ static void free_ast_value(ast_value_t* value) {
 		break;
 	case AST_VALUE_ALLOC_RECORD:
 		if (value->data.alloc_record.init_value_count) {
-			for (uint_fast16_t i = 0; i < value->data.alloc_record.init_value_count; i++) {
-				free_ast_value(value->data.alloc_record.init_values[i].value);
-				free(value->data.alloc_record.init_values[i].value);
-			}
+			for (uint_fast16_t i = 0; i < value->data.alloc_record.init_value_count; i++)
+				if (value->data.alloc_record.init_values[i].is_default) {
+					free_ast_value(value->data.alloc_record.init_values[i].value);
+					free(value->data.alloc_record.init_values[i].value);
+				}
 			free(value->data.alloc_record.init_values);
 		}
 		free(value->data.alloc_record.typearg_traces);
@@ -1344,6 +1371,12 @@ static void free_ast_value(ast_value_t* value) {
 		break;
 	case AST_VALUE_PROC_CALL:
 		free_ast_value(&value->data.proc_call->procedure);
+		if (value->data.proc_call->procedure.type.type_id) {
+			for (uint_fast8_t i = 0; i < value->data.proc_call->procedure.type.type_id; i++)
+				free_typecheck_type(&value->data.proc_call->typeargs[i]);
+			free(value->data.proc_call->typeargs);
+			free(value->data.proc_call->typearg_traces);
+		}
 		for (uint_fast8_t i = 0; i < value->data.proc_call->argument_count; i++)
 			free_ast_value(&value->data.proc_call->arguments[i]);
 		free(value->data.proc_call);

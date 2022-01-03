@@ -8,6 +8,7 @@ static const char* opcode_names[] = {
 	"foreign    ",
 
 	"mov        ",
+	"set		",
 
 	"jmp        ",
 	"jmpcheck   ",
@@ -16,23 +17,26 @@ static const char* opcode_names[] = {
 	"return     ",
 	"lbl        ",
 	
-	"ldheap     ",
-	"ldheap_i   ",
-	"ldheap_ib  ",
-	"stoheap    ",
-	"stoheap_i  ",
-	"stoheap_ib",
+	"ldalloc    ",
+	"ldalloc_i  ",
+	"ldalloc_ib ",
+	"stoalloc   ",
+	"stoalloc_i ",
+	"stoalloc_ib",
 	"conft_i    ",
+	"dynconft_i ",
+	"dynconft   ",
 	
 	"offset     ",
 	"deoffset   ",
 
-	"heapalloc  ",
-	"heapalloc_i",
+	"alloc      ",
+	"alloc_i    ",
 
 	"newframe   ",
-	"heaptrace  ",
-	"heapclean  ",
+	"gctrace    ",
+	"dyntrace   ",
+	"gcclean    ",
 
 	"and        ",
 	"or         ",
@@ -70,9 +74,6 @@ static const char* opcode_names[] = {
 
 	"fneg       ",
 	"lneg       ",
-
-	"ltf        ",
-	"ftl        "
 };
 
 static const char* error_names[] = {

@@ -18,6 +18,7 @@ typedef struct ast_unary_op ast_unary_op_t;
 typedef struct ast_call_proc ast_call_proc_t;
 typedef struct ast_cond ast_cond_t;
 typedef struct ast_proc ast_proc_t;
+typedef struct ast_proc_typearg_transform ast_proc_typearg_t;
 typedef struct ast_foreign_call ast_foreign_call_t;
 typedef struct ast_record_proto ast_record_proto_t;
 typedef struct ast_record_prop ast_record_prop_t;
@@ -43,7 +44,6 @@ typedef struct ast_var_info {
 	uint16_t scope_id;
 	int is_global, is_readonly, has_mutated;
 	typecheck_type_t type;
-	//ast_gc_status_t gc_status;
 } ast_var_info_t;
 
 typedef struct ast_array_literal {
@@ -62,9 +62,10 @@ typedef struct ast_alloc_record {
 		ast_record_prop_t* property;
 		ast_trace_status_t gc_trace;
 		ast_value_t* value;
+		int is_default;
 	}* init_values;
 
-	uint8_t init_value_count;
+	uint8_t init_value_count, allocated_init_values;
 	ast_trace_status_t* typearg_traces;
 } ast_alloc_record_t;
 
@@ -167,6 +168,9 @@ typedef struct ast_unary_op {
 
 typedef struct ast_call_proc {
 	ast_value_t procedure;
+
+	ast_trace_status_t* typearg_traces;
+	typecheck_type_t* typeargs;
 	
 	ast_value_t arguments[TYPE_MAX_SUBTYPES - 1];
 	uint8_t argument_count;
@@ -228,12 +232,15 @@ typedef struct ast_proc {
 
 	ast_code_block_t exec_block;
 
-	int do_gc, has_typeargs;
+	int do_gc;
 } ast_proc_t;
 
 typedef struct ast_record_prop {
 	uint64_t hash_id;
 	uint16_t id;
+
+	ast_trace_status_t* typearg_traces;
+	typecheck_type_t* typeargs;
 
 	typecheck_type_t type;
 
@@ -249,7 +256,8 @@ typedef struct ast_record_proto {
 	uint8_t generic_arguments;
 
 	uint8_t property_count, allocated_properties;
-	uint16_t id, index_offset;
+	uint16_t id, index_offset, constant_count;
+
 	int defined, do_gc;
 } ast_record_proto_t;
 
@@ -275,8 +283,8 @@ typedef struct ast {
 	ast_record_proto_t** record_protos;
 	uint8_t record_count, allocated_records;
 
-	uint32_t value_count, proc_call_count;
-	uint16_t total_var_decls, total_constants;
+	uint32_t value_count, var_decl_count, proc_call_count;
+	uint16_t constant_count;
 } ast_t;
 
 typedef struct ast_parser_frame ast_parser_frame_t;
@@ -292,7 +300,7 @@ typedef struct ast_parser_frame {
 
 	ast_parser_frame_t* parent_frame;
 
-	int do_gc; //, do_dynamic_trace;
+	int do_gc;
 } ast_parser_frame_t;
 
 typedef struct ast_parser {
