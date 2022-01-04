@@ -409,16 +409,6 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 		case AST_STATEMENT_COND:
 			ESCAPE_ON_FAIL(compile_conditional(compiler, code_block.instructions[i].data.conditional, proc, continue_ip, break_jumps, break_jump_top));
 			break;
-		case AST_STATEMENT_RECORD_PROTO: {
-			ast_record_proto_t* current_proto = code_block.instructions[i].data.record_proto;
-			do {
-				for (uint_fast8_t i = 0; i < current_proto->property_count; i++)
-					if (current_proto->properties[i].default_value)
-						ESCAPE_ON_FAIL(compile_value(compiler, *current_proto->properties[i].default_value, NULL));
-				current_proto = current_proto->base_record ? compiler->ast->record_protos[current_proto->base_record->type_id] : NULL;
-			} while (current_proto);
-			break;
-		}
 		case AST_STATEMENT_VALUE:
 			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.value, proc));
 			break;

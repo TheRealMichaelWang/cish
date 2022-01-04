@@ -62,7 +62,7 @@ typedef struct ast_alloc_record {
 		ast_record_prop_t* property;
 		ast_trace_status_t gc_trace;
 		ast_value_t* value;
-		int is_default;
+		int free_val;
 	}* init_values;
 
 	uint8_t init_value_count, allocated_init_values;
@@ -239,12 +239,7 @@ typedef struct ast_record_prop {
 	uint64_t hash_id;
 	uint16_t id;
 
-	ast_trace_status_t* typearg_traces;
-	typecheck_type_t* typeargs;
-
 	typecheck_type_t type;
-
-	ast_value_t* default_value;
 } ast_record_prop_t;
 
 typedef struct ast_record_proto {
@@ -255,8 +250,14 @@ typedef struct ast_record_proto {
 	ast_record_prop_t* properties;
 	uint8_t generic_arguments;
 
+	struct ast_record_proto_init_value {
+		ast_record_prop_t* property;
+		ast_value_t value;
+		uint16_t constant_count;
+	}*default_values;
+
 	uint8_t property_count, allocated_properties;
-	uint16_t id, index_offset, constant_count;
+	uint16_t id, index_offset, default_value_count;
 
 	int defined, do_gc;
 } ast_record_proto_t;
