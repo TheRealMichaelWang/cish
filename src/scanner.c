@@ -31,7 +31,7 @@ void init_scanner(scanner_t* scanner, const char* source, uint32_t length) {
 	scanner->last_err = ERROR_NONE;
 }
 
-#define SET_CHAR_TYPE(TYPE) { scanner->last_char = TYPE; break; }
+#define RETURN(TYPE) { scanner->last_char = TYPE; break; }
 int scanner_scan_char(scanner_t* scanner) {
 	scanner_read_char(scanner);
 	if (scanner->last_char == '\\') {
@@ -39,29 +39,30 @@ int scanner_scan_char(scanner_t* scanner) {
 		switch (scanner->last_char)
 		{
 		case 'b':
-			SET_CHAR_TYPE('\b');
+			RETURN('\b');
 		case 'e':
-			SET_CHAR_TYPE('\e');
+			RETURN('\e');
 		case 'n':
-			SET_CHAR_TYPE('\n');
+			RETURN('\n');
 		case 'r':
-			SET_CHAR_TYPE('\r');
+			RETURN('\r');
 		case 't':
-			SET_CHAR_TYPE('\t');
+			RETURN('\t');
 		case '\\':
-			SET_CHAR_TYPE('\\');
+			RETURN('\\');
 		case '\"':
-			SET_CHAR_TYPE('\"');
+			RETURN('\"');
 		case '0':
-			SET_CHAR_TYPE(0);
+			RETURN(0);
 		default:
 			PANIC(scanner, ERROR_UNEXPECTED_TOK);
 		}
 	}
 	return 1;
 }
+#undef RETURN
 
-#define SET_TOK_TYPE(TYPE) {scanner->last_tok.type = TYPE; break;}
+#define RETURN(TYPE) {scanner->last_tok.type = TYPE; break;}
 int scanner_scan_tok(scanner_t* scanner) {
 	while (scanner->last_char == ' ' || scanner->last_char == '\t' || scanner->last_char == '\r' || scanner->last_char == '\n')
 		scanner_read_char(scanner);
@@ -78,62 +79,62 @@ int scanner_scan_tok(scanner_t* scanner) {
 		switch (id_hash)
 		{
 		case 229465117490944:
-			SET_TOK_TYPE(TOK_EXTEND);
+			RETURN(TOK_EXTEND);
 		case 7572877634356771:
-			SET_TOK_TYPE(TOK_READONLY);
+			RETURN(TOK_READONLY);
 		case 229466054363183:
-			SET_TOK_TYPE(TOK_FOREIGN);
+			RETURN(TOK_FOREIGN);
 		case 7572251799911306: //continue
-			SET_TOK_TYPE(TOK_CONTINUE);
+			RETURN(TOK_CONTINUE);
 		case 210707980106: //break
-			SET_TOK_TYPE(TOK_BREAK);
+			RETURN(TOK_BREAK);
 		case 6385087377: //bool
-			SET_TOK_TYPE(TOK_TYPECHECK_BOOL);
+			RETURN(TOK_TYPECHECK_BOOL);
 		case 6385115235: //char
-			SET_TOK_TYPE(TOK_TYPECHECK_CHAR);
+			RETURN(TOK_TYPECHECK_CHAR);
 		case 193495088: //long
-			SET_TOK_TYPE(TOK_TYPECHECK_LONG);
+			RETURN(TOK_TYPECHECK_LONG);
 		case 210712519067: //float
-			SET_TOK_TYPE(TOK_TYPECHECK_FLOAT);
+			RETURN(TOK_TYPECHECK_FLOAT);
 		case 210706808356: //array
-			SET_TOK_TYPE(TOK_TYPECHECK_ARRAY);
+			RETURN(TOK_TYPECHECK_ARRAY);
 		case 6385593753: //proc
-			SET_TOK_TYPE(TOK_TYPECHECK_PROC);
+			RETURN(TOK_TYPECHECK_PROC);
 		case 229476388586812: //nothing
-			SET_TOK_TYPE(TOK_NOTHING);
+			RETURN(TOK_NOTHING);
 		case 6385058142: //auto
-			SET_TOK_TYPE(TOK_AUTO);
+			RETURN(TOK_AUTO);
 		case 6953552265174: //global
-			SET_TOK_TYPE(TOK_GLOBAL);
+			RETURN(TOK_GLOBAL);
 		case 5863476: //if
-			SET_TOK_TYPE(TOK_IF);
+			RETURN(TOK_IF);
 		case 6385192046: //else
-			SET_TOK_TYPE(TOK_ELSE);
+			RETURN(TOK_ELSE);
 		case 210732529790: //while
-			SET_TOK_TYPE(TOK_WHILE);
+			RETURN(TOK_WHILE);
 		case 6953974653989:
-			SET_TOK_TYPE(TOK_RETURN);
+			RETURN(TOK_RETURN);
 		case 6385737701: //true
-			SET_TOK_TYPE(TOK_TRUE);
+			RETURN(TOK_TRUE);
 		case 210712121072: //false
-			SET_TOK_TYPE(TOK_FALSE);
+			RETURN(TOK_FALSE);
 		case 193486360: //and
-			SET_TOK_TYPE(TOK_AND);
+			RETURN(TOK_AND);
 		case 5863686: //or
-			SET_TOK_TYPE(TOK_OR);
+			RETURN(TOK_OR);
 		case 193500239:
-			SET_TOK_TYPE(TOK_NEW);
+			RETURN(TOK_NEW);
 		case 229469872107401:
-			SET_TOK_TYPE(TOK_INCLUDE);
+			RETURN(TOK_INCLUDE);
 		case 6953974036516:
-			SET_TOK_TYPE(TOK_RECORD);
+			RETURN(TOK_RECORD);
 		case 193504585: //rem
 			do {
 				scanner_read_char(scanner);
 			} while (scanner->last_char != '\n');
 			return scanner_scan_tok(scanner);
 		default:
-			SET_TOK_TYPE(TOK_IDENTIFIER);
+			RETURN(TOK_IDENTIFIER);
 		}
 	}
 	else if (isalnum(scanner->last_char)) {
@@ -172,86 +173,84 @@ int scanner_scan_tok(scanner_t* scanner) {
 		return scanner_scan_tok(scanner);
 	}
 	else {
-		char next_char = scanner_peek_char(scanner);
-		
 		switch (scanner->last_char)
 		{
 		case '#':
-			SET_TOK_TYPE(TOK_HASHTAG);
+			RETURN(TOK_HASHTAG);
 		case ';':
-			SET_TOK_TYPE(TOK_SEMICOLON);
+			RETURN(TOK_SEMICOLON);
 		case '+':
-			SET_TOK_TYPE(TOK_ADD)
+			RETURN(TOK_ADD)
 		case '-':
-			SET_TOK_TYPE(TOK_SUBTRACT)
+			RETURN(TOK_SUBTRACT)
 		case '*':
-			SET_TOK_TYPE(TOK_MULTIPLY)
+			RETURN(TOK_MULTIPLY)
 		case '/':
-			SET_TOK_TYPE(TOK_DIVIDE)
+			RETURN(TOK_DIVIDE)
 		case '%':
-			SET_TOK_TYPE(TOK_MODULO)
+			RETURN(TOK_MODULO)
 		case '^':
-			SET_TOK_TYPE(TOK_POWER)
+			RETURN(TOK_POWER)
 		case '=':
-			if (next_char == '=') {
+			if (scanner_peek_char(scanner) == '=') {
 				scanner_read_char(scanner);
-				SET_TOK_TYPE(TOK_EQUALS)
+				RETURN(TOK_EQUALS)
 			}
 			else
-				SET_TOK_TYPE(TOK_SET)
+				RETURN(TOK_SET)
 		case '!':
-			if (next_char == '=') {
+			if (scanner_peek_char(scanner) == '=') {
 				scanner_read_char(scanner);
-				SET_TOK_TYPE(TOK_NOT_EQUAL)
+				RETURN(TOK_NOT_EQUAL)
 			}
 			else
-				SET_TOK_TYPE(TOK_NOT)
+				RETURN(TOK_NOT)
 		case '>':
-			if (next_char == '=') {
+			if (scanner_peek_char(scanner) == '=') {
 				scanner_read_char(scanner);
-				SET_TOK_TYPE(TOK_MORE_EQUAL);
+				RETURN(TOK_MORE_EQUAL);
 			}
 			else
-				SET_TOK_TYPE(TOK_MORE)
+				RETURN(TOK_MORE)
 		case '<':
-			if (next_char == '=') {
+			if (scanner_peek_char(scanner) == '=') {
 				scanner_read_char(scanner);
-				SET_TOK_TYPE(TOK_LESS_EQUAL)
+				RETURN(TOK_LESS_EQUAL)
 			}
 			else
-				SET_TOK_TYPE(TOK_LESS)
+				RETURN(TOK_LESS)
 		case '&':
-			if (next_char == '&') {
+			if (scanner_peek_char(scanner) == '&') {
 				scanner_read_char(scanner);
-				SET_TOK_TYPE(TOK_AND)
+				RETURN(TOK_AND)
 			}
 			else
 				PANIC(scanner, ERROR_UNEXPECTED_TOK)
 		case '|':
-			if (next_char == '|') {
+			if (scanner_peek_char(scanner) == '|') {
 				scanner_read_char(scanner);
-				SET_TOK_TYPE(TOK_OR)
+				RETURN(TOK_OR)
 			}
 			else
 				PANIC(scanner, ERROR_UNEXPECTED_TOK)
 		case '{':
-			SET_TOK_TYPE(TOK_OPEN_BRACE);
+			RETURN(TOK_OPEN_BRACE);
 		case '}':
-			SET_TOK_TYPE(TOK_CLOSE_BRACE);
+			RETURN(TOK_CLOSE_BRACE);
 		case '(':
-			SET_TOK_TYPE(TOK_OPEN_PAREN);
+			RETURN(TOK_OPEN_PAREN);
 		case ')':
-			SET_TOK_TYPE(TOK_CLOSE_PAREN);
+			RETURN(TOK_CLOSE_PAREN);
 		case '[':
-			SET_TOK_TYPE(TOK_OPEN_BRACKET);
+			RETURN(TOK_OPEN_BRACKET);
 		case ']':
-			SET_TOK_TYPE(TOK_CLOSE_BRACKET);
+			RETURN(TOK_CLOSE_BRACKET);
 		case ',':
-			SET_TOK_TYPE(TOK_COMMA);
+			RETURN(TOK_COMMA);
 		case '.':
-			SET_TOK_TYPE(TOK_PERIOD);
+			RETURN(TOK_PERIOD);
 		case 0:
-			SET_TOK_TYPE(TOK_EOF);
+			RETURN(TOK_EOF);
 		default:
 			PANIC(scanner, ERROR_UNEXPECTED_TOK);
 		}
@@ -259,6 +258,7 @@ int scanner_scan_tok(scanner_t* scanner) {
 	}
 	return 1;
 }
+#undef RETURN
 
 int init_multi_scanner(multi_scanner_t* scanner, const char* path) {
 	scanner->visited_files = 0;

@@ -18,6 +18,7 @@ typedef struct ast_unary_op ast_unary_op_t;
 typedef struct ast_call_proc ast_call_proc_t;
 typedef struct ast_cond ast_cond_t;
 typedef struct ast_proc ast_proc_t;
+typedef struct ast_proc_typearg_transform ast_proc_typearg_t;
 typedef struct ast_foreign_call ast_foreign_call_t;
 typedef struct ast_record_proto ast_record_proto_t;
 typedef struct ast_record_prop ast_record_prop_t;
@@ -26,15 +27,23 @@ typedef struct ast_set_prop ast_set_prop_t;
 
 typedef enum ast_gc_status {
 	GC_NONE,
+	GC_LOCAL_ALLOC,
 	GC_EXTERN_ALLOC,
-	GC_LOCAL_ALLOC
+	GC_LOCAL_DYNAMIC,
+	GC_EXTERN_DYNAMIC,
 } ast_gc_status_t;
+
+typedef enum ast_trace_status {
+	TRACE_NONE,
+	TRACE_CHILDREN,
+	TRACE_DYNAMIC
+} ast_trace_status_t;
 
 typedef struct ast_var_info {
 	uint32_t id;
+	uint16_t scope_id;
 	int is_global, is_readonly, has_mutated;
 	typecheck_type_t type;
-	ast_gc_status_t gc_status;
 } ast_var_info_t;
 
 typedef struct ast_array_literal {
@@ -42,15 +51,22 @@ typedef struct ast_array_literal {
 
 	ast_value_t* elements;
 	uint16_t element_count;
+
+	ast_trace_status_t gc_trace;
 } ast_array_literal_t;
 
 typedef struct ast_alloc_record {
 	ast_record_proto_t* proto;
+	
 	struct ast_alloc_record_init_value {
 		ast_record_prop_t* property;
+		ast_trace_status_t gc_trace;
 		ast_value_t* value;
+		int free_val;
 	}* init_values;
-	uint8_t init_value_count;
+
+	uint8_t init_value_count, allocated_init_values;
+	ast_trace_status_t* typearg_traces;
 } ast_alloc_record_t;
 
 typedef struct ast_primitive {
@@ -121,17 +137,19 @@ typedef struct ast_decl_var {
 typedef struct ast_set_var {
 	ast_var_info_t* var_info;
 	ast_value_t set_value;
-	int gc_trace;
+	ast_trace_status_t gc_trace;
 } set_var_t;
 
 typedef struct ast_alloc {
 	typecheck_type_t* elem_type;
 	ast_value_t size;
+
+	ast_trace_status_t gc_trace;
 } ast_alloc_t;
 
 typedef struct ast_set_index {
 	ast_value_t array, index, value;
-	int gc_trace;
+	ast_trace_status_t gc_trace;
 } ast_set_index_t;
 
 typedef struct ast_get_index {
@@ -150,6 +168,9 @@ typedef struct ast_unary_op {
 
 typedef struct ast_call_proc {
 	ast_value_t procedure;
+
+	ast_trace_status_t* typearg_traces;
+	typecheck_type_t* typeargs;
 	
 	ast_value_t arguments[TYPE_MAX_SUBTYPES - 1];
 	uint8_t argument_count;
@@ -187,6 +208,7 @@ typedef struct ast_code_block {
 } ast_code_block_t;
 
 typedef struct ast_cond {
+	uint16_t scope_size;
 	ast_value_t* condition;
 
 	ast_code_block_t exec_block;
@@ -205,6 +227,7 @@ typedef struct ast_proc {
 
 	ast_proc_param_t *params;
 	uint8_t param_count;
+	uint16_t scope_size;
 	ast_var_info_t* thisproc;
 
 	ast_code_block_t exec_block;
@@ -217,8 +240,6 @@ typedef struct ast_record_prop {
 	uint16_t id;
 
 	typecheck_type_t type;
-
-	ast_value_t* default_value;
 } ast_record_prop_t;
 
 typedef struct ast_record_proto {
@@ -229,8 +250,15 @@ typedef struct ast_record_proto {
 	ast_record_prop_t* properties;
 	uint8_t generic_arguments;
 
+	struct ast_record_proto_init_value {
+		ast_record_prop_t* property;
+		ast_value_t value;
+		uint16_t constant_count;
+	}*default_values;
+
 	uint8_t property_count, allocated_properties;
-	uint16_t id, index_offset;
+	uint16_t id, index_offset, default_value_count;
+
 	int defined, do_gc;
 } ast_record_proto_t;
 
@@ -242,7 +270,7 @@ typedef struct ast_get_prop {
 typedef struct ast_set_prop {
 	ast_value_t record, value;
 	ast_record_prop_t* property;
-	int gc_trace;
+	ast_trace_status_t gc_trace;
 } ast_set_prop_t;
 
 typedef struct ast_var_cache_entry {
@@ -256,8 +284,8 @@ typedef struct ast {
 	ast_record_proto_t** record_protos;
 	uint8_t record_count, allocated_records;
 
-	uint32_t value_count, proc_call_count;
-	uint16_t total_var_decls, total_constants;
+	uint32_t value_count, var_decl_count, proc_call_count;
+	uint16_t constant_count;
 } ast_t;
 
 typedef struct ast_parser_frame ast_parser_frame_t;
@@ -268,7 +296,7 @@ typedef struct ast_parser_frame {
 
 	uint64_t* generics;
 
-	uint16_t local_count, allocated_locals;
+	uint16_t local_count, allocated_locals, scoped_locals;
 	uint8_t generic_count;
 
 	ast_parser_frame_t* parent_frame;
@@ -281,10 +309,12 @@ typedef struct ast_parser {
 	uint8_t current_frame;
 
 	ast_var_cache_entry_t* globals;
-	uint16_t global_count, allocated_globals;
+	uint16_t global_count, allocated_globals, top_level_local_count;
 
 	ast_t* ast;
 	multi_scanner_t multi_scanner;
+
+	ast_gc_status_t* top_level_global_gc_stats;
 
 	error_t last_err;
 } ast_parser_t;

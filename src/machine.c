@@ -27,31 +27,31 @@ heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode
 	PANIC_ON_FAIL(heap_alloc, machine, ERROR_MEMORY);
 	PANIC_ON_FAIL(heap_alloc->registers = malloc(req_size * sizeof(machine_reg_t)), machine, ERROR_MEMORY);
 	PANIC_ON_FAIL(heap_alloc->init_stat = calloc(req_size, sizeof(int)), machine, ERROR_MEMORY);
-	if (trace_mode == GC_TRACE_SOME)
-		PANIC_ON_FAIL(heap_alloc->trace_stat = calloc(req_size, sizeof(int)), machine, ERROR_MEMORY);
+	if (trace_mode == GC_TRACE_MODE_SOME)
+		PANIC_ON_FAIL(heap_alloc->trace_stat = malloc(req_size * sizeof(int)), machine, ERROR_MEMORY);
 	machine->heap_allocs[machine->heap_count++] = heap_alloc;
 	return heap_alloc;
 }
 
-static uint16_t machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, heap_alloc_t** reset_stack) {
+static uint16_t machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, heap_alloc_t** reset_stack, uint16_t* reset_count) {
 	if (heap_alloc->gc_flag)
 		return 0;
 
 	uint16_t traced = 1;
 
 	heap_alloc->gc_flag = 1;
-	*(reset_stack++) = heap_alloc;
+	reset_stack[(*reset_count)++] = heap_alloc;
 	switch (heap_alloc->trace_mode)
 	{
-	case GC_TRACE_ALL:
+	case GC_TRACE_MODE_ALL:
 		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
 			if (heap_alloc->init_stat[i])
-				traced += machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack);
+				traced += machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack, reset_count);
 		break;
-	case GC_TRACE_SOME:
+	case GC_TRACE_MODE_SOME:
 		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
 			if(heap_alloc->init_stat[i] && heap_alloc->trace_stat[i])
-				traced += machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack);
+				traced += machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack, reset_count);
 		break;
 	}
 	return traced;
@@ -99,6 +99,9 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 		case OP_CODE_MOVE:
 			machine->stack[AREG] = machine->stack[BREG];
 			break;
+		case OP_CODE_SET:
+			machine->stack[AREG].long_int = ip->b;
+			break;
 		case OP_CODE_JUMP:
 			ip = &instructions[ip->a];
 			continue;
@@ -123,7 +126,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			ip = machine->positions[--machine->position_count];
 			break;
 		}
-		case OP_CODE_LOAD_HEAP: {
+		case OP_CODE_LOAD_ALLOC: {
 			heap_alloc_t* array_register = machine->stack[AREG].heap_alloc;
 			int64_t index_register = machine->stack[BREG].long_int;
 			if (index_register < 0 || index_register >= array_register->limit)
@@ -133,20 +136,20 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			machine->stack[CREG] = array_register->registers[index_register];
 			break;
 		}
-		case OP_CODE_LOAD_HEAP_I: {
+		case OP_CODE_LOAD_ALLOC_I: {
 			heap_alloc_t* array_register = machine->stack[AREG].heap_alloc;
 		load_heap_i:
 			if (!array_register->init_stat[ip->b])
 				PANIC(machine, ERROR_READ_UNINIT);
 			machine->stack[CREG] = array_register->registers[ip->b];
 			break;
-		case OP_CODE_LOAD_HEAP_I_BOUND:
+		case OP_CODE_LOAD_ALLOC_I_BOUND:
 			array_register = machine->stack[AREG].heap_alloc;
 			if (ip->b > array_register->limit)
 				PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
 			goto load_heap_i;
 		}
-		case OP_CODE_STORE_HEAP: {
+		case OP_CODE_STORE_ALLOC: {
 			heap_alloc_t* array_register = machine->stack[AREG].heap_alloc;
 			int64_t index_register = machine->stack[BREG].long_int;
 			if (index_register < 0 || index_register >= array_register->limit)
@@ -155,19 +158,25 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			array_register->init_stat[index_register] = 1;
 			break;
 		}
-		case OP_CODE_STORE_HEAP_I: {
+		case OP_CODE_STORE_ALLOC_I: {
 			heap_alloc_t* array_register = machine->stack[AREG].heap_alloc;
 		store_heap_i:
 			array_register->registers[ip->b] = machine->stack[CREG];
 			array_register->init_stat[ip->b] = 1;
 			break;
-		case OP_CODE_STORE_HEAP_I_BOUND:
+		case OP_CODE_STORE_ALLOC_I_BOUND:
 			array_register = machine->stack[AREG].heap_alloc;
 			if (ip->b > array_register->limit)
 				PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
 			goto store_heap_i;
 		}
-		case OP_CODE_HEAP_TRACE_I:
+		case OP_CODE_DYNAMIC_CONF:
+			machine->stack[AREG].heap_alloc->trace_stat[ip->b] = machine->stack[CREG].bool_flag;
+			break;
+		case OP_CODE_DYNAMIC_CONF_ALL:
+			machine->stack[AREG].heap_alloc->trace_mode = machine->stack[BREG].bool_flag;
+			break;
+		case OP_CODE_CONF_TRACE:
 			machine->stack[AREG].heap_alloc->trace_stat[ip->b] = ip->c;
 			break;
 		case OP_CODE_STACK_OFFSET:
@@ -176,13 +185,13 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 		case OP_CODE_STACK_DEOFFSET:
 			machine->global_offset -= ip->a;
 			break;
-		case OP_CODE_HEAP_ALLOC:
+		case OP_CODE_ALLOC:
 			ESCAPE_ON_FAIL(machine->stack[AREG].heap_alloc = machine_alloc(machine, machine->stack[BREG].long_int, ip->c));
 			break;
-		case OP_CODE_HEAP_ALLOC_I:
+		case OP_CODE_ALLOC_I:
 			ESCAPE_ON_FAIL(machine->stack[AREG].heap_alloc = machine_alloc(machine, ip->b, ip->c));
 			break;
-		case OP_CODE_HEAP_NEW_FRAME: {
+		case OP_CODE_GC_NEW_FRAME: {
 			if (machine->heap_frame == machine->frame_limit)
 				PANIC(machine, ERROR_STACK_OVERFLOW);
 			machine->heap_frame_bounds[machine->heap_frame] = machine->heap_count;
@@ -190,7 +199,10 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			machine->heap_frame++;
 			break;
 		}
-		case OP_CODE_HEAP_TRACE: {
+		case OP_CODE_DYNAMIC_TRACE: {
+			if (!machine->stack[BREG].bool_flag)
+				break;
+		case OP_CODE_GC_TRACE:
 			if (machine->trace_count == machine->trace_alloc_limit) {
 				heap_alloc_t** new_trace_stack = realloc(machine->heap_traces, (machine->trace_alloc_limit *= 2) * sizeof(heap_alloc_t*));
 				PANIC_ON_FAIL(new_trace_stack, machine, ERROR_MEMORY);
@@ -199,7 +211,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			machine->heap_traces[machine->trace_count++] = machine->stack[AREG].heap_alloc;
 			break;
 		}
-		case OP_CODE_HEAP_CLEAN: {
+		case OP_CODE_GC_CLEAN: {
 			uint16_t kept_allocs = 0;
 			uint16_t heap_bound_start = machine->heap_frame_bounds[--machine->heap_frame];
 			uint16_t reseted_heap_count = 0;
@@ -207,14 +219,14 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 
 			if(machine->heap_frame)
 				for (uint_fast16_t i = machine->trace_frame_bounds[machine->heap_frame]; i < machine->trace_count; i++)
-					reseted_heap_count += machine_heap_trace(machine, machine->heap_traces[i], reset_stack);
-			for (uint_fast16_t i = heap_bound_start; i < machine->heap_count; i++)
+					machine_heap_trace(machine, machine->heap_traces[i], reset_stack, &reseted_heap_count);
+ 			for (uint_fast16_t i = heap_bound_start; i < machine->heap_count; i++)
 				if (machine->heap_allocs[i]->gc_flag)
 					machine->heap_allocs[heap_bound_start + kept_allocs++] = machine->heap_allocs[i];
 				else {
 					free(machine->heap_allocs[i]->registers);
 					free(machine->heap_allocs[i]->init_stat);
-					if (machine->heap_allocs[i]->trace_mode == GC_TRACE_SOME)
+					if (machine->heap_allocs[i]->trace_mode == GC_TRACE_MODE_SOME)
 						free(machine->heap_allocs[i]->trace_stat);
 					free(machine->heap_allocs[i]);
 				}
@@ -315,10 +327,10 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			machine->stack[AREG].float_int = -machine->stack[BREG].float_int;
 			break;
 		case OP_CODE_ABORT:
-			if (ip->a)
+			if (ip->a == ERROR_NONE)
 				return 1;
 			else
-				PANIC(machine, ERROR_ABORT);
+				PANIC(machine, ip->a);
 		case OP_CODE_FOREIGN:
 			if (!ffi_invoke(&machine->ffi_table, machine, &machine->stack[AREG], &machine->stack[BREG], &machine->stack[CREG]))
 				if (machine->last_err == ERROR_NONE)
@@ -329,4 +341,5 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 		}
 		ip++;
 	}
+	return 1;
 }
