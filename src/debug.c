@@ -99,6 +99,7 @@ static const char* error_names[] = {
 	"cannot continue",
 
 	"index out of range",
+	"divide by zero",
 	"stack overflow",
 	"read unitialized memory",
 	

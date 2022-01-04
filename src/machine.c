@@ -293,9 +293,12 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 		case OP_CODE_LONG_MULTIPLY:
 			machine->stack[CREG].long_int = machine->stack[AREG].long_int * machine->stack[BREG].long_int;
 			break;
-		case OP_CODE_LONG_DIVIDE:
-			machine->stack[CREG].long_int = machine->stack[AREG].long_int / machine->stack[BREG].long_int;
-			break;
+		case OP_CODE_LONG_DIVIDE: {
+			uint64_t d = machine->stack[BREG].long_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[CREG].long_int = machine->stack[AREG].long_int / d;
+			break; 
+		}
 		case OP_CODE_LONG_MODULO:
 			machine->stack[CREG].long_int = machine->stack[AREG].long_int % machine->stack[BREG].long_int;
 			break;
@@ -311,9 +314,12 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 		case OP_CODE_FLOAT_MULTIPLY:
 			machine->stack[CREG].float_int = machine->stack[AREG].float_int * machine->stack[BREG].float_int;
 			break;
-		case OP_CODE_FLOAT_DIVIDE:
-			machine->stack[CREG].float_int = machine->stack[AREG].float_int / machine->stack[BREG].float_int;
-			break;
+		case OP_CODE_FLOAT_DIVIDE: {
+			float d = machine->stack[BREG].float_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[CREG].float_int = machine->stack[AREG].float_int / d;
+			break; 
+		}
 		case OP_CODE_FLOAT_MODULO:
 			machine->stack[CREG].float_int = fmod(machine->stack[AREG].float_int, machine->stack[BREG].float_int);
 			break;

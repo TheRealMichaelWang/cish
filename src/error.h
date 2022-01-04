@@ -29,6 +29,7 @@ typedef enum error {
 
 	//virtual-machine errors
 	ERROR_INDEX_OUT_OF_RANGE,
+	ERROR_DIVIDE_BY_ZERO,
 	ERROR_STACK_OVERFLOW,
 	ERROR_READ_UNINIT,
 	
