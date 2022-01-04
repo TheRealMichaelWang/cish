@@ -43,14 +43,41 @@ global readonly auto forall = proc<elemType>(list<elemType> list, proc<nothing, 
 	return;
 };
 
-list<int> list = new list<int>;
-int i = 0; 
-while(i < 10) {
-	push_front<int>(list, i);
-	i = i + 1;
+record person {
+	array<char> name = "Michael";
+	int age = 16;
 }
 
-forall<int>(list, proc(int i) return nothing {
-	println(itos(i));
+record student extends person {
+	name = "Stanley";
+	float gpa = 0f;
+}
+
+proc<list<person>> getPeople = proc() return list<person> {
+	list<person> list = new list<person>;
+	push_front<person>(list, new person);
+	push_front<person>(list, new person {
+		name = "Tim";
+		age = 17; 
+	});
+	push_front<person>(list, new person {
+		name = "Dick";
+		age = 53; 
+	});
+	push_front<person>(list, new student);
+	return list;
+};
+
+list<person> list = getPeople();
+
+forall<person>(list, proc(person p) return nothing {
+	p.name = "Untitled";
+	return;
+});
+
+forall<person>(list, proc(person p) return nothing {
+	print(p.name);
+	print("\tAge: ");
+	println(itos(p.age));
 	return;
 });
