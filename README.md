@@ -7,6 +7,7 @@ A minimal, performant, strongly-typed, and functional programming language focus
 * Support for first class functions.
 * Structured programming, with some OOP features like inheritance. 
   * The linking process is done automatically - theres no need for c-like forward declarations.
+  * While casting is done automatically from derived types to their super type, downcasting is not allowed. 
 * Type arguments, not only for structs but for functions as well. 
 
 ## Important Links
