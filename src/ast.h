@@ -7,6 +7,7 @@
 #include "type.h"
 #include "tokens.h"
 #include "scanner.h"
+#include "postproc.h"
 
 typedef struct ast_value ast_value_t;
 typedef struct ast_alloc ast_alloc_t;
@@ -25,20 +26,6 @@ typedef struct ast_record_prop ast_record_prop_t;
 typedef struct ast_get_prop ast_get_prop_t;
 typedef struct ast_set_prop ast_set_prop_t;
 
-typedef enum ast_gc_status {
-	GC_NONE,
-	GC_LOCAL_ALLOC,
-	GC_EXTERN_ALLOC,
-	GC_LOCAL_DYNAMIC,
-	GC_EXTERN_DYNAMIC,
-} ast_gc_status_t;
-
-typedef enum ast_trace_status {
-	TRACE_NONE,
-	TRACE_CHILDREN,
-	TRACE_DYNAMIC
-} ast_trace_status_t;
-
 typedef struct ast_var_info {
 	uint32_t id;
 	uint16_t scope_id;
@@ -52,7 +39,7 @@ typedef struct ast_array_literal {
 	ast_value_t* elements;
 	uint16_t element_count;
 
-	ast_trace_status_t gc_trace;
+	postproc_trace_status_t gc_trace;
 } ast_array_literal_t;
 
 typedef struct ast_alloc_record {
@@ -60,13 +47,13 @@ typedef struct ast_alloc_record {
 	
 	struct ast_alloc_record_init_value {
 		ast_record_prop_t* property;
-		ast_trace_status_t gc_trace;
+		postproc_trace_status_t gc_trace;
 		ast_value_t* value;
 		int free_val;
 	}* init_values;
 
 	uint8_t init_value_count, allocated_init_values;
-	ast_trace_status_t* typearg_traces;
+	postproc_trace_status_t* typearg_traces;
 } ast_alloc_record_t;
 
 typedef struct ast_primitive {
@@ -126,7 +113,7 @@ typedef struct ast_value {
 	} data;
 
 	uint32_t id;
-	ast_gc_status_t gc_status;
+	postproc_gc_status_t gc_status;
 } ast_value_t;
 
 typedef struct ast_decl_var {
@@ -137,19 +124,19 @@ typedef struct ast_decl_var {
 typedef struct ast_set_var {
 	ast_var_info_t* var_info;
 	ast_value_t set_value;
-	ast_trace_status_t gc_trace;
+	postproc_trace_status_t gc_trace;
 } set_var_t;
 
 typedef struct ast_alloc {
 	typecheck_type_t* elem_type;
 	ast_value_t size;
 
-	ast_trace_status_t gc_trace;
+	postproc_trace_status_t gc_trace;
 } ast_alloc_t;
 
 typedef struct ast_set_index {
 	ast_value_t array, index, value;
-	ast_trace_status_t gc_trace;
+	postproc_trace_status_t gc_trace;
 } ast_set_index_t;
 
 typedef struct ast_get_index {
@@ -169,7 +156,7 @@ typedef struct ast_unary_op {
 typedef struct ast_call_proc {
 	ast_value_t procedure;
 
-	ast_trace_status_t* typearg_traces;
+	postproc_trace_status_t* typearg_traces;
 	typecheck_type_t* typeargs;
 	
 	ast_value_t arguments[TYPE_MAX_SUBTYPES - 1];
@@ -270,7 +257,7 @@ typedef struct ast_get_prop {
 typedef struct ast_set_prop {
 	ast_value_t record, value;
 	ast_record_prop_t* property;
-	ast_trace_status_t gc_trace;
+	postproc_trace_status_t gc_trace;
 } ast_set_prop_t;
 
 typedef struct ast_var_cache_entry {
@@ -314,7 +301,7 @@ typedef struct ast_parser {
 	ast_t* ast;
 	multi_scanner_t multi_scanner;
 
-	ast_gc_status_t* top_level_global_gc_stats;
+	postproc_gc_status_t* top_level_global_gc_stats;
 
 	error_t last_err;
 } ast_parser_t;

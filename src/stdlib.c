@@ -90,6 +90,21 @@ static int std_random(machine_t* machine, machine_reg_t* in, machine_reg_t* out)
 	return 1;
 }
 
+static int std_sin(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
+	out->float_int = sin(in->float_int);
+	return 1;
+}
+
+static int std_cos(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
+	out->float_int = cos(in->float_int);
+	return 1;
+}
+
+static int std_tan(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
+	out->float_int = tan(in->float_int);
+	return 1;
+}
+
 void install_stdlib(machine_t* machine) {
 	ffi_include_func(&machine->ffi_table, std_itof);
 	ffi_include_func(&machine->ffi_table, std_floor);
@@ -102,4 +117,7 @@ void install_stdlib(machine_t* machine) {
 	ffi_include_func(&machine->ffi_table, std_out);
 	ffi_include_func(&machine->ffi_table, std_in);
 	ffi_include_func(&machine->ffi_table, std_random);
+	ffi_include_func(&machine->ffi_table, std_sin);
+	ffi_include_func(&machine->ffi_table, std_cos);
+	ffi_include_func(&machine->ffi_table, std_tan);
 }
