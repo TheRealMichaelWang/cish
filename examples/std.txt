@@ -53,6 +53,15 @@ global readonly auto funcfill = proc<elemType>(array<elemType> buffer, proc<elem
 	return;
 };
 
+global readonly auto fill = proc<elemType>(array<elemType> a, elemType value) return nothing {
+	int i = 0;
+	while(i < #a) {
+		a[i] = value;
+		i = i + 1;
+	}
+	return;
+};
+
 global readonly auto forall = proc<elemType>(array<elemType> a, proc<nothing, array<elemType>, int> func) return nothing {
 	int i = 0;
 	while(i < #a) {
@@ -70,4 +79,12 @@ global readonly auto irange = proc(int n) return array<int> {
 		i = i + 1;
 	}
 	return range;
+};
+
+global readonly auto itoc = proc(int i) return char {
+	return foreign[14](i);
+};
+
+global readonly auto ctoi = proc(char c) return int {
+	return foreign[15](c);
 };
