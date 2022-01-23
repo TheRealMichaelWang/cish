@@ -39,7 +39,7 @@ typedef struct ast_array_literal {
 	ast_value_t* elements;
 	uint16_t element_count;
 
-	postproc_trace_status_t gc_trace;
+	postproc_trace_status_t children_trace;
 } ast_array_literal_t;
 
 typedef struct ast_alloc_record {
@@ -47,7 +47,6 @@ typedef struct ast_alloc_record {
 	
 	struct ast_alloc_record_init_value {
 		ast_record_prop_t* property;
-		postproc_trace_status_t gc_trace;
 		ast_value_t* value;
 		int free_val;
 	}* init_values;
@@ -113,7 +112,11 @@ typedef struct ast_value {
 	} data;
 
 	uint32_t id;
+
 	postproc_gc_status_t gc_status;
+	postproc_trace_status_t trace_status;
+	postproc_free_status_t free_status;
+	int from_var;
 } ast_value_t;
 
 typedef struct ast_decl_var {
@@ -124,19 +127,19 @@ typedef struct ast_decl_var {
 typedef struct ast_set_var {
 	ast_var_info_t* var_info;
 	ast_value_t set_value;
-	postproc_trace_status_t gc_trace;
+
+	postproc_free_status_t free_status;
 } set_var_t;
 
 typedef struct ast_alloc {
 	typecheck_type_t* elem_type;
 	ast_value_t size;
 
-	postproc_trace_status_t gc_trace;
+	postproc_trace_status_t children_trace;
 } ast_alloc_t;
 
 typedef struct ast_set_index {
 	ast_value_t array, index, value;
-	postproc_trace_status_t gc_trace;
 } ast_set_index_t;
 
 typedef struct ast_get_index {
@@ -257,7 +260,6 @@ typedef struct ast_get_prop {
 typedef struct ast_set_prop {
 	ast_value_t record, value;
 	ast_record_prop_t* property;
-	postproc_trace_status_t gc_trace;
 } ast_set_prop_t;
 
 typedef struct ast_var_cache_entry {
@@ -287,8 +289,6 @@ typedef struct ast_parser_frame {
 	uint8_t generic_count;
 
 	ast_parser_frame_t* parent_frame;
-
-	int do_gc;
 } ast_parser_frame_t;
 
 typedef struct ast_parser {
@@ -305,6 +305,8 @@ typedef struct ast_parser {
 
 	error_t last_err;
 } ast_parser_t;
+
+int ast_record_sub_prop_type(ast_parser_t* ast_parser, typecheck_type_t record_type, uint64_t id, typecheck_type_t* out_type);
 
 int init_ast_parser(ast_parser_t* ast_parser, const char* source);
 void free_ast_parser(ast_parser_t* ast_parser);

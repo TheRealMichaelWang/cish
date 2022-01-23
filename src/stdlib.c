@@ -76,6 +76,16 @@ static int std_stoi(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	return 1;
 }
 
+static int std_ctoi(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
+	in->long_int = in->char_int;
+	return 1;
+}
+
+static int std_itoc(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
+	in->char_int = in->long_int;
+	return 1;
+}
+
 static int std_out(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	printf("%c", in->char_int);
 	return 1;
@@ -120,4 +130,6 @@ void install_stdlib(machine_t* machine) {
 	ffi_include_func(&machine->ffi_table, std_sin);
 	ffi_include_func(&machine->ffi_table, std_cos);
 	ffi_include_func(&machine->ffi_table, std_tan);
+	ffi_include_func(&machine->ffi_table, std_itoc);
+	ffi_include_func(&machine->ffi_table, std_ctoi);
 }

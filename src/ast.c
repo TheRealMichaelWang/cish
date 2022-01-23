@@ -38,13 +38,11 @@ static int ast_parser_new_frame(ast_parser_t* ast_parser, typecheck_type_t* retu
 	if (access_previous) {
 		next_frame->parent_frame = &ast_parser->frames[ast_parser->current_frame - 2];
 		next_frame->return_type = next_frame->parent_frame->return_type;
-		next_frame->do_gc = next_frame->parent_frame->do_gc;
 	}
 	else {
 		PANIC_ON_FAIL(next_frame->generics = malloc(100 * sizeof(uint64_t)), ast_parser, ERROR_MEMORY);
 		next_frame->return_type = return_type;
 		next_frame->parent_frame = NULL;
-		next_frame->do_gc = 0;
 	}
 	return 1;
 }
@@ -54,8 +52,6 @@ static int ast_parser_close_frame(ast_parser_t* ast_parser) {
 	ast_parser_frame_t* free_frame = &ast_parser->frames[--ast_parser->current_frame];
 	if (!free_frame->parent_frame)
 		free(free_frame->generics);
-	else if (free_frame->do_gc)
-		free_frame->parent_frame->do_gc = 1;
 	free(free_frame->locals);
 	return 1;
 }
@@ -175,7 +171,7 @@ static ast_record_prop_t* ast_record_find_prop(ast_parser_t* ast_parser, ast_rec
 	return NULL;
 }
 
-static int ast_record_sub_prop_type(ast_parser_t* ast_parser, typecheck_type_t record_type, uint64_t id, typecheck_type_t* out_type) {
+int ast_record_sub_prop_type(ast_parser_t* ast_parser, typecheck_type_t record_type, uint64_t id, typecheck_type_t* out_type) {
 	ast_record_proto_t* record = ast_parser->ast->record_protos[record_type.type_id];
 	PANIC_ON_FAIL(record->defined, ast_parser, ERROR_UNDECLARED);
 	PANIC_ON_FAIL(record_type.sub_type_count == record->generic_arguments, ast_parser, ERROR_UNEXPECTED_ARGUMENT_SIZE);
@@ -592,6 +588,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 }
 
 static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_type_t* type) {
+	value->from_var = 0;
 	switch (LAST_TOK.type) {
 	case TOK_NUMERICAL:
 	case TOK_CHAR:
@@ -614,7 +611,6 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		}
 		value->value_type = AST_VALUE_ARRAY_LITERAL;
 		value->type.type = TYPE_SUPER_ARRAY;
-		CURRENT_FRAME.do_gc = 1;
 
 		PANIC_ON_FAIL(value->type.sub_types = malloc(sizeof(typecheck_type_t)), ast_parser, ERROR_MEMORY);
 		value->type.sub_types->type = TYPE_PRIMITIVE_CHAR;
@@ -638,7 +634,6 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 	case TOK_OPEN_BRACKET: {
 		value->value_type = AST_VALUE_ARRAY_LITERAL;
 		value->type.type = TYPE_SUPER_ARRAY;
-		CURRENT_FRAME.do_gc = 1;
 		PANIC_ON_FAIL(value->type.sub_types = malloc(sizeof(typecheck_type_t)), ast_parser, ERROR_MEMORY);
 		value->type.sub_types->type = TYPE_AUTO;
 		value->type.sub_type_count = 1;
@@ -655,7 +650,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				PANIC_ON_FAIL(new_elems, ast_parser, ERROR_MEMORY);
 				value->data.array_literal.elements = new_elems;
 			}
-			ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.array_literal.elements[value->data.array_literal.element_count++], value->type.sub_types, 0));
+			ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.array_literal.elements[value->data.array_literal.element_count], value->type.sub_types, 0));
 			if (LAST_TOK.type != TOK_CLOSE_BRACKET) {
 				MATCH_TOK(TOK_COMMA);
 				READ_TOK;
@@ -665,8 +660,6 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		break;
 	}
 	case TOK_NEW: {
-		CURRENT_FRAME.do_gc = 1;
-
 		typecheck_type_t type_alloc_buf;
 		READ_TOK;
 		ESCAPE_ON_FAIL(parse_type(ast_parser, &type_alloc_buf, 0, 0));
@@ -713,6 +706,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 					PANIC_ON_FAIL(value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value = malloc(sizeof(ast_value_t)), ast_parser, ERROR_MEMORY);
 					ESCAPE_ON_FAIL(parse_expression(ast_parser, value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value, &prop_expected_type, 0));
 					value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].free_val = 1;
+
 					value->data.alloc_record.init_value_count++;
 					free_typecheck_type(&prop_expected_type);
 					MATCH_TOK(TOK_SEMICOLON);
@@ -725,6 +719,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 	}
 	case TOK_IDENTIFIER: {
 		ast_var_info_t* var_info = ast_parser_find_var(ast_parser, hash_s(LAST_TOK.str, LAST_TOK.length));
+		value->from_var = 1;
 		PANIC_ON_FAIL(var_info, ast_parser, ERROR_UNDECLARED);
 		PANIC_ON_FAIL(copy_typecheck_type(&value->type, var_info->type), ast_parser, ERROR_MEMORY);
 
@@ -825,14 +820,12 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		ESCAPE_ON_FAIL(parse_code_block(ast_parser, &value->data.procedure->exec_block, 1, 0));
 		
 		value->data.procedure->scope_size = CURRENT_FRAME.scoped_locals;
-		value->data.procedure->do_gc = CURRENT_FRAME.do_gc;
 
 		ESCAPE_ON_FAIL(ast_parser_close_frame(ast_parser));
  		break;
 	}
 	case TOK_FOREIGN: {
 		value->value_type = AST_VALUE_FOREIGN;
-		CURRENT_FRAME.do_gc = 1;
 		PANIC_ON_FAIL(value->data.foreign = malloc(sizeof(ast_foreign_call_t)), ast_parser, ERROR_MEMORY);
 		PANIC_ON_FAIL(copy_typecheck_type(&value->type, *type), ast_parser, ERROR_MEMORY);
 		READ_TOK;
@@ -864,6 +857,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 			PANIC_ON_FAIL(value->type.type == TYPE_SUPER_ARRAY, ast_parser, ERROR_UNEXPECTED_TYPE);
 			ast_value_t array_val, index_val;
 			array_val = *value;
+			value->from_var = array_val.from_var;
 			ESCAPE_ON_FAIL(parse_expression(ast_parser, &index_val, &typecheck_int, 0));
 			if (index_val.value_type == AST_VALUE_PRIMITIVE && index_val.data.primitive.data.long_int < 0)
 				PANIC(ast_parser, ERROR_INDEX_OUT_OF_RANGE);
@@ -889,6 +883,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 			READ_TOK;
 			PANIC_ON_FAIL(value->type.type == TYPE_SUPER_RECORD, ast_parser, ERROR_UNEXPECTED_TYPE);
 			ast_value_t record_val = *value;
+			value->from_var = record_val.from_var;
 			ast_record_prop_t* property;
 			MATCH_TOK(TOK_IDENTIFIER);
 			uint64_t id = hash_s(LAST_TOK.str, LAST_TOK.length);
@@ -915,6 +910,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		else if (LAST_TOK.type == TOK_OPEN_PAREN || (LAST_TOK.type == TOK_LESS && value->type.type == TYPE_SUPER_PROC)) {
 			PANIC_ON_FAIL(value->type.type == TYPE_SUPER_PROC, ast_parser, ERROR_UNEXPECTED_TYPE);
 			ast_value_t proc_val = *value;
+			value->from_var = 0;
 			value->value_type = AST_VALUE_PROC_CALL;
 			PANIC_ON_FAIL(value->data.proc_call = malloc(sizeof(ast_call_proc_t)), ast_parser, ERROR_MEMORY);
 
@@ -997,22 +993,6 @@ static int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typech
 	return 1;
 }
 
-static int get_ast_record_index_offset(ast_t* ast, ast_record_proto_t* record) {
-	if (!record->defined) {
-		if (record->base_record) {
-			record->index_offset = get_ast_record_index_offset(ast, ast->record_protos[record->base_record->type_id]);
-			record->do_gc = ast->record_protos[record->base_record->type_id]->do_gc;
-		}
-		for (uint_fast8_t i = 0; i < record->property_count; i++) {
-			if (IS_REF_TYPE(record->properties[i].type))
-				record->do_gc = 1;
-			record->properties[i].id += record->index_offset;
-		}
-		record->defined = 1;
-	}
-	return record->index_offset + record->property_count;
-}
-
 int init_ast(ast_t* ast, ast_parser_t* ast_parser) {
 	ast_parser->ast = ast;
 	ast->proc_call_count = 0;
@@ -1028,12 +1008,6 @@ int init_ast(ast_t* ast, ast_parser_t* ast_parser) {
 	ESCAPE_ON_FAIL(parse_code_block(ast_parser, &ast->exec_block, 0, 0));
 	ast_parser->top_level_local_count = CURRENT_FRAME.scoped_locals;
 	ESCAPE_ON_FAIL(ast_parser_close_frame(ast_parser));
-	for (uint_fast8_t i = 0; i < ast->record_count; i++) {
-		PANIC_ON_FAIL(ast->record_protos[i]->defined, ast_parser, ERROR_UNDECLARED);
-		ast->record_protos[i]->defined = 0;
-	}
-	for (uint_fast8_t i = 0; i < ast->record_count; i++)
-		get_ast_record_index_offset(ast, ast->record_protos[i]);
 	ESCAPE_ON_FAIL(ast_postproc(ast_parser));
 	return 1;
 }

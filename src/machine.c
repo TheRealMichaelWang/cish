@@ -19,8 +19,19 @@ static int64_t longpow(int64_t base, int64_t exp) {
 heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode_t trace_mode) {
 	if (machine->heap_count == machine->heap_alloc_limit)
 		PANIC(machine, ERROR_STACK_OVERFLOW);
-	heap_alloc_t* heap_alloc = malloc(sizeof(heap_alloc_t));
-	PANIC_ON_FAIL(heap_alloc, machine, ERROR_MEMORY);
+	heap_alloc_t* heap_alloc;
+	if (machine->freed_heap_count) {
+		heap_alloc = machine->freed_heap_allocs[--machine->freed_heap_count];
+		if(!heap_alloc->reg_with_table)
+			machine->heap_allocs[machine->heap_count++] = heap_alloc;
+	}
+	else {
+		heap_alloc = malloc(sizeof(heap_alloc_t));
+		PANIC_ON_FAIL(heap_alloc, machine, ERROR_MEMORY);
+		machine->heap_allocs[machine->heap_count++] = heap_alloc;
+		heap_alloc->reg_with_table = 1;
+	}
+	heap_alloc->pre_freed = 0;
 	heap_alloc->limit = req_size;
 	heap_alloc->gc_flag = 0;
 	heap_alloc->trace_mode = trace_mode;
@@ -29,8 +40,38 @@ heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode
 	PANIC_ON_FAIL(heap_alloc->init_stat = calloc(req_size, sizeof(int)), machine, ERROR_MEMORY);
 	if (trace_mode == GC_TRACE_MODE_SOME)
 		PANIC_ON_FAIL(heap_alloc->trace_stat = malloc(req_size * sizeof(int)), machine, ERROR_MEMORY);
-	machine->heap_allocs[machine->heap_count++] = heap_alloc;
 	return heap_alloc;
+}
+
+int free_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
+	if (heap_alloc->pre_freed)
+		return 1;
+	heap_alloc->pre_freed = 1;
+
+	switch (heap_alloc->trace_mode) {
+	case GC_TRACE_MODE_ALL:
+		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
+			if (heap_alloc->init_stat[i])
+				ESCAPE_ON_FAIL(free_alloc(machine, heap_alloc->registers[i].heap_alloc));
+		break;
+	case GC_TRACE_MODE_SOME:
+		for(uint_fast16_t i = 0; i < heap_alloc->limit; i++)
+			if(heap_alloc->init_stat[i] && heap_alloc->trace_stat[i])
+				ESCAPE_ON_FAIL(free_alloc(machine, heap_alloc->registers[i].heap_alloc));
+		free(heap_alloc->trace_stat);
+		break;
+	}
+
+	free(heap_alloc->registers);
+	free(heap_alloc->init_stat);
+
+	if (machine->freed_heap_count == machine->alloc_freed_heaps) {
+		heap_alloc_t** new_freed_heaps = realloc(machine->freed_heap_allocs, (machine->alloc_freed_heaps += 10) * sizeof(heap_alloc_t*));
+		PANIC_ON_FAIL(new_freed_heaps, machine, ERROR_MEMORY);
+		machine->freed_heap_allocs = new_freed_heaps;
+	}
+	machine->freed_heap_allocs[machine->freed_heap_count++] = heap_alloc;
+	return 1;
 }
 
 static uint16_t machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, heap_alloc_t** reset_stack, uint16_t* reset_count) {
@@ -67,6 +108,7 @@ int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_li
 	machine->heap_frame = 0;
 	machine->heap_count = 0;
 	machine->trace_count = 0;
+	machine->freed_heap_count = 0;
 
 	ESCAPE_ON_FAIL(machine->stack = malloc(stack_size * sizeof(machine_reg_t)));
 	ESCAPE_ON_FAIL(machine->positions = malloc(machine->frame_limit * sizeof(machine_ins_t*)));
@@ -74,11 +116,15 @@ int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_li
 	ESCAPE_ON_FAIL(machine->heap_traces = malloc((machine->trace_alloc_limit = 128) * sizeof(heap_alloc_t*)));
 	ESCAPE_ON_FAIL(machine->heap_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
 	ESCAPE_ON_FAIL(machine->trace_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
+	ESCAPE_ON_FAIL(machine->freed_heap_allocs = malloc((machine->alloc_freed_heaps = 128) * sizeof(heap_alloc_t*)));
 	ESCAPE_ON_FAIL(init_ffi(&machine->ffi_table));
 	return 1;
 }
 
 void free_machine(machine_t* machine) {
+	for (uint_fast16_t i = 0; i < machine->freed_heap_count; i++)
+		free(machine->freed_heap_allocs[i]);
+	free(machine->freed_heap_allocs);
 	free_ffi(&machine->ffi_table);
 	free(machine->stack);
 	free(machine->positions);
@@ -191,6 +237,12 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 		case OP_CODE_ALLOC_I:
 			ESCAPE_ON_FAIL(machine->stack[AREG].heap_alloc = machine_alloc(machine, ip->b, ip->c));
 			break;
+		case OP_CODE_DYNAMIC_FREE:
+			if (!machine->stack[BREG].bool_flag)
+				break;
+		case OP_CODE_FREE:
+			ESCAPE_ON_FAIL(free_alloc(machine, machine->stack[AREG].heap_alloc));
+			break;
 		case OP_CODE_GC_NEW_FRAME: {
 			if (machine->heap_frame == machine->frame_limit)
 				PANIC(machine, ERROR_STACK_OVERFLOW);
@@ -204,7 +256,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 				break;
 		case OP_CODE_GC_TRACE:
 			if (machine->trace_count == machine->trace_alloc_limit) {
-				heap_alloc_t** new_trace_stack = realloc(machine->heap_traces, (machine->trace_alloc_limit *= 2) * sizeof(heap_alloc_t*));
+				heap_alloc_t** new_trace_stack = realloc(machine->heap_traces, (machine->trace_alloc_limit += 10) * sizeof(heap_alloc_t*));
 				PANIC_ON_FAIL(new_trace_stack, machine, ERROR_MEMORY);
 				machine->heap_traces = new_trace_stack;
 			}
@@ -212,25 +264,32 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			break;
 		}
 		case OP_CODE_GC_CLEAN: {
-			uint16_t kept_allocs = 0;
-			uint16_t heap_bound_start = machine->heap_frame_bounds[--machine->heap_frame];
 			uint16_t reseted_heap_count = 0;
-			heap_alloc_t* reset_stack[64];
-
-			if(machine->heap_frame)
+			static heap_alloc_t* reset_stack[64];
+			
+			--machine->heap_frame;
+			if (machine->heap_frame) {
 				for (uint_fast16_t i = machine->trace_frame_bounds[machine->heap_frame]; i < machine->trace_count; i++)
 					machine_heap_trace(machine, machine->heap_traces[i], reset_stack, &reseted_heap_count);
- 			for (uint_fast16_t i = heap_bound_start; i < machine->heap_count; i++)
-				if (machine->heap_allocs[i]->gc_flag)
-					machine->heap_allocs[heap_bound_start + kept_allocs++] = machine->heap_allocs[i];
+			}
+
+			heap_alloc_t** frame_start = &machine->heap_allocs[machine->heap_frame_bounds[machine->heap_frame]];
+			heap_alloc_t** frame_end = &machine->heap_allocs[machine->heap_count];
+			
+			for (heap_alloc_t** current_alloc = frame_start; current_alloc != frame_end; current_alloc++) {
+				if ((*current_alloc)->gc_flag)
+					*frame_start++ = *current_alloc;
+				else if ((*current_alloc)->pre_freed)
+					(*current_alloc)->reg_with_table = 0;
 				else {
-					free(machine->heap_allocs[i]->registers);
-					free(machine->heap_allocs[i]->init_stat);
-					if (machine->heap_allocs[i]->trace_mode == GC_TRACE_MODE_SOME)
-						free(machine->heap_allocs[i]->trace_stat);
-					free(machine->heap_allocs[i]);
+					free((*current_alloc)->registers);
+					free((*current_alloc)->init_stat);
+					if ((*current_alloc)->trace_mode == GC_TRACE_MODE_SOME)
+						free((*current_alloc)->trace_stat);
+					free((*current_alloc));
 				}
-			machine->heap_count = heap_bound_start + kept_allocs;
+			}
+			machine->heap_count = frame_start - machine->heap_allocs;
 			machine->trace_count = machine->trace_frame_bounds[machine->heap_frame];
 			for (uint_fast16_t i = 0; i < reseted_heap_count; i++)
 				reset_stack[i]->gc_flag = 0;

@@ -13,15 +13,17 @@ void free_typecheck_type(typecheck_type_t* typecheck_type) {
 
 int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src) {
 	dest->type = src.type;
-	dest->sub_type_count = src.sub_type_count;
 	dest->type_id = src.type_id;
 	if (src.type >= TYPE_SUPER_ARRAY && src.sub_type_count) {
+		dest->sub_type_count = src.sub_type_count;
 		ESCAPE_ON_FAIL(dest->sub_types = malloc(src.sub_type_count * sizeof(typecheck_type_t)));
 		for (uint_fast8_t i = 0; i < src.sub_type_count; i++)
 			copy_typecheck_type(&dest->sub_types[i], src.sub_types[i]);
 	}
-	else
+	else {
 		dest->sub_types = NULL;
+		dest->sub_type_count = 0;
+	}
 	return 1;
 }
 

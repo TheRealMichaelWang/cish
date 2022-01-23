@@ -39,6 +39,9 @@ typedef enum machine_op_code {
 	OP_CODE_ALLOC,
 	OP_CODE_ALLOC_I,
 
+	OP_CODE_FREE,
+	OP_CODE_DYNAMIC_FREE,
+
 	OP_CODE_GC_NEW_FRAME,
 	OP_CODE_GC_TRACE,
 	OP_CODE_DYNAMIC_TRACE,
@@ -99,7 +102,7 @@ typedef struct machine_heap_alloc {
 	int* init_stat, *trace_stat;
 	uint16_t limit;
 
-	int gc_flag;
+	int gc_flag, reg_with_table, pre_freed;
 	gc_trace_mode_t trace_mode;
 } heap_alloc_t;
 
@@ -123,9 +126,11 @@ typedef struct machine {
 	heap_alloc_t** heap_traces;
 	uint16_t* trace_frame_bounds;
 
+	heap_alloc_t** freed_heap_allocs;
+
 	error_t last_err;
 	
-	uint16_t global_offset, position_count, heap_frame, frame_limit, heap_count, heap_alloc_limit, trace_count, trace_alloc_limit;
+	uint16_t global_offset, position_count, heap_frame, frame_limit, heap_count, heap_alloc_limit, trace_count, trace_alloc_limit, freed_heap_count, alloc_freed_heaps;
 
 	ffi_t ffi_table;
 } machine_t;

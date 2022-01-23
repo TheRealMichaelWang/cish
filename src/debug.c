@@ -32,6 +32,8 @@ static const char* opcode_names[] = {
 
 	"alloc      ",
 	"alloc_i    ",
+	"free       ",
+	"dynfree    ",
 
 	"newframe   ",
 	"gctrace    ",

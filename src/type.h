@@ -32,7 +32,8 @@ typedef struct typecheck_type {
 	uint8_t type_id;
 } typecheck_type_t;
 
-#define IS_REF_TYPE(TYPE) (TYPE).type == TYPE_SUPER_ARRAY || (TYPE).type == TYPE_SUPER_RECORD
+#define IS_REF_TYPE(TYPE) ((TYPE).type == TYPE_SUPER_ARRAY || (TYPE).type == TYPE_SUPER_RECORD)
+#define IS_PRIMITIVE(TYPE) ((TYPE).type >= TYPE_PRIMITIVE_BOOL && (TYPE).type <= TYPE_PRIMITIVE_FLOAT)
 
 static typecheck_type_t typecheck_int = { .type = TYPE_PRIMITIVE_LONG };
 static typecheck_type_t typecheck_float = { .type = TYPE_PRIMITIVE_FLOAT };
