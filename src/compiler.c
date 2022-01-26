@@ -349,7 +349,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		else
 			EMIT_INS(INS3(OP_CODE_FOREIGN, compiler->eval_regs[value.data.foreign->op_id.id], LOC_REG(0), compiler->eval_regs[value.id]));
 	}
-	if (value.trace_status == POSTPROC_TRACE_CHILDREN)
+	if (value.trace_status == POSTPROC_TRACE_CHILDREN || value.trace_status == POSTPROC_SUPERTRACE_CHILDREN)
 		EMIT_INS(INS1(OP_CODE_GC_TRACE, compiler->eval_regs[value.id]))
 	else if (value.trace_status == POSTPROC_TRACE_DYNAMIC)
 		EMIT_INS(INS2(OP_CODE_DYNAMIC_CONF_ALL, compiler->eval_regs[value.id], LOC_REG(proc->param_count + value.type.type_id)));

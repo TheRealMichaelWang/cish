@@ -302,6 +302,8 @@ typedef struct ast_parser {
 	multi_scanner_t multi_scanner;
 
 	postproc_gc_status_t* top_level_global_gc_stats;
+	postproc_gc_status_t* global_gc_stats;
+	int* shared_globals;
 
 	error_t last_err;
 } ast_parser_t;
