@@ -44,19 +44,10 @@ global readonly auto filter = proc<elemType>(array<elemType> a, proc<bool, elemT
 	return output;
 };
 
-global readonly auto funcfill = proc<elemType>(array<elemType> buffer, proc<elemType> func, int start, int length) return nothing {
+global readonly auto funcfill = proc<elemType>(array<elemType> buffer, int start, int length, proc<elemType> func) return nothing {
 	int i = start;
 	while(i < start + length) {
 		buffer[i] = func();
-		i = i + 1;
-	}
-	return;
-};
-
-global readonly auto fill = proc<elemType>(array<elemType> a, elemType value) return nothing {
-	int i = 0;
-	while(i < #a) {
-		a[i] = value;
 		i = i + 1;
 	}
 	return;
@@ -87,4 +78,18 @@ global readonly auto itoc = proc(int i) return char {
 
 global readonly auto ctoi = proc(char c) return int {
 	return foreign[15](c);
+};
+
+global readonly auto min = proc(int a, int b) return int {
+	if(a < b) {
+		return a;
+	}
+	return b;
+};
+
+global readonly auto max = proc(int a, int b) return int {
+	if(a > b) {
+		return a;
+	}
+	return b;
 };

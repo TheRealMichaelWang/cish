@@ -15,6 +15,12 @@ global readonly auto println = proc(array<char> str) return nothing {
 	return;
 };
 
+$puts a char
+global readonly auto put_char = proc(char c) return nothing{
+	foreign[8](c);
+	return;
+};
+
 $reads a line of input
 global readonly auto input = proc() return array<char> {
 	array<char> buffer = new char[4096];

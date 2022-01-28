@@ -1,0 +1,93 @@
+include "random.txt";
+include "io.txt";
+include "string.txt";
+include "std.txt";
+
+global readonly auto random_cells = proc(int r, int c) return auto {
+	array<array<bool>> cells = new array<bool>[r];
+	int i = 0;
+	while(i < r) {
+		cells[i] = new bool[c];
+		int j = 0;
+		while(j < c) {
+			cells[i][j] = randbool();
+			j = j + 1;
+		}
+		i = i + 1;
+	}
+	return cells;
+};
+
+global readonly auto print_cells = proc (array<array<bool>> cells) return nothing {
+	int i = 0;
+	while(i < #cells) {
+		int j = 0;
+		while(j < #cells[i]) {
+			if(cells[i][j]) {
+				put_char('X');
+			}
+			else {
+				put_char(' ');
+			}
+			j = j + 1;
+		}
+		put_char('\n');
+		i = i + 1;
+	}
+	return;
+};
+
+global readonly auto evolve = proc(array<array<bool>> cells) return auto {
+	array<array<bool>> next_gen = new array<bool>[#cells];
+	
+	readonly auto neighboors = proc(array<array<bool>> cells, int r, int c) return int {
+		int n = 0;	
+		int i = max(0, r);
+		while(i < min(#cells - 1, r + 1)) {
+			int j = max(0, c);
+			while(j < max(#cells[i] - 1, c + 1)) {
+				if(cells[i][j]) {
+					n = n + 1;
+				}
+				j = j + 1;
+			}
+			i = i + 1;
+		}
+		return n - 1;
+	};
+
+	int i = 0;
+	while(i < #cells) {
+		next_gen[i] = new bool[#cells[i]];
+		int j = 0;
+		while(j < #cells[i]) {
+			int n = neighboors(cells, i, j);
+			if(cells[i][j]) {
+				next_gen[i][j] = (n >= 2 and n <= 3);
+			}
+			else {
+				next_gen[i][j] = (n == 3);
+			}
+			j = j + 1;
+		}
+		i = i + 1;
+	}
+	return next_gen;
+};
+
+auto cells = random_cells(10, 10);
+
+print("Requested generations?>");
+int gens = stoi(input());
+
+println("Start state:");
+print_cells(cells);
+
+int i = 0;
+while(i < gens) {
+	cells = evolve(cells);
+	i = i + 1;
+}
+
+println("End State:");
+print_cells(cells);
