@@ -74,28 +74,42 @@ int free_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
 	return 1;
 }
 
-static uint16_t machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, heap_alloc_t** reset_stack, uint16_t* reset_count) {
+static void machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, heap_alloc_t** reset_stack, uint16_t* reset_count) {
 	if (heap_alloc->gc_flag)
 		return 0;
 
-	uint16_t traced = 1;
-
 	heap_alloc->gc_flag = 1;
 	reset_stack[(*reset_count)++] = heap_alloc;
-	switch (heap_alloc->trace_mode)
-	{
+	switch (heap_alloc->trace_mode) {
 	case GC_TRACE_MODE_ALL:
 		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
 			if (heap_alloc->init_stat[i])
-				traced += machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack, reset_count);
+				machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack, reset_count);
 		break;
 	case GC_TRACE_MODE_SOME:
 		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
 			if(heap_alloc->init_stat[i] && heap_alloc->trace_stat[i])
-				traced += machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack, reset_count);
+				machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack, reset_count);
 		break;
 	}
-	return traced;
+}
+
+static void machine_heap_supertrace(machine_t* machine, heap_alloc_t* heap_alloc) {
+	if (heap_alloc->gc_flag)
+		return 0;
+	heap_alloc->gc_flag = 1;
+	switch (heap_alloc->trace_mode) {
+	case GC_TRACE_MODE_ALL:
+		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
+			if (heap_alloc->init_stat[i])
+				machine_heap_supertrace(machine, heap_alloc->registers[i].heap_alloc);
+		break;
+	case GC_TRACE_MODE_SOME:
+		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
+			if (heap_alloc->init_stat[i] && heap_alloc->trace_stat[i])
+				machine_heap_supertrace(machine, heap_alloc->registers[i].heap_alloc);
+		break;
+	}
 }
 
 int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_limit, uint16_t frame_limit) {
@@ -252,7 +266,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			break;
 		}
 		case OP_CODE_DYNAMIC_TRACE: {
-			if (!machine->stack[BREG].bool_flag)
+			if (!machine->stack[CREG].bool_flag)
 				break;
 		case OP_CODE_GC_TRACE:
 			if (machine->trace_count == machine->trace_alloc_limit) {
@@ -260,7 +274,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 				PANIC_ON_FAIL(new_trace_stack, machine, ERROR_MEMORY);
 				machine->heap_traces = new_trace_stack;
 			}
-			machine->heap_traces[machine->trace_count++] = machine->stack[AREG].heap_alloc;
+			(machine->heap_traces[machine->trace_count++] = machine->stack[AREG].heap_alloc)->gc_flag = ip->b;
 			break;
 		}
 		case OP_CODE_GC_CLEAN: {
@@ -268,31 +282,47 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			static heap_alloc_t* reset_stack[64];
 			
 			--machine->heap_frame;
-			if (machine->heap_frame) {
-				for (uint_fast16_t i = machine->trace_frame_bounds[machine->heap_frame]; i < machine->trace_count; i++)
-					machine_heap_trace(machine, machine->heap_traces[i], reset_stack, &reseted_heap_count);
-			}
-
 			heap_alloc_t** frame_start = &machine->heap_allocs[machine->heap_frame_bounds[machine->heap_frame]];
 			heap_alloc_t** frame_end = &machine->heap_allocs[machine->heap_count];
 			
-			for (heap_alloc_t** current_alloc = frame_start; current_alloc != frame_end; current_alloc++) {
-				if ((*current_alloc)->gc_flag)
-					*frame_start++ = *current_alloc;
-				else if ((*current_alloc)->pre_freed)
-					(*current_alloc)->reg_with_table = 0;
-				else {
-					free((*current_alloc)->registers);
-					free((*current_alloc)->init_stat);
-					if ((*current_alloc)->trace_mode == GC_TRACE_MODE_SOME)
-						free((*current_alloc)->trace_stat);
-					free((*current_alloc));
+			if (machine->heap_frame) {
+				for (uint_fast16_t i = machine->trace_frame_bounds[machine->heap_frame]; i < machine->trace_count; i++)
+					if (machine->heap_traces[i]->gc_flag) {
+						machine->heap_traces[i]->gc_flag = 0;
+						machine_heap_supertrace(machine, machine->heap_traces[i]);
+					}
+					else
+						machine_heap_trace(machine, machine->heap_traces[i], reset_stack, &reseted_heap_count);
+
+				for (heap_alloc_t** current_alloc = frame_start; current_alloc != frame_end; current_alloc++) {
+					if ((*current_alloc)->gc_flag)
+						*frame_start++ = *current_alloc;
+					else if ((*current_alloc)->pre_freed)
+						(*current_alloc)->reg_with_table = 0;
+					else {
+						free((*current_alloc)->registers);
+						free((*current_alloc)->init_stat);
+						if ((*current_alloc)->trace_mode == GC_TRACE_MODE_SOME)
+							free((*current_alloc)->trace_stat);
+						free((*current_alloc));
+					}
 				}
+				machine->heap_count = frame_start - machine->heap_allocs;
+				machine->trace_count = machine->trace_frame_bounds[machine->heap_frame];
+				for (uint_fast16_t i = 0; i < reseted_heap_count; i++)
+					reset_stack[i]->gc_flag = 0;
 			}
-			machine->heap_count = frame_start - machine->heap_allocs;
-			machine->trace_count = machine->trace_frame_bounds[machine->heap_frame];
-			for (uint_fast16_t i = 0; i < reseted_heap_count; i++)
-				reset_stack[i]->gc_flag = 0;
+			else {
+				for (heap_alloc_t** current_alloc = frame_start; current_alloc != frame_end; current_alloc++)
+					if (!(*current_alloc)->pre_freed) {
+						free((*current_alloc)->registers);
+						free((*current_alloc)->init_stat);
+						if ((*current_alloc)->trace_mode == GC_TRACE_MODE_SOME)
+							free((*current_alloc)->trace_stat);
+						free((*current_alloc));
+					}
+				machine->heap_count = 0;
+			}
 			break;
 		}
 		case OP_CODE_AND:
@@ -408,3 +438,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 	}
 	return 1;
 }
+
+#undef AREG
+#undef BREG
+#undef CREG

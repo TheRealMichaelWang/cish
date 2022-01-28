@@ -252,10 +252,14 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		break;
 	}
 	case AST_VALUE_SET_VAR:
-		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_var->set_value, proc));
-		ESCAPE_ON_FAIL(compile_force_free(compiler, compiler->var_regs[value.data.set_var->var_info->id], value.data.set_var->var_info->type, proc, value.data.set_var->free_status));
-		if (compiler->move_eval[value.data.set_var->set_value.id])
+		if (compiler->move_eval[value.data.set_var->set_value.id]) {
+			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_var->set_value, proc));
+			ESCAPE_ON_FAIL(compile_force_free(compiler, compiler->var_regs[value.data.set_var->var_info->id], value.data.set_var->var_info->type, proc, value.data.set_var->free_status));
 			EMIT_INS(INS2(OP_CODE_MOVE, compiler->var_regs[value.data.set_var->var_info->id], compiler->eval_regs[value.data.set_var->set_value.id]));
+		}
+		else {
+			
+		}
 		break;
 	case AST_VALUE_SET_INDEX:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->array, proc));
@@ -349,10 +353,12 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		else
 			EMIT_INS(INS3(OP_CODE_FOREIGN, compiler->eval_regs[value.data.foreign->op_id.id], LOC_REG(0), compiler->eval_regs[value.id]));
 	}
-	if (value.trace_status == POSTPROC_TRACE_CHILDREN || value.trace_status == POSTPROC_SUPERTRACE_CHILDREN)
-		EMIT_INS(INS1(OP_CODE_GC_TRACE, compiler->eval_regs[value.id]))
+	if (value.trace_status == POSTPROC_TRACE_CHILDREN)//|| value.trace_status == POSTPROC_SUPERTRACE_CHILDREN)
+		EMIT_INS(INS2(OP_CODE_GC_TRACE, compiler->eval_regs[value.id], GLOB_REG(0)))
+	else if(value.trace_status == POSTPROC_SUPERTRACE_CHILDREN)
+		EMIT_INS(INS2(OP_CODE_GC_TRACE, compiler->eval_regs[value.id], GLOB_REG(1)))
 	else if (value.trace_status == POSTPROC_TRACE_DYNAMIC)
-		EMIT_INS(INS2(OP_CODE_DYNAMIC_CONF_ALL, compiler->eval_regs[value.id], LOC_REG(proc->param_count + value.type.type_id)));
+		EMIT_INS(INS3(OP_CODE_DYNAMIC_TRACE, compiler->eval_regs[value.id], GLOB_REG(1), LOC_REG(proc->param_count + value.type.type_id)));
 	return 1;
 }
 

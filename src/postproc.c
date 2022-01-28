@@ -394,7 +394,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 				value->data.proc_call->arguments[i].gc_status = POSTPROC_GC_TRACED_ALLOC;
 			}
 		}
-		value->gc_status = postproc_type_to_gc_stat(POSTPROC_GC_SUPEREXT_ALLOC, value->type.type);
+		value->gc_status = postproc_type_to_gc_stat(POSTPROC_GC_EXTERN_ALLOC, value->type.type);
 		break;
 	case AST_VALUE_FOREIGN:
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.foreign->op_id, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
