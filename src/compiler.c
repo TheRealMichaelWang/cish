@@ -252,13 +252,10 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		break;
 	}
 	case AST_VALUE_SET_VAR:
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_var->set_value, proc));
 		if (compiler->move_eval[value.data.set_var->set_value.id]) {
-			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_var->set_value, proc));
 			ESCAPE_ON_FAIL(compile_force_free(compiler, compiler->var_regs[value.data.set_var->var_info->id], value.data.set_var->var_info->type, proc, value.data.set_var->free_status));
 			EMIT_INS(INS2(OP_CODE_MOVE, compiler->var_regs[value.data.set_var->var_info->id], compiler->eval_regs[value.data.set_var->set_value.id]));
-		}
-		else {
-			
 		}
 		break;
 	case AST_VALUE_SET_INDEX:

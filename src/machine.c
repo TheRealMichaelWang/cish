@@ -76,7 +76,7 @@ int free_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
 
 static void machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, heap_alloc_t** reset_stack, uint16_t* reset_count) {
 	if (heap_alloc->gc_flag)
-		return 0;
+		return;
 
 	heap_alloc->gc_flag = 1;
 	reset_stack[(*reset_count)++] = heap_alloc;
@@ -96,7 +96,7 @@ static void machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, hea
 
 static void machine_heap_supertrace(machine_t* machine, heap_alloc_t* heap_alloc) {
 	if (heap_alloc->gc_flag)
-		return 0;
+		return;
 	heap_alloc->gc_flag = 1;
 	switch (heap_alloc->trace_mode) {
 	case GC_TRACE_MODE_ALL:
