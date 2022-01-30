@@ -9,6 +9,7 @@ A minimal, performant, strongly-typed, and functional programming language focus
   * The linking process is done automatically - theres no need for c-like forward declarations.
   * While casting is done automatically from derived types to their super type, downcasting is not allowed. 
 * Type arguments, not only for structs but for functions as well. 
+  * Type arguments aren't constrained to be reference/allocation types like Java - they can also be primatives.
 
 ## Important Links
 * [Documentation](https://github.com/TheRealMichaelWang/superforth/wiki)
