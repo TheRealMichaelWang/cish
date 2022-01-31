@@ -99,7 +99,7 @@ static void machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, hea
 	heap_alloc->gc_flag = 1;
 	
 	if(*reset_count >= 64) {
-		machine_heap_supertrace(machine_heap_alloc);
+		machine_heap_supertrace(machine, heap_alloc);
 		return;
 	}
 	
