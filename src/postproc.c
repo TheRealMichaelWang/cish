@@ -283,7 +283,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 				value->trace_status = GET_TYPE_TRACE(value->data.variable->type);
 				local_gc_stats[SANITIZE_SCOPE_ID(*value->data.variable)] = value->gc_status = value->gc_status == POSTPROC_GC_LOCAL_ALLOC ? POSTPROC_GC_TRACED_ALLOC : POSTPROC_GC_EXTERN_DYNAMIC;
 			}
-			else if ((value->gc_status == POSTPROC_GC_EXTERN_ALLOC || value->gc_status == POSTPROC_GC_LOCAL_ALLOC) && parent_proc == POSTPROC_PARENT_SUPEREXT) {
+			else if ((value->gc_status == POSTPROC_GC_EXTERN_ALLOC || value->gc_status == POSTPROC_GC_LOCAL_ALLOC) && parent_stat == POSTPROC_PARENT_SUPEREXT) {
 				value->trace_status = GET_TYPE_TRACE(value->data.variable->type);
 				if (value->trace_status == POSTPROC_TRACE_CHILDREN)
 					value->trace_status = POSTPROC_SUPERTRACE_CHILDREN;
