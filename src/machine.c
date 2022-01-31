@@ -74,26 +74,6 @@ int free_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
 	return 1;
 }
 
-static void machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, heap_alloc_t** reset_stack, uint16_t* reset_count) {
-	if (heap_alloc->gc_flag)
-		return;
-
-	heap_alloc->gc_flag = 1;
-	reset_stack[(*reset_count)++] = heap_alloc;
-	switch (heap_alloc->trace_mode) {
-	case GC_TRACE_MODE_ALL:
-		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
-			if (heap_alloc->init_stat[i])
-				machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack, reset_count);
-		break;
-	case GC_TRACE_MODE_SOME:
-		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
-			if(heap_alloc->init_stat[i] && heap_alloc->trace_stat[i])
-				machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack, reset_count);
-		break;
-	}
-}
-
 static void machine_heap_supertrace(machine_t* machine, heap_alloc_t* heap_alloc) {
 	if (heap_alloc->gc_flag)
 		return;
@@ -108,6 +88,32 @@ static void machine_heap_supertrace(machine_t* machine, heap_alloc_t* heap_alloc
 		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
 			if (heap_alloc->init_stat[i] && heap_alloc->trace_stat[i])
 				machine_heap_supertrace(machine, heap_alloc->registers[i].heap_alloc);
+		break;
+	}
+}
+
+static void machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, heap_alloc_t** reset_stack, uint16_t* reset_count) {
+	if (heap_alloc->gc_flag)
+		return;
+
+	heap_alloc->gc_flag = 1;
+	
+	if(*reset_count >= 64) {
+		machine_heap_supertrace(machine_heap_alloc);
+		return;
+	}
+	
+	reset_stack[(*reset_count)++] = heap_alloc;
+	switch (heap_alloc->trace_mode) {
+	case GC_TRACE_MODE_ALL:
+		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
+			if (heap_alloc->init_stat[i])
+				machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack, reset_count);
+		break;
+	case GC_TRACE_MODE_SOME:
+		for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
+			if(heap_alloc->init_stat[i] && heap_alloc->trace_stat[i])
+				machine_heap_trace(machine, heap_alloc->registers[i].heap_alloc, reset_stack, reset_count);
 		break;
 	}
 }
