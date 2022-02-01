@@ -332,7 +332,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 				if (value.data.proc_call->typeargs[i].type == TYPE_TYPEARG)
 					EMIT_INS(INS2(OP_CODE_MOVE, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] + value.data.proc_call->argument_count + i), LOC_REG(proc->param_count + value.data.set_prop->value.type.type_id)))
 				else
-					EMIT_INS(INS2(OP_CODE_MOVE, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] + value.data.proc_call->argument_count + i), LOC_REG(IS_REF_TYPE(value.data.proc_call->typeargs[i]))));
+					EMIT_INS(INS2(OP_CODE_SET, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] + value.data.proc_call->argument_count + i), LOC_REG(IS_REF_TYPE(value.data.proc_call->typeargs[i]))));
 		}
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.proc_call->procedure, proc));
 		EMIT_INS(INS2(OP_CODE_CALL, compiler->eval_regs[value.data.proc_call->procedure.id], GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
