@@ -27,6 +27,7 @@ typedef enum token_type {
 	TOK_RETURN,
 	TOK_CONTINUE,
 	TOK_BREAK,
+	TOK_ABORT,
 	TOK_SET,
 
 	TOK_INCLUDE,

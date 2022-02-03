@@ -88,6 +88,8 @@ int scanner_scan_tok(scanner_t* scanner) {
 			RETURN(TOK_CONTINUE);
 		case 210707980106: //break
 			RETURN(TOK_BREAK);
+		case 210706230653: //abort
+			RETURN(TOK_ABORT);
 		case 6385087377: //bool
 			RETURN(TOK_TYPECHECK_BOOL);
 		case 6385115235: //char

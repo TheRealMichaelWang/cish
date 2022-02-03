@@ -247,7 +247,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		if(value.data.procedure->do_gc)
 			EMIT_INS(INS0(OP_CODE_GC_NEW_FRAME));
 		compile_code_block(compiler, value.data.procedure->exec_block, value.data.procedure, 0 , NULL, 0);
-		EMIT_INS(INS1(OP_CODE_ABORT, GLOB_REG(ERROR_ABORT)));
+		EMIT_INS(INS1(OP_CODE_ABORT, GLOB_REG(ERROR_UNRETURNED_FUNCTION)));
 		compiler->ins_builder.instructions[start_ip + 1].a = compiler->ins_builder.instruction_count;
 		break;
 	}
@@ -452,6 +452,9 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 			break;
 		case AST_STATEMENT_CONTINUE:
 			EMIT_INS(INS1(OP_CODE_JUMP, GLOB_REG(continue_ip)));
+			break;
+		case AST_STATEMENT_ABORT:
+			EMIT_INS(INS1(OP_CODE_ABORT, GLOB_REG(ERROR_ABORT)));
 			break;
 		}
 	return 1;

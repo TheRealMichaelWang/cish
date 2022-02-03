@@ -104,6 +104,8 @@ static const char* error_names[] = {
 	"divide by zero",
 	"stack overflow",
 	"read unitialized memory",
+
+	"function unable to return",
 	
 	"program aborted",
 	"foreign error",
