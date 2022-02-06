@@ -13,6 +13,7 @@ typedef struct ast ast_t;
 typedef enum typecheck_base_type {
 	TYPE_AUTO,
 	TYPE_NOTHING,
+	TYPE_ANY,
 	TYPE_TYPEARG,
 
 	TYPE_PRIMITIVE_BOOL,

@@ -28,7 +28,9 @@ int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src) {
 }
 
 int typecheck_compatible(ast_t* ast, typecheck_type_t* target_type, typecheck_type_t match_type) {
-	if (target_type->type == TYPE_AUTO)
+	if (target_type->type == TYPE_ANY)
+		return 1;
+	else if (target_type->type == TYPE_AUTO)
 		return copy_typecheck_type(target_type, match_type);
 	else {
 		ESCAPE_ON_FAIL(target_type->type == match_type.type);

@@ -7,6 +7,7 @@ typedef struct ast_parser ast_parser_t;
 
 typedef enum postproc_gc_status {
 	POSTPROC_GC_LOCAL_ALLOC,
+	POSTPROC_GC_UNKOWN_ALLOC,
 	POSTPROC_GC_TRACED_ALLOC,
 	POSTPROC_GC_SUPERTRACED_ALLOC,
 	POSTPROC_GC_LOCAL_DYNAMIC,

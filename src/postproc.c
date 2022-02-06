@@ -31,7 +31,7 @@ static int ast_postproc_code_block(ast_parser_t* ast_parser, ast_code_block_t* c
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, set_value, trace_stats, is_top_level ? ast_parser->top_level_global_gc_stats : global_gc_stats, local_gc_stats, is_top_level ? ast_parser->shared_globals : shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_LOCAL, parent_proc));
 			if (var_info->is_global) {
 				ast_parser->top_level_global_gc_stats[SANITIZE_SCOPE_ID(*var_info)] = set_value->gc_status;
-				if (set_value->gc_status == POSTPROC_GC_LOCAL_ALLOC)
+				if (set_value->gc_status == POSTPROC_GC_LOCAL_ALLOC || set_value->gc_status == POSTPROC_GC_UNKOWN_ALLOC)
 					ast_parser->global_gc_stats[SANITIZE_SCOPE_ID(*var_info)] = POSTPROC_GC_SUPEREXT_ALLOC;
 				else
 					ast_parser->global_gc_stats[SANITIZE_SCOPE_ID(*var_info)] = set_value->gc_status;
@@ -279,11 +279,11 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		}
 		else {
 			value->gc_status = local_gc_stats[SANITIZE_SCOPE_ID(*value->data.variable)];
-			if ((value->gc_status == POSTPROC_GC_LOCAL_ALLOC || value->gc_status == POSTPROC_GC_LOCAL_DYNAMIC) && parent_stat == POSTPROC_PARENT_EXTERN ) {
+			if ((value->gc_status == POSTPROC_GC_LOCAL_ALLOC || value->gc_status == POSTPROC_GC_UNKOWN_ALLOC || value->gc_status == POSTPROC_GC_LOCAL_DYNAMIC) && parent_stat == POSTPROC_PARENT_EXTERN ) {
 				value->trace_status = GET_TYPE_TRACE(value->data.variable->type);
-				local_gc_stats[SANITIZE_SCOPE_ID(*value->data.variable)] = value->gc_status = value->gc_status == POSTPROC_GC_LOCAL_ALLOC ? POSTPROC_GC_TRACED_ALLOC : POSTPROC_GC_EXTERN_DYNAMIC;
+				local_gc_stats[SANITIZE_SCOPE_ID(*value->data.variable)] = value->gc_status = value->gc_status == POSTPROC_GC_LOCAL_DYNAMIC ? POSTPROC_GC_EXTERN_DYNAMIC : POSTPROC_GC_TRACED_ALLOC;
 			}
-			else if ((value->gc_status == POSTPROC_GC_EXTERN_ALLOC || value->gc_status == POSTPROC_GC_LOCAL_ALLOC) && parent_stat == POSTPROC_PARENT_SUPEREXT) {
+			else if ((value->gc_status == POSTPROC_GC_EXTERN_ALLOC || value->gc_status == POSTPROC_GC_LOCAL_ALLOC || value->gc_status == POSTPROC_GC_UNKOWN_ALLOC) && parent_stat == POSTPROC_PARENT_SUPEREXT) {
 				value->trace_status = GET_TYPE_TRACE(value->data.variable->type);
 				if (value->trace_status == POSTPROC_TRACE_CHILDREN)
 					value->trace_status = POSTPROC_SUPERTRACE_CHILDREN;
@@ -325,15 +325,14 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_index->index, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
 		if (value->data.set_index->array.gc_status == POSTPROC_GC_EXTERN_ALLOC)
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_index->value, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_EXTERN, parent_proc))
-		else if (value->data.set_index->array.gc_status == POSTPROC_GC_SUPEREXT_ALLOC)
+		else if (value->data.set_index->array.gc_status == POSTPROC_GC_SUPEREXT_ALLOC || value->data.set_index->array.gc_status == POSTPROC_GC_UNKOWN_ALLOC)
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_index->value, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_SUPEREXT, parent_proc))
 		else {
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_index->value, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_LOCAL, parent_proc));
-			if (value->data.set_index->array.gc_status == POSTPROC_GC_LOCAL_ALLOC)
-				if (value->data.set_index->value.gc_status == POSTPROC_GC_EXTERN_ALLOC)
-					ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_index->array, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_EXTERN, parent_proc))
-				else if(value->data.set_index->value.gc_status == POSTPROC_GC_SUPEREXT_ALLOC)
-					ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_index->array, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_SUPEREXT, parent_proc))
+			if (value->data.set_index->value.gc_status == POSTPROC_GC_EXTERN_ALLOC)
+				ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_index->array, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_EXTERN, parent_proc))
+			else if(value->data.set_index->value.gc_status == POSTPROC_GC_SUPEREXT_ALLOC)
+				ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_index->array, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_SUPEREXT, parent_proc))
 		}
 		if(value->data.set_index->value.from_var && value->data.set_index->value.trace_status != POSTPROC_TRACE_NONE)
 			share_var_from_value(ast_parser, value->data.set_index->array, shared_globals, shared_locals, local_scope_size);
@@ -348,15 +347,14 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->record, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
 		if (value->data.set_prop->record.gc_status == POSTPROC_GC_EXTERN_ALLOC)
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->value, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_EXTERN, parent_proc))
-		else if(value->data.set_prop->record.gc_status == POSTPROC_GC_SUPEREXT_ALLOC)
+		else if(value->data.set_prop->record.gc_status == POSTPROC_GC_SUPEREXT_ALLOC || value->data.set_prop->record.gc_status == POSTPROC_GC_UNKOWN_ALLOC)
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->value, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_SUPEREXT, parent_proc))
 		else {
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->value, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_LOCAL, parent_proc));
-			if(value->data.set_prop->record.gc_status == POSTPROC_GC_LOCAL_ALLOC)
-				if(value->data.set_prop->value.gc_status == POSTPROC_GC_EXTERN_ALLOC)
-					ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->record, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_EXTERN, parent_proc))
-				else if(value->data.set_prop->value.gc_status == POSTPROC_GC_SUPEREXT_ALLOC)
-					ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->record, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_SUPEREXT, parent_proc))
+			if(value->data.set_prop->value.gc_status == POSTPROC_GC_EXTERN_ALLOC)
+				ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->record, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_EXTERN, parent_proc))
+			else if(value->data.set_prop->value.gc_status == POSTPROC_GC_SUPEREXT_ALLOC)
+				ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->record, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_SUPEREXT, parent_proc))
 		}
 		if (value->data.set_prop->value.from_var && value->data.set_prop->value.trace_status != POSTPROC_TRACE_NONE)
 			share_var_from_value(ast_parser, value->data.set_prop->record, shared_globals, shared_locals, local_scope_size);
@@ -391,7 +389,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		}
 		for (uint_fast8_t i = 0; i < value->data.proc_call->argument_count; i++) {
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.proc_call->arguments[i], typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
-			if (value->data.proc_call->arguments[i].gc_status == POSTPROC_GC_SUPEREXT_ALLOC) {
+			if (value->data.proc_call->arguments[i].gc_status == POSTPROC_GC_SUPEREXT_ALLOC || value->data.proc_call->arguments[i].gc_status == POSTPROC_GC_UNKOWN_ALLOC) {
 				value->data.proc_call->arguments[i].trace_status = POSTPROC_SUPERTRACE_CHILDREN;
 				value->data.proc_call->arguments[i].gc_status = POSTPROC_GC_SUPERTRACED_ALLOC;
 			}
@@ -400,7 +398,12 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 				value->data.proc_call->arguments[i].gc_status = POSTPROC_GC_TRACED_ALLOC;
 			}
 		}
-		value->gc_status = postproc_type_to_gc_stat(POSTPROC_GC_EXTERN_ALLOC, value->type.type);
+		if (IS_REF_TYPE(value->type))
+			value->gc_status = POSTPROC_GC_UNKOWN_ALLOC;
+		else if (value->type.type == TYPE_TYPEARG)
+			value->gc_status = POSTPROC_GC_LOCAL_DYNAMIC;
+		else
+			value->gc_status = POSTPROC_GC_NONE;
 		break;
 	case AST_VALUE_FOREIGN:
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.foreign->op_id, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
@@ -411,7 +414,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 	}
 
 	if (value->gc_status == POSTPROC_GC_NONE || parent_stat == POSTPROC_PARENT_IRRELEVANT) {
-		if (parent_stat == POSTPROC_PARENT_IRRELEVANT && !value->from_var && (value->gc_status != POSTPROC_GC_EXTERN_ALLOC && value->gc_status != POSTPROC_GC_EXTERN_DYNAMIC && value->gc_status != POSTPROC_GC_SUPEREXT_ALLOC))
+		if (parent_stat == POSTPROC_PARENT_IRRELEVANT && !value->from_var && (value->gc_status != POSTPROC_GC_EXTERN_ALLOC && value->gc_status != POSTPROC_GC_EXTERN_DYNAMIC && value->gc_status != POSTPROC_GC_SUPEREXT_ALLOC && value->gc_status != POSTPROC_GC_UNKOWN_ALLOC))
 			value->free_status = GET_TYPE_TRACE(value->type);
 		value->trace_status = POSTPROC_TRACE_NONE;
 		goto no_trace_postproc;
@@ -419,7 +422,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 
 	switch (parent_stat) {
 	case POSTPROC_PARENT_EXTERN:
-		if (value->gc_status == POSTPROC_GC_LOCAL_ALLOC) {
+		if (value->gc_status == POSTPROC_GC_LOCAL_ALLOC || value->gc_status == POSTPROC_GC_UNKOWN_ALLOC) {
 			value->trace_status = POSTPROC_TRACE_CHILDREN;
 			value->gc_status = POSTPROC_GC_TRACED_ALLOC;
 		}
@@ -429,7 +432,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		}
 		break;
 	case POSTPROC_PARENT_SUPEREXT:
-		if (value->gc_status == POSTPROC_GC_LOCAL_ALLOC || value->gc_status == POSTPROC_GC_SUPEREXT_ALLOC) {
+		if (value->gc_status == POSTPROC_GC_LOCAL_ALLOC || value->gc_status == POSTPROC_GC_UNKOWN_ALLOC || value->gc_status == POSTPROC_GC_EXTERN_ALLOC) {
 			value->trace_status = POSTPROC_SUPERTRACE_CHILDREN;
 			value->gc_status = POSTPROC_GC_SUPERTRACED_ALLOC;
 		}
