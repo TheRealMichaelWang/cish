@@ -513,7 +513,6 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 				do_gen_link = 0;
 			}
 			PANIC_ON_FAIL(record_proto, ast_parser, ERROR_MEMORY);
-			record_proto->defined = 1;
 
 			ESCAPE_ON_FAIL(ast_parser_new_frame(ast_parser, NULL, 0));
 
@@ -582,6 +581,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			statement->type = AST_STATEMENT_RECORD_PROTO;
 			statement->data.record_proto = record_proto;
 			ast_parser_close_frame(ast_parser);
+			record_proto->defined = 1;
 			goto no_check_semicolon;
 		}
 		}
