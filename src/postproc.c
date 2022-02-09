@@ -414,7 +414,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 	}
 
 	if (value->gc_status == POSTPROC_GC_NONE || parent_stat == POSTPROC_PARENT_IRRELEVANT) {
-		if (parent_stat == POSTPROC_PARENT_IRRELEVANT && !value->from_var && (value->gc_status != POSTPROC_GC_EXTERN_ALLOC && value->gc_status != POSTPROC_GC_EXTERN_DYNAMIC && value->gc_status != POSTPROC_GC_SUPEREXT_ALLOC && value->gc_status != POSTPROC_GC_UNKOWN_ALLOC))
+		if (parent_stat == POSTPROC_PARENT_IRRELEVANT && !value->from_var && value->gc_status == POSTPROC_GC_LOCAL_ALLOC)
 			value->free_status = GET_TYPE_TRACE(value->type);
 		value->trace_status = POSTPROC_TRACE_NONE;
 		goto no_trace_postproc;

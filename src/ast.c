@@ -270,7 +270,7 @@ static int parse_type(ast_parser_t* ast_parser, typecheck_type_t* type, int allo
 				type->type_id = proto->id;
 				if (LAST_TOK.type == TOK_LESS)
 					ESCAPE_ON_FAIL(parse_subtypes(ast_parser, type))
-				ESCAPE_ON_FAIL(type->sub_type_count == proto->generic_arguments);
+				PANIC_ON_FAIL(type->sub_type_count == proto->generic_arguments, ast_parser, ERROR_UNEXPECTED_ARGUMENT_SIZE);
 			}
 			else {
 				type->type_id = ast_parser->ast->record_count;
