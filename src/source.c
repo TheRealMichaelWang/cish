@@ -76,7 +76,9 @@ int main(int argc, char* argv[]) {
 	}
 	else if (!strcmp(op_flag, "-info")) {
 		printf("SUPERFORTH\n"
-				"Writen and developed by Michael Wang, 2020-2021.");
+				"Writen and developed by Michael Wang, 2020-2021.\n"
+				"General Documentation: https://github.com/TheRealMichaelWang/superforth/wiki \n"
+				"CLI Help: https://github.com/TheRealMichaelWang/superforth/wiki/Command-Line-Usage \n");
 	}
 	else
 		ABORT(("Unrecognized flag(%s).", op_flag));
