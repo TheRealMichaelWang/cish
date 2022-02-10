@@ -11,7 +11,7 @@
 #define ABORT(MSG) {printf MSG ; exit(EXIT_FAILURE);}
 
 #define READ_ARG argv[current_arg++]
-#define EXPECT_FLAG(FLAG) if(current_arg == argc || strcmp(READ_ARG, FLAG)) { ABORT(("Unexpected flag %s.", FLAG)); }
+#define EXPECT_FLAG(FLAG) if(current_arg == argc || strcmp(READ_ARG, FLAG)) { ABORT(("Unexpected flag %s.\n", FLAG)); }
 
 int main(int argc, char* argv[]) {
 	int current_arg = 0;
@@ -26,17 +26,17 @@ int main(int argc, char* argv[]) {
 		ast_parser_t parser;
 		EXPECT_FLAG("-s");
 		if (!init_ast_parser(&parser, READ_ARG))
-			ABORT(("Error initializing parser(%s).", get_err_msg(parser.last_err)));
+			ABORT(("Error initializing parser(%s).\n", get_err_msg(parser.last_err)));
 		ast_t ast;
 		if (!init_ast(&ast, &parser)) {
 			print_error_trace(parser.multi_scanner);
-			ABORT(("Syntax error(%s).", get_err_msg(parser.last_err)));
+			ABORT(("Syntax error(%s).\n", get_err_msg(parser.last_err)));
 		}
 
 		machine_t machine;
 		compiler_t compiler;
 		if (!compile(&compiler, &machine, &ast))
-			ABORT(("Compilation failiure(%s).", get_err_msg(compiler.last_err)));
+			ABORT(("Compilation failiure(%s).\n", get_err_msg(compiler.last_err)));
 		free_ast_parser(&parser);
 		free_ast(&ast);
 
@@ -45,12 +45,12 @@ int main(int argc, char* argv[]) {
 		if (!strcmp(op_flag, "-cr")) {
 			install_stdlib(&machine);
 			if (!machine_execute(&machine, compiler.ins_builder.instructions))
-				ABORT(("Runtime error(%s).", get_err_msg(machine.last_err)));
+				ABORT(("Runtime error(%s).\n", get_err_msg(machine.last_err)));
 		}
 		else if (!strcmp(op_flag, "-c")) {
 			EXPECT_FLAG("-o");
 			if (!file_save_compiled(READ_ARG, &parser, &machine, compiler.ins_builder.instructions, compiler.ins_builder.instruction_count))
-				ABORT(("Error saving compiled binaries."));
+				ABORT(("Error saving compiled binaries.\n"));
 		}
 		else
 			print_instructions(compiler.ins_builder.instructions, compiler.ins_builder.instruction_count);
@@ -63,11 +63,11 @@ int main(int argc, char* argv[]) {
 		EXPECT_FLAG("-s");
 		machine_ins_t* instructions = file_load_ins(READ_ARG, &machine, &instruction_count);
 		if (!instructions)
-			ABORT(("Unable to load binaries from file."));
+			ABORT(("Unable to load binaries from file.\n"));
 		if (!strcmp(op_flag, "-r")) {
 			install_stdlib(&machine);
 			if (!machine_execute(&machine, instructions))
-				ABORT(("Runtime error(%s).", get_err_msg(machine.last_err)))
+				ABORT(("Runtime error(%s).\n", get_err_msg(machine.last_err)))
 		}
 		else
 			print_instructions(instructions, instruction_count);
@@ -81,7 +81,7 @@ int main(int argc, char* argv[]) {
 				"CLI Help: https://github.com/TheRealMichaelWang/superforth/wiki/Command-Line-Usage \n");
 	}
 	else
-		ABORT(("Unrecognized flag(%s).", op_flag));
+		ABORT(("Unrecognized flag(%s).\n", op_flag));
 
 	exit(EXIT_SUCCESS);
 }

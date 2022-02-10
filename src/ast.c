@@ -541,8 +541,8 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			PANIC_ON_FAIL(record_proto->default_values = malloc(allocated_defaults * sizeof(struct ast_record_proto_init_value)), ast_parser, ERROR_MEMORY);
 			do {
 				ast_record_prop_t* prop;
-				if (LAST_TOK.type == TOK_IDENTIFIER) {
-					prop = ast_record_find_prop(ast_parser, record_proto, hash_s(LAST_TOK.str, LAST_TOK.length));
+				if (LAST_TOK.type == TOK_IDENTIFIER && record_proto->base_record) {
+					prop = ast_record_find_prop(ast_parser, ast_parser->ast->record_protos[record_proto->base_record->type_id], hash_s(LAST_TOK.str, LAST_TOK.length));
 					if (prop == NULL)
 						goto decl_prop;
 					READ_TOK;
