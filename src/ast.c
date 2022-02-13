@@ -270,12 +270,14 @@ static int parse_type(ast_parser_t* ast_parser, typecheck_type_t* type, int allo
 				type->type_id = proto->id;
 				if (LAST_TOK.type == TOK_LESS)
 					ESCAPE_ON_FAIL(parse_subtypes(ast_parser, type))
-				ESCAPE_ON_FAIL(type->sub_type_count == proto->generic_arguments);
+				PANIC_ON_FAIL(type->sub_type_count == proto->generic_arguments, ast_parser, ERROR_UNEXPECTED_ARGUMENT_SIZE);
 			}
 			else {
 				type->type_id = ast_parser->ast->record_count;
 				if (LAST_TOK.type == TOK_LESS)
 					ESCAPE_ON_FAIL(parse_subtypes(ast_parser, type))
+				else
+					type->sub_type_count = 0;
 				ESCAPE_ON_FAIL(proto = ast_parser_decl_record(ast_parser, hash_id));
 				proto->generic_arguments = type->sub_type_count;
 			}
@@ -505,17 +507,23 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			uint64_t hash_id = hash_s(LAST_TOK.str, LAST_TOK.length);
 
 			ast_record_proto_t* record_proto;
-			if (!(record_proto = ast_parser_find_record_proto(ast_parser, hash_id)))
+			int do_gen_link = 1;
+			if (!(record_proto = ast_parser_find_record_proto(ast_parser, hash_id))) {
 				record_proto = ast_parser_decl_record(ast_parser, hash_id);
+				do_gen_link = 0;
+			}
 			PANIC_ON_FAIL(record_proto, ast_parser, ERROR_MEMORY);
-			record_proto->defined = 1;
 
 			ESCAPE_ON_FAIL(ast_parser_new_frame(ast_parser, NULL, 0));
 
 			READ_TOK;
-			record_proto->generic_arguments = 0;
+			
+			uint8_t generic_arguments = 0;
 			if (LAST_TOK.type == TOK_LESS)
-				ESCAPE_ON_FAIL(parse_type_params(ast_parser, &record_proto->generic_arguments));
+				ESCAPE_ON_FAIL(parse_type_params(ast_parser, &generic_arguments));
+			if (do_gen_link)
+				PANIC_ON_FAIL(record_proto->generic_arguments == generic_arguments, ast_parser, ERROR_UNEXPECTED_ARGUMENT_SIZE);
+			record_proto->generic_arguments = generic_arguments;
 
 			if (LAST_TOK.type == TOK_EXTEND) {
 				READ_TOK;
@@ -533,8 +541,8 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			PANIC_ON_FAIL(record_proto->default_values = malloc(allocated_defaults * sizeof(struct ast_record_proto_init_value)), ast_parser, ERROR_MEMORY);
 			do {
 				ast_record_prop_t* prop;
-				if (LAST_TOK.type == TOK_IDENTIFIER) {
-					prop = ast_record_find_prop(ast_parser, record_proto, hash_s(LAST_TOK.str, LAST_TOK.length));
+				if (LAST_TOK.type == TOK_IDENTIFIER && record_proto->base_record) {
+					prop = ast_record_find_prop(ast_parser, ast_parser->ast->record_protos[record_proto->base_record->type_id], hash_s(LAST_TOK.str, LAST_TOK.length));
 					if (prop == NULL)
 						goto decl_prop;
 					READ_TOK;
@@ -573,6 +581,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			statement->type = AST_STATEMENT_RECORD_PROTO;
 			statement->data.record_proto = record_proto;
 			ast_parser_close_frame(ast_parser);
+			record_proto->defined = 1;
 			goto no_check_semicolon;
 		}
 		}
