@@ -1,5 +1,0 @@
-include "examples/io.txt";
-
-array<char> stuff = new char[0];
-stuff = "Hello World!";
-

@@ -1,4 +1,0 @@
-include "examples/io.txt";
-
-int time = foreign[16];
-println(foreign[6](time));
