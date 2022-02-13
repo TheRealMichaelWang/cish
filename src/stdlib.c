@@ -7,6 +7,7 @@
 #include "error.h"
 #include "ffi.h"
 #include "stdlib.h"
+#include <time.h>
 
 static int std_itof(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	out->float_int = (float)in->long_int;
@@ -112,6 +113,11 @@ static int std_cos(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 
 static int std_tan(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	out->float_int = tan(in->float_int);
+	return 1;
+}
+
+static int std_time(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
+	out->long_int = time(0);
 	return 1;
 }
 

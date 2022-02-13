@@ -1,0 +1,29 @@
+include "examples/io.txt";
+include "examples/string.txt";
+
+
+
+record Response {
+	$stringmap<array<char>> headers;
+	array<char> body;
+}
+
+record Request {
+	array<char> url;
+	array<char> method;
+	$stringmap<array<char>> headers;
+	array<char> body;
+	
+	$auto open = proc () return Reponse {
+	$	$ do the foreign shit here
+	$	return new Response { body = "shit"; };
+	$};
+}
+
+
+
+$global readonly auto get = proc (array<char> _url, array<char> _body) return Response {
+$	Request req = new Request { url = _url; method = "GET"; body = _body; };
+$	return req.open();
+$};
+

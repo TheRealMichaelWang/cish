@@ -32,3 +32,4 @@ global readonly auto strcmp = proc(array<char> str1, array<char> str2) return bo
 	}
 	return true;
 };
+
