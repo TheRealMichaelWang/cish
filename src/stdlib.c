@@ -138,4 +138,5 @@ void install_stdlib(machine_t* machine) {
 	ffi_include_func(&machine->ffi_table, std_tan);
 	ffi_include_func(&machine->ffi_table, std_itoc);
 	ffi_include_func(&machine->ffi_table, std_ctoi);
+	ffi_include_func(&machine->ffi_table, std_time);
 }
