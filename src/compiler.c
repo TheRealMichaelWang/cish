@@ -181,7 +181,7 @@ static int compile_force_free(compiler_t* compiler, compiler_reg_t reg, typechec
 	if (free_stat == POSTPROC_FREE)
 		EMIT_INS(INS1(OP_CODE_FREE, reg))
 	else if (free_stat == POSTPROC_FREE_DYNAMIC)
-		EMIT_INS(INS2(OP_CODE_FREE, reg, LOC_REG(proc->param_count + type.type_id)));
+		EMIT_INS(INS2(OP_CODE_DYNAMIC_FREE, reg, LOC_REG(proc->param_count + type.type_id)));
 	return 1;
 }
 
