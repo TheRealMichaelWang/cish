@@ -41,10 +41,12 @@ int typecheck_compatible(ast_t* ast, typecheck_type_t* target_type, typecheck_ty
 
 			typecheck_type_t current_rec_type;
 			ESCAPE_ON_FAIL(copy_typecheck_type(&current_rec_type, *target_type));
-
+			
+			int res = 0;
 			do {
 				ESCAPE_ON_FAIL(record_proto->defined);
-
+				if (!record_proto->base_record)
+					goto typecheck_record_failed;
 				typecheck_type_t next_rec_type;
 				ESCAPE_ON_FAIL(copy_typecheck_type(&next_rec_type, *record_proto->base_record));
 				ESCAPE_ON_FAIL(typeargs_substitute(current_rec_type.sub_types, &next_rec_type));
@@ -52,7 +54,8 @@ int typecheck_compatible(ast_t* ast, typecheck_type_t* target_type, typecheck_ty
 				current_rec_type = next_rec_type;
 				record_proto = ast->record_protos[current_rec_type.type_id];
 			} while (current_rec_type.type_id != match_type.type_id);
-			int res = typecheck_compatible(ast, &current_rec_type, match_type);
+			res = typecheck_compatible(ast, &current_rec_type, match_type);
+		typecheck_record_failed:
 			free_typecheck_type(&current_rec_type);
 			return res;
 		}
