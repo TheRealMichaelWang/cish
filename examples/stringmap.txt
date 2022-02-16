@@ -1,95 +1,42 @@
-include "list.txt";
-include "string.txt";
 include "io.txt";
+include "string.txt";
+include "list.txt";
 
-$ prints and then exits
-global readonly auto runtime_exception = proc (array<char> exception) return nothing {
-  print("Runtime exception: ");
-  println(exception);
-  abort;
+record string_map_pair<elemType> {
+  array<char> string;
+  elemType element;
 }
 
+record string_map<elemType> {
+  list<string_map_pair<elemType>> mylist = new list<string_map_pair<elemType>>; 
+}
 
-$ concatenates two strings
-global readonly auto strcat = proc(array<char> str1, array<char> str2) return array<char> {
-  array<char> ret = new char[#str1 + #str2];
-  int i = 0;
-  while (i < #str1) { ret[i] = str1[i]; i = i + 1; }
-  while (i < #str1+#str2) { ret[i] = str2[i]; i = i + 1; }
-  return ret;
+global readonly auto string_map_push_back = proc<elemType>(string_map<elemType> map, array<char> str, elemType elem) return nothing {
+  push_front<string_map_pair<elemType>>(map.mylist, new string_map_pair<elemType> {
+    string = str;
+    element = elem;
+  });
+  return;
 };
 
-record stringmap<T> {
-  list<array<char>> keys;
-  list<T> values;
-
-  readonly auto push_back = proc (array<char> key, T value) return nothing {
-    push_back<array<char>>(keys, key);
-    push_back<T>(values, value);
-  };
-
-  readonly auto get = proc (array<char> key) return T {
-    if (keys.count > 1) {
-      int i = 0;
-      bool found = false;
-      node<array<char>> current = keys.head;
-      while (true) {
-        if (strcmp(current.element, key)) {
-          found = true;
-          break;
-        }
-        if (element.has_next) {
-          current = current.next_node;
-        } else {
-          break;
-        }
-        i = i + 1;
-      }
-      if (!found) {
-        runtime_exception(strcat("No key matching ", key));
-      }
-
-    } else {
-      runtime_exception(".get attempted on empty stringmap");
+global readonly auto string_map_find = proc<elemType>(string_map<elemType> map, array<char> str) return elemType {
+  node<string_map_pair<elemType>> current = map.mylist.head;
+  while(true){
+    if(strcmp(current.element.string, str)){
+      return current.element.element;
     }
-    return current.element;
-  };
-
-  readonly auto size = proc () return int {
-    return keys.count;
-  };
-
-  readonly auto remove = proc (array<char> key) return nothing {
-    if (keys.count > 1) {
-      int i = 0;
-      bool found = false;
-      node<array<char>> current = keys.head;
-      node<array<char>> last = keys.head;
-      while (true) {
-        if (strcmp(current.element, key)) {
-          found = true;
-          break;
-        }
-	last = current;
-        if (element.has_next) {
-	  current = current.next_node;
-        } else {
-          break;
-        }
-        i = i + 1;
-      }
-
-      if (!found) {
-        runtime_exception(strcat("No key matching ", key));
-      }
-
-    } else if (keys.count == 0) {
-      runtime_exception(".remove attempted on empty stringmap");
-    } else if (keys.count == 1 && found) {
-      keys.list = keys.head = new node<array<char>>;
-      return;
+    else {
+      current = current.next_node;
     }
+  }
+};
 
-    last.next_node = 
-  };
-}
+string_map<int> myMap = new string_map<int>;
+string_map_push_back<int>(myMap, "Michael", 4);
+string_map_push_back<int>(myMap, "Steve", 3);
+
+forall<string_map_pair<int>>(myMap.mylist, proc(string_map_pair<int> pair) return nothing{
+  println(pair.string);
+  println(itos(pair.element));
+  return;
+});
