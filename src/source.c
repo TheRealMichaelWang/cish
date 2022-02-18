@@ -37,6 +37,7 @@ int main(int argc, char* argv[]) {
 		compiler_t compiler;
 		if (!compile(&compiler, &machine, &ast))
 			ABORT(("Compilation failiure(%s).\n", get_err_msg(compiler.last_err)));
+
 		free_ast_parser(&parser);
 		free_ast(&ast);
 
@@ -76,7 +77,7 @@ int main(int argc, char* argv[]) {
 	}
 	else if (!strcmp(op_flag, "-info")) {
 		printf("SUPERFORTH\n"
-				"Writen and developed by Michael Wang, 2020-2021.\n"
+				"Writen and developed by Michael Wang, 2020-2022.\n"
 				"General Documentation: https://github.com/TheRealMichaelWang/superforth/wiki \n"
 				"CLI Help: https://github.com/TheRealMichaelWang/superforth/wiki/Command-Line-Usage \n");
 	}

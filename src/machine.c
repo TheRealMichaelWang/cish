@@ -154,136 +154,326 @@ void free_machine(machine_t* machine) {
 	free(machine->trace_frame_bounds);
 }
 
-#define AREG ip->a_flag ? ip->a + machine->global_offset : ip->a
-#define BREG ip->b_flag ? ip->b + machine->global_offset : ip->b
-#define CREG ip->c_flag ? ip->c + machine->global_offset : ip->c
-
 int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 	machine_ins_t* ip = instructions;
 	for (;;) {
 		switch (ip->op_code) {
-		case OP_CODE_MOVE:
-			machine->stack[AREG] = machine->stack[BREG];
+		case MACHINE_OP_CODE_MOVE_LL:
+			machine->stack[ip->a + machine->global_offset] = machine->stack[ip->b + machine->global_offset];
 			break;
-		case OP_CODE_SET:
-			machine->stack[AREG].long_int = ip->b;
+		case MACHINE_OP_CODE_MOVE_LG:
+			machine->stack[ip->a + machine->global_offset] = machine->stack[ip->b];
 			break;
-		case OP_CODE_JUMP:
+		case MACHINE_OP_CODE_MOVE_GL:
+			machine->stack[ip->a] = machine->stack[ip->b + machine->global_offset];
+			break;
+		case MACHINE_OP_CODE_MOVE_GG:
+			machine->stack[ip->a] = machine->stack[ip->b];
+			break;
+		case MACHINE_OP_CODE_SET_L:
+			machine->stack[ip->a + machine->global_offset].long_int = ip->b;
+			break;
+		case MACHINE_OP_CODE_JUMP:
 			ip = &instructions[ip->a];
 			continue;
-		case OP_CODE_JUMP_CHECK:
-			if (!machine->stack[AREG].bool_flag) {
+		case MACHINE_OP_CODE_JUMP_CHECK_L:
+			if (!machine->stack[ip->a + machine->global_offset].bool_flag) {
 				ip = &instructions[ip->b];
 				continue;
 			}
 			break;
-		case OP_CODE_CALL: {
+		case MACHINE_OP_CODE_JUMP_CHECK_G:
+			if (!machine->stack[ip->a].bool_flag) {
+				ip = &instructions[ip->b];
+				continue;
+			}
+			break;
+		case MACHINE_OP_CODE_CALL_L: {
 			PANIC_ON_FAIL(machine->position_count != machine->frame_limit, machine, ERROR_STACK_OVERFLOW);
 			machine->positions[machine->position_count++] = ip;
-			uint16_t prev_a = AREG;
+			uint16_t prev_a = ip->a + machine->global_offset;
 			machine->global_offset += ip->b;
 			ip = machine->stack[prev_a].ip;
 			continue;
 		}
-		case OP_CODE_LABEL:
-			machine->stack[AREG].ip = &instructions[ip->b];
+		case MACHINE_OP_CODE_CALL_G:
+			PANIC_ON_FAIL(machine->position_count != machine->frame_limit, machine, ERROR_STACK_OVERFLOW);
+			machine->positions[machine->position_count++] = ip;
+			machine->global_offset += ip->b;
+			ip = machine->stack[ip->a].ip;
+			continue;
+		case MACHINE_OP_CODE_LABEL_L:
+			machine->stack[ip->a + machine->global_offset].ip = &instructions[ip->b];
 			break;
-		case OP_CODE_RETURN: {
+		case MACHINE_OP_CODE_LABEL_G:
+			machine->stack[ip->b].ip = &instructions[ip->b];
+		case MACHINE_OP_CODE_RETURN:
 			ip = machine->positions[--machine->position_count];
 			break;
-		}
-		case OP_CODE_LOAD_ALLOC: {
-			heap_alloc_t* array_register = machine->stack[AREG].heap_alloc;
-			int64_t index_register = machine->stack[BREG].long_int;
+		{
+			heap_alloc_t* array_register;
+			int64_t index_register;
+			machine_reg_t* dest_reg;
+		case MACHINE_OP_CODE_LOAD_ALLOC_LLL:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = machine->stack[ip->b + +machine->global_offset].long_int;
+			dest_reg = &machine->stack[ip->c + machine->global_offset];
+			goto load_alloc_bounds;
+		case MACHINE_OP_CODE_LOAD_ALLOC_LLG:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = machine->stack[ip->b + +machine->global_offset].long_int;
+			dest_reg = &machine->stack[ip->c];
+			goto load_alloc_bounds;
+		case MACHINE_OP_CODE_LOAD_ALLOC_LGL:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = machine->stack[ip->b].long_int;
+			dest_reg = &machine->stack[ip->c + machine->global_offset];
+			goto load_alloc_bounds;
+		case MACHINE_OP_CODE_LOAD_ALLOC_LGG:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = machine->stack[ip->b].long_int;
+			dest_reg = &machine->stack[ip->c];
+			goto load_alloc_bounds;
+		case MACHINE_OP_CODE_LOAD_ALLOC_GLL:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = machine->stack[ip->b + +machine->global_offset].long_int;
+			dest_reg = &machine->stack[ip->c + machine->global_offset];
+			goto load_alloc_bounds;
+		case MACHINE_OP_CODE_LOAD_ALLOC_GLG:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = machine->stack[ip->b + +machine->global_offset].long_int;
+			dest_reg = &machine->stack[ip->c];
+			goto load_alloc_bounds;
+		case MACHINE_OP_CODE_LOAD_ALLOC_GGL:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = machine->stack[ip->b].long_int;
+			dest_reg = &machine->stack[ip->c + machine->global_offset];
+			goto load_alloc_bounds;
+		case MACHINE_OP_CODE_LOAD_ALLOC_GGG:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = machine->stack[ip->b].long_int;
+			dest_reg = &machine->stack[ip->c];
+			goto load_alloc_bounds;
+		case MACHINE_OP_CODE_LOAD_ALLOC_I_LL:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = ip->c;
+			dest_reg = &machine->stack[ip->b + machine->global_offset];
+			goto load_alloc_unbounded;
+		case MACHINE_OP_CODE_LOAD_ALLOC_I_LG:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = ip->c;
+			dest_reg = &machine->stack[ip->b];
+			goto load_alloc_unbounded;
+		case MACHINE_OP_CODE_LOAD_ALLOC_I_GL:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = ip->c;
+			dest_reg = &machine->stack[ip->b + machine->global_offset];
+			goto load_alloc_unbounded;
+		case MACHINE_OP_CODE_LOAD_ALLOC_I_GG:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = ip->c;
+			dest_reg = &machine->stack[ip->b];
+			goto load_alloc_unbounded;
+		case MACHINE_OP_CODE_LOAD_ALLOC_I_BOUND_LL:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = ip->c;
+			dest_reg = &machine->stack[ip->b + machine->global_offset];
+			goto load_alloc_bounds;
+		case MACHINE_OP_CODE_LOAD_ALLOC_I_BOUND_LG:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = ip->c;
+			dest_reg = &machine->stack[ip->b];
+			goto load_alloc_bounds;
+		case MACHINE_OP_CODE_LOAD_ALLOC_I_BOUND_GL:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = ip->c;
+			dest_reg = &machine->stack[ip->b + machine->global_offset];
+			goto load_alloc_bounds;
+		case MACHINE_OP_CODE_LOAD_ALLOC_I_BOUND_GG:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = ip->c;
+			dest_reg = &machine->stack[ip->b];
+			goto load_alloc_bounds;
+		load_alloc_bounds:
 			if (index_register < 0 || index_register >= array_register->limit)
 				PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
+		load_alloc_unbounded:
 			if (!array_register->init_stat[index_register])
 				PANIC(machine, ERROR_READ_UNINIT);
-			machine->stack[CREG] = array_register->registers[index_register];
+			*dest_reg = array_register->registers[index_register];
 			break;
 		}
-		case OP_CODE_LOAD_ALLOC_I: {
-			heap_alloc_t* array_register = machine->stack[AREG].heap_alloc;
-		load_heap_i:
-			if (!array_register->init_stat[ip->b])
-				PANIC(machine, ERROR_READ_UNINIT);
-			machine->stack[CREG] = array_register->registers[ip->b];
-			break;
-		case OP_CODE_LOAD_ALLOC_I_BOUND:
-			array_register = machine->stack[AREG].heap_alloc;
-			if (ip->b > array_register->limit)
-				PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
-			goto load_heap_i;
-		}
-		case OP_CODE_STORE_ALLOC: {
-			heap_alloc_t* array_register = machine->stack[AREG].heap_alloc;
-			int64_t index_register = machine->stack[BREG].long_int;
+		{
+			heap_alloc_t* array_register;
+			int64_t index_register;
+			machine_reg_t* store_reg;
+		case MACHINE_OP_CODE_STORE_ALLOC_LLL:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = machine->stack[ip->b + machine->global_offset].long_int;
+			store_reg = &machine->stack[ip->c + machine->global_offset];
+			goto store_alloc_bounds;
+		case MACHINE_OP_CODE_STORE_ALLOC_LLG:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = machine->stack[ip->b + machine->global_offset].long_int;
+			store_reg = &machine->stack[ip->c];
+			goto store_alloc_bounds;
+		case MACHINE_OP_CODE_STORE_ALLOC_LGL:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = machine->stack[ip->b].long_int;
+			store_reg = &machine->stack[ip->c + machine->global_offset];
+			goto store_alloc_bounds;
+		case MACHINE_OP_CODE_STORE_ALLOC_LGG:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = machine->stack[ip->b].long_int;
+			store_reg = &machine->stack[ip->c];
+			goto store_alloc_bounds;
+		case MACHINE_OP_CODE_STORE_ALLOC_GLL:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = machine->stack[ip->b + machine->global_offset].long_int;
+			store_reg = &machine->stack[ip->c + machine->global_offset];
+			goto store_alloc_bounds;
+		case MACHINE_OP_CODE_STORE_ALLOC_GLG:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = machine->stack[ip->b + machine->global_offset].long_int;
+			store_reg = &machine->stack[ip->c];
+			goto store_alloc_bounds;
+		case MACHINE_OP_CODE_STORE_ALLOC_GGL:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = machine->stack[ip->b].long_int;
+			store_reg = &machine->stack[ip->c + machine->global_offset];
+			goto store_alloc_bounds;
+		case MACHINE_OP_CODE_STORE_ALLOC_GGG:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = machine->stack[ip->b].long_int;
+			store_reg = &machine->stack[ip->c + machine->global_offset];
+			goto store_alloc_bounds;
+		case MACHINE_OP_CODE_STORE_ALLOC_I_LL:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = ip->c;
+			store_reg = &machine->stack[ip->b + machine->global_offset];
+			goto store_alloc_unbounded;
+		case MACHINE_OP_CODE_STORE_ALLOC_I_LG:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = ip->c;
+			store_reg = &machine->stack[ip->b];
+			goto store_alloc_unbounded;
+		case MACHINE_OP_CODE_STORE_ALLOC_I_GL:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = ip->c;
+			store_reg = &machine->stack[ip->b + machine->global_offset];
+			goto store_alloc_unbounded;
+		case MACHINE_OP_CODE_STORE_ALLOC_I_GG:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = ip->c;
+			store_reg = &machine->stack[ip->b];
+			goto store_alloc_unbounded;
+		case MACHINE_OP_CODE_STORE_ALLOC_I_BOUND_LL:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = ip->c;
+			store_reg = &machine->stack[ip->b + machine->global_offset];
+			goto store_alloc_bounds;
+		case MACHINE_OP_CODE_STORE_ALLOC_I_BOUND_LG:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			index_register = ip->c;
+			store_reg = &machine->stack[ip->b];
+			goto store_alloc_bounds;
+		case MACHINE_OP_CODE_STORE_ALLOC_I_BOUND_GL:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = ip->c;
+			store_reg = &machine->stack[ip->b + machine->global_offset];
+			goto store_alloc_bounds;
+		case MACHINE_OP_CODE_STORE_ALLOC_I_BOUND_GG:
+			array_register = machine->stack[ip->a].heap_alloc;
+			index_register = ip->c;
+			store_reg = &machine->stack[ip->b];
+			goto store_alloc_bounds;
+		store_alloc_bounds:
 			if (index_register < 0 || index_register >= array_register->limit)
 				PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
-			array_register->registers[index_register] = machine->stack[CREG];
+		store_alloc_unbounded:
+			array_register->registers[index_register] = *store_reg;
 			array_register->init_stat[index_register] = 1;
 			break;
 		}
-		case OP_CODE_STORE_ALLOC_I: {
-			heap_alloc_t* array_register = machine->stack[AREG].heap_alloc;
-		store_heap_i:
-			array_register->registers[ip->b] = machine->stack[CREG];
-			array_register->init_stat[ip->b] = 1;
+		case MACHINE_OP_CODE_DYNAMIC_CONF_LL:
+			machine->stack[ip->a + machine->global_offset].heap_alloc->trace_stat[ip->b] = machine->stack[ip->c + machine->global_offset].bool_flag;
 			break;
-		case OP_CODE_STORE_ALLOC_I_BOUND:
-			array_register = machine->stack[AREG].heap_alloc;
-			if (ip->b > array_register->limit)
-				PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
-			goto store_heap_i;
-		}
-		case OP_CODE_DYNAMIC_CONF:
-			machine->stack[AREG].heap_alloc->trace_stat[ip->b] = machine->stack[CREG].bool_flag;
+		case MACHINE_OP_CODE_DYNAMIC_CONF_ALL_LL:
+			machine->stack[ip->a + machine->global_offset].heap_alloc->trace_mode = machine->stack[ip->b + machine->global_offset].bool_flag;
 			break;
-		case OP_CODE_DYNAMIC_CONF_ALL:
-			machine->stack[AREG].heap_alloc->trace_mode = machine->stack[BREG].bool_flag;
+		case MACHINE_OP_CODE_CONF_TRACE_L:
+			machine->stack[ip->a + machine->global_offset].heap_alloc->trace_stat[ip->b] = ip->c;
 			break;
-		case OP_CODE_CONF_TRACE:
-			machine->stack[AREG].heap_alloc->trace_stat[ip->b] = ip->c;
+		case MACHINE_OP_CODE_CONF_TRACE_G:
+			machine->stack[ip->a].heap_alloc->trace_stat[ip->b] = ip->c;
 			break;
-		case OP_CODE_STACK_OFFSET:
+		case MACHINE_OP_CODE_STACK_OFFSET:
 			machine->global_offset += ip->a;
 			break;
-		case OP_CODE_STACK_DEOFFSET:
+		case MACHINE_OP_CODE_STACK_DEOFFSET:
 			machine->global_offset -= ip->a;
 			break;
-		case OP_CODE_ALLOC:
-			ESCAPE_ON_FAIL(machine->stack[AREG].heap_alloc = machine_alloc(machine, machine->stack[BREG].long_int, ip->c));
+		case MACHINE_OP_CODE_ALLOC_LL:
+			ESCAPE_ON_FAIL(machine->stack[ip->a + machine->global_offset].heap_alloc = machine_alloc(machine, machine->stack[ip->b + machine->global_offset].long_int, ip->c));
 			break;
-		case OP_CODE_ALLOC_I:
-			ESCAPE_ON_FAIL(machine->stack[AREG].heap_alloc = machine_alloc(machine, ip->b, ip->c));
+		case MACHINE_OP_CODE_ALLOC_LG:
+			ESCAPE_ON_FAIL(machine->stack[ip->a + machine->global_offset].heap_alloc = machine_alloc(machine, machine->stack[ip->b].long_int, ip->c));
 			break;
-		case OP_CODE_DYNAMIC_FREE:
-			if (!machine->stack[BREG].bool_flag)
+		case MACHINE_OP_CODE_ALLOC_GL:
+			ESCAPE_ON_FAIL(machine->stack[ip->a].heap_alloc = machine_alloc(machine, machine->stack[ip->b + machine->global_offset].long_int, ip->c));
+			break;
+		case MACHINE_OP_CODE_ALLOC_GG:
+			ESCAPE_ON_FAIL(machine->stack[ip->a].heap_alloc = machine_alloc(machine, machine->stack[ip->b].long_int, ip->c));
+			break;
+		case MACHINE_OP_CODE_ALLOC_I_L:
+			ESCAPE_ON_FAIL(machine->stack[ip->a + machine->global_offset].heap_alloc = machine_alloc(machine, ip->b, ip->c));
+			break;
+		case MACHINE_OP_CODE_ALLOC_I_G:
+			ESCAPE_ON_FAIL(machine->stack[ip->a].heap_alloc = machine_alloc(machine, ip->b, ip->c));
+			break;
+		case MACHINE_OP_CODE_DYNAMIC_FREE_LL:
+			if (!machine->stack[ip->b + machine->global_offset].bool_flag)
 				break;
-		case OP_CODE_FREE:
-			ESCAPE_ON_FAIL(free_alloc(machine, machine->stack[AREG].heap_alloc));
+		case MACHINE_OP_CODE_FREE_L:
+			ESCAPE_ON_FAIL(free_alloc(machine, machine->stack[ip->a + machine->global_offset].heap_alloc));
 			break;
-		case OP_CODE_GC_NEW_FRAME: {
+		case MACHINE_OP_CODE_FREE_G:
+			ESCAPE_ON_FAIL(free_alloc(machine, machine->stack[ip->a].heap_alloc));
+			break;
+		case MACHINE_OP_CODE_GC_NEW_FRAME:
 			if (machine->heap_frame == machine->frame_limit)
 				PANIC(machine, ERROR_STACK_OVERFLOW);
 			machine->heap_frame_bounds[machine->heap_frame] = machine->heap_count;
 			machine->trace_frame_bounds[machine->heap_frame] = machine->trace_count;
 			machine->heap_frame++;
-			break;
-		}
-		case OP_CODE_DYNAMIC_TRACE: {
-			if (!machine->stack[CREG].bool_flag)
+			break; 
+		{
+			int super_traced;
+			heap_alloc_t* heap_alloc;
+		case MACHINE_OP_CODE_DYNAMIC_TRACE_LL:
+			if (!machine->stack[ip->b + machine->global_offset].bool_flag)
 				break;
-		case OP_CODE_GC_TRACE:
+			super_traced = 0;
+			heap_alloc = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			goto not_super_traced;
+		case MACHINE_OP_CODE_GC_TRACE_L:
+			heap_alloc = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			goto maybe_super_traced;
+		case MACHINE_OP_CODE_GC_TRACE_G:
+			heap_alloc = machine->stack[ip->a].heap_alloc;
+			goto maybe_super_traced;
+		maybe_super_traced:
+			super_traced = ip->b;
+		not_super_traced:
 			if (machine->trace_count == machine->trace_alloc_limit) {
 				heap_alloc_t** new_trace_stack = realloc(machine->heap_traces, (machine->trace_alloc_limit += 10) * sizeof(heap_alloc_t*));
 				PANIC_ON_FAIL(new_trace_stack, machine, ERROR_MEMORY);
 				machine->heap_traces = new_trace_stack;
 			}
-			(machine->heap_traces[machine->trace_count++] = machine->stack[AREG].heap_alloc)->gc_flag = ip->b;
+			(machine->heap_traces[machine->trace_count++] = heap_alloc)->gc_flag = super_traced;
 			break;
 		}
-		case OP_CODE_GC_CLEAN: {
+		case MACHINE_OP_CODE_GC_CLEAN: {
 			uint16_t reseted_heap_count = 0;
 			static heap_alloc_t* reset_stack[64];
 			
@@ -331,120 +521,785 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			}
 			break;
 		}
-		case OP_CODE_AND:
-			machine->stack[CREG].bool_flag = machine->stack[AREG].bool_flag && machine->stack[BREG].bool_flag;
+		case MACHINE_OP_CODE_AND_LLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].bool_flag && machine->stack[ip->b + machine->global_offset].bool_flag;
 			break;
-		case OP_CODE_OR:
-			machine->stack[CREG].bool_flag = machine->stack[AREG].bool_flag || machine->stack[BREG].bool_flag;
+		case MACHINE_OP_CODE_AND_LLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].bool_flag && machine->stack[ip->b + machine->global_offset].bool_flag;
 			break;
-		case OP_CODE_NOT:
-			machine->stack[AREG].bool_flag = !machine->stack[BREG].bool_flag;
+		case MACHINE_OP_CODE_AND_LGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].bool_flag && machine->stack[ip->b].bool_flag;
 			break;
-		case OP_CODE_LENGTH:
-			machine->stack[AREG].long_int = machine->stack[BREG].heap_alloc->limit;
+		case MACHINE_OP_CODE_AND_LGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].bool_flag && machine->stack[ip->b].bool_flag;
 			break;
-		case OP_CODE_BOOL_EQUAL:
-			machine->stack[CREG].bool_flag = machine->stack[AREG].bool_flag == machine->stack[BREG].bool_flag;
+		case MACHINE_OP_CODE_AND_GLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].bool_flag && machine->stack[ip->b + machine->global_offset].bool_flag;
 			break;
-		case OP_CODE_CHAR_EQUAL:
-			machine->stack[CREG].bool_flag = machine->stack[AREG].char_int == machine->stack[BREG].char_int;
+		case MACHINE_OP_CODE_AND_GLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].bool_flag && machine->stack[ip->b + machine->global_offset].bool_flag;
 			break;
-		case OP_CODE_LONG_EQUAL:
-			machine->stack[CREG].bool_flag = machine->stack[AREG].long_int == machine->stack[BREG].long_int;
+		case MACHINE_OP_CODE_AND_GGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].bool_flag && machine->stack[ip->b].bool_flag;
 			break;
-		case OP_CODE_LONG_MORE_EQUAL:
-			machine->stack[CREG].bool_flag = machine->stack[AREG].long_int >= machine->stack[BREG].long_int;
+		case MACHINE_OP_CODE_AND_GGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].bool_flag && machine->stack[ip->b].bool_flag;
 			break;
-		case OP_CODE_LONG_LESS_EQUAL:
-			machine->stack[CREG].bool_flag = machine->stack[AREG].long_int <= machine->stack[BREG].long_int;
+		case MACHINE_OP_CODE_OR_LLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].bool_flag || machine->stack[ip->b + machine->global_offset].bool_flag;
 			break;
-		case OP_CODE_FLOAT_EQUAL:
-			machine->stack[CREG].bool_flag = machine->stack[AREG].float_int == machine->stack[BREG].float_int;
+		case MACHINE_OP_CODE_OR_LLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].bool_flag || machine->stack[ip->b + machine->global_offset].bool_flag;
 			break;
-		case OP_CODE_FLOAT_MORE_EQUAL:
-			machine->stack[CREG].bool_flag = machine->stack[AREG].float_int >= machine->stack[BREG].float_int;
+		case MACHINE_OP_CODE_OR_LGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].bool_flag || machine->stack[ip->b].bool_flag;
 			break;
-		case OP_CODE_FLOAT_LESS_EQUAL:
-			machine->stack[CREG].bool_flag = machine->stack[AREG].float_int <= machine->stack[BREG].float_int;
+		case MACHINE_OP_CODE_OR_LGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].bool_flag || machine->stack[ip->b].bool_flag;
 			break;
-		case OP_CODE_LONG_MORE:
-			machine->stack[CREG].bool_flag = machine->stack[AREG].long_int > machine->stack[BREG].long_int;
+		case MACHINE_OP_CODE_OR_GLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].bool_flag || machine->stack[ip->b + machine->global_offset].bool_flag;
 			break;
-		case OP_CODE_FLOAT_MORE:
-			machine->stack[CREG].bool_flag = machine->stack[AREG].float_int > machine->stack[BREG].float_int;
+		case MACHINE_OP_CODE_OR_GLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].bool_flag || machine->stack[ip->b + machine->global_offset].bool_flag;
 			break;
-		case OP_CODE_LONG_LESS:
-			machine->stack[CREG].bool_flag = machine->stack[AREG].long_int < machine->stack[BREG].long_int;
+		case MACHINE_OP_CODE_OR_GGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].bool_flag || machine->stack[ip->b].bool_flag;
 			break;
-		case OP_CODE_FLOAT_LESS:
-			machine->stack[CREG].bool_flag = machine->stack[AREG].float_int < machine->stack[BREG].float_int;
+		case MACHINE_OP_CODE_OR_GGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].bool_flag || machine->stack[ip->b].bool_flag;
 			break;
-		case OP_CODE_LONG_ADD:
-			machine->stack[CREG].long_int = machine->stack[AREG].long_int + machine->stack[BREG].long_int;
+		case MACHINE_OP_CODE_NOT_LL:
+			machine->stack[ip->a + machine->global_offset].bool_flag = !machine->stack[ip->b + machine->global_offset].bool_flag;
 			break;
-		case OP_CODE_LONG_SUBRACT:
-			machine->stack[CREG].long_int = machine->stack[AREG].long_int - machine->stack[BREG].long_int;
+		case MACHINE_OP_CODE_NOT_LG:
+			machine->stack[ip->a + machine->global_offset].bool_flag = !machine->stack[ip->b].bool_flag;
 			break;
-		case OP_CODE_LONG_MULTIPLY:
-			machine->stack[CREG].long_int = machine->stack[AREG].long_int * machine->stack[BREG].long_int;
+		case MACHINE_OP_CODE_NOT_GL:
+			machine->stack[ip->a].bool_flag = !machine->stack[ip->b + machine->global_offset].bool_flag;
 			break;
-		case OP_CODE_LONG_DIVIDE: {
-			uint64_t d = machine->stack[BREG].long_int;
+		case MACHINE_OP_CODE_NOT_GG:
+			machine->stack[ip->a].bool_flag = !machine->stack[ip->b].bool_flag;
+			break;
+		case MACHINE_OP_CODE_LENGTH_LL:
+			machine->stack[ip->a + machine->global_offset].long_int= machine->stack[ip->b + machine->global_offset].heap_alloc->limit;
+			break;
+		case MACHINE_OP_CODE_LENGTH_LG:
+			machine->stack[ip->a + machine->global_offset].long_int= machine->stack[ip->b].heap_alloc->limit;
+			break;
+		case MACHINE_OP_CODE_LENGTH_GL:
+			machine->stack[ip->a].long_int= machine->stack[ip->b + machine->global_offset].heap_alloc->limit;
+			break;
+		case MACHINE_OP_CODE_LENGTH_GG:
+			machine->stack[ip->a].long_int= machine->stack[ip->b].heap_alloc->limit;
+			break;
+		case MACHINE_OP_CODE_BOOL_EQUAL_LLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].bool_flag == machine->stack[ip->b + machine->global_offset].bool_flag;
+			break;
+		case MACHINE_OP_CODE_BOOL_EQUAL_LLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].bool_flag == machine->stack[ip->b + machine->global_offset].bool_flag;
+			break;
+		case MACHINE_OP_CODE_BOOL_EQUAL_LGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].bool_flag == machine->stack[ip->b].bool_flag;
+			break;
+		case MACHINE_OP_CODE_BOOL_EQUAL_LGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].bool_flag == machine->stack[ip->b].bool_flag;
+			break;
+		case MACHINE_OP_CODE_BOOL_EQUAL_GLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].bool_flag == machine->stack[ip->b + machine->global_offset].bool_flag;
+			break;
+		case MACHINE_OP_CODE_BOOL_EQUAL_GLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].bool_flag == machine->stack[ip->b + machine->global_offset].bool_flag;
+			break;
+		case MACHINE_OP_CODE_BOOL_EQUAL_GGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].bool_flag == machine->stack[ip->b].bool_flag;
+			break;
+		case MACHINE_OP_CODE_BOOL_EQUAL_GGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].bool_flag == machine->stack[ip->b].bool_flag;
+			break;
+		case MACHINE_OP_CODE_CHAR_EQUAL_LLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].char_int == machine->stack[ip->b + machine->global_offset].char_int;
+			break;
+		case MACHINE_OP_CODE_CHAR_EQUAL_LLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].char_int == machine->stack[ip->b + machine->global_offset].char_int;
+			break;
+		case MACHINE_OP_CODE_CHAR_EQUAL_LGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].char_int == machine->stack[ip->b].char_int;
+			break;
+		case MACHINE_OP_CODE_CHAR_EQUAL_LGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].char_int == machine->stack[ip->b].char_int;
+			break;
+		case MACHINE_OP_CODE_CHAR_EQUAL_GLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].char_int == machine->stack[ip->b + machine->global_offset].char_int;
+			break;
+		case MACHINE_OP_CODE_CHAR_EQUAL_GLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].char_int == machine->stack[ip->b + machine->global_offset].char_int;
+			break;
+		case MACHINE_OP_CODE_CHAR_EQUAL_GGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].char_int == machine->stack[ip->b].char_int;
+			break;
+		case MACHINE_OP_CODE_CHAR_EQUAL_GGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].char_int == machine->stack[ip->b].char_int;
+			break;
+		case MACHINE_OP_CODE_LONG_EQUAL_LLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].long_int == machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_EQUAL_LLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].long_int == machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_EQUAL_LGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].long_int == machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_EQUAL_LGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].long_int == machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_EQUAL_GLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].long_int == machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_EQUAL_GLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].long_int == machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_EQUAL_GGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].long_int == machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_EQUAL_GGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].long_int == machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_EQUAL_LLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].float_int == machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_EQUAL_LLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].float_int == machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_EQUAL_LGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].float_int == machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_EQUAL_LGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].float_int == machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_EQUAL_GLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].float_int == machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_EQUAL_GLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].float_int == machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_EQUAL_GGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].float_int == machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_EQUAL_GGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].float_int == machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_EQUAL_LLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].long_int >= machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_EQUAL_LLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].long_int >= machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_EQUAL_LGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].long_int >= machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_EQUAL_LGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].long_int >= machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_EQUAL_GLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].long_int >= machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_EQUAL_GLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].long_int >= machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_EQUAL_GGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].long_int >= machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_EQUAL_GGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].long_int >= machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_EQUAL_LLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].long_int <= machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_EQUAL_LLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].long_int <= machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_EQUAL_LGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].long_int <= machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_EQUAL_LGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].long_int <= machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_EQUAL_GLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].long_int <= machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_EQUAL_GLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].long_int <= machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_EQUAL_GGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].long_int <= machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_EQUAL_GGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].long_int <= machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_LLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].long_int > machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_LLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].long_int > machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_LGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].long_int > machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_LGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].long_int > machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_GLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].long_int > machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_GLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].long_int > machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_GGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].long_int > machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MORE_GGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].long_int > machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_LLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].long_int < machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_LLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].long_int < machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_LGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].long_int < machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_LGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].long_int < machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_GLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].long_int < machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_GLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].long_int < machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_GGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].long_int < machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_LESS_GGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].long_int < machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_ADD_LLL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a + machine->global_offset].long_int + machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_ADD_LLG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a + machine->global_offset].long_int + machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_ADD_LGL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a + machine->global_offset].long_int + machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_ADD_LGG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a + machine->global_offset].long_int + machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_ADD_GLL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a].long_int + machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_ADD_GLG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a].long_int + machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_ADD_GGL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a].long_int + machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_ADD_GGG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a].long_int + machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_SUBTRACT_LLL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a + machine->global_offset].long_int - machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_SUBTRACT_LLG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a + machine->global_offset].long_int - machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_SUBTRACT_LGL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a + machine->global_offset].long_int - machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_SUBTRACT_LGG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a + machine->global_offset].long_int - machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_SUBTRACT_GLL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a].long_int - machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_SUBTRACT_GLG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a].long_int - machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_SUBTRACT_GGL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a].long_int - machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_SUBTRACT_GGG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a].long_int - machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MULTIPLY_LLL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a + machine->global_offset].long_int * machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MULTIPLY_LLG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a + machine->global_offset].long_int * machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MULTIPLY_LGL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a + machine->global_offset].long_int * machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MULTIPLY_LGG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a + machine->global_offset].long_int * machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MULTIPLY_GLL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a].long_int * machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MULTIPLY_GLG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a].long_int * machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MULTIPLY_GGL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a].long_int * machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MULTIPLY_GGG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a].long_int * machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_DIVIDE_LLL: {
+			uint64_t d = machine->stack[ip->b + machine->global_offset].long_int;
 			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
-			machine->stack[CREG].long_int = machine->stack[AREG].long_int / d;
-			break; 
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a + machine->global_offset].long_int / d;
+			break;
 		}
-		case OP_CODE_LONG_MODULO:
-			machine->stack[CREG].long_int = machine->stack[AREG].long_int % machine->stack[BREG].long_int;
-			break;
-		case OP_CODE_LONG_EXPONENTIATE:
-			machine->stack[CREG].long_int = longpow(machine->stack[AREG].long_int, machine->stack[BREG].long_int);
-			break;
-		case OP_CODE_FLOAT_ADD:
-			machine->stack[CREG].float_int = machine->stack[AREG].float_int + machine->stack[BREG].float_int;
-			break;
-		case OP_CODE_FLOAT_SUBTRACT:
-			machine->stack[CREG].float_int = machine->stack[AREG].float_int - machine->stack[BREG].float_int;
-			break;
-		case OP_CODE_FLOAT_MULTIPLY:
-			machine->stack[CREG].float_int = machine->stack[AREG].float_int * machine->stack[BREG].float_int;
-			break;
-		case OP_CODE_FLOAT_DIVIDE: {
-			float d = machine->stack[BREG].float_int;
+		case MACHINE_OP_CODE_LONG_DIVIDE_LLG: {
+			uint64_t d = machine->stack[ip->b + machine->global_offset].long_int;
 			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
-			machine->stack[CREG].float_int = machine->stack[AREG].float_int / d;
-			break; 
+			machine->stack[ip->c].long_int = machine->stack[ip->a + machine->global_offset].long_int / d;
+			break;
 		}
-		case OP_CODE_FLOAT_MODULO:
-			machine->stack[CREG].float_int = fmod(machine->stack[AREG].float_int, machine->stack[BREG].float_int);
+		case MACHINE_OP_CODE_LONG_DIVIDE_LGL: {
+			uint64_t d = machine->stack[ip->b].long_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a + machine->global_offset].long_int / d;
 			break;
-		case OP_CODE_FLOAT_EXPONENTIATE:
-			machine->stack[CREG].float_int = pow(machine->stack[AREG].float_int, machine->stack[BREG].float_int);
+		}
+		case MACHINE_OP_CODE_LONG_DIVIDE_LGG: {
+			uint64_t d = machine->stack[ip->b].long_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[ip->c].long_int = machine->stack[ip->a + machine->global_offset].long_int / d;
 			break;
-		case OP_CODE_LONG_NEGATE:
-			machine->stack[AREG].long_int = -machine->stack[BREG].long_int;
+		}
+		case MACHINE_OP_CODE_LONG_DIVIDE_GLL: {
+			uint64_t d = machine->stack[ip->b + machine->global_offset].long_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a].long_int / d;
 			break;
-		case OP_CODE_FLOAT_NEGATE:
-			machine->stack[AREG].float_int = -machine->stack[BREG].float_int;
+		}
+		case MACHINE_OP_CODE_LONG_DIVIDE_GLG: {
+			uint64_t d = machine->stack[ip->b + machine->global_offset].long_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[ip->c].long_int = machine->stack[ip->a].long_int / d;
 			break;
-		case OP_CODE_ABORT:
+		}
+		case MACHINE_OP_CODE_LONG_DIVIDE_GGL: {
+			uint64_t d = machine->stack[ip->b].long_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a].long_int / d;
+			break;
+		}
+		case MACHINE_OP_CODE_LONG_DIVIDE_GGG: {
+			uint64_t d = machine->stack[ip->b].long_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[ip->c].long_int = machine->stack[ip->a].long_int / d;
+			break;
+		}
+		case MACHINE_OP_CODE_LONG_MODULO_LLL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a + machine->global_offset].long_int % machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MODULO_LLG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a + machine->global_offset].long_int % machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MODULO_LGL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a + machine->global_offset].long_int % machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MODULO_LGG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a + machine->global_offset].long_int % machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MODULO_GLL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a].long_int % machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MODULO_GLG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a].long_int % machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MODULO_GGL:
+			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a].long_int % machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_MODULO_GGG:
+			machine->stack[ip->c].long_int = machine->stack[ip->a].long_int % machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_EXPONENTIATE_LLL:
+			machine->stack[ip->c + machine->global_offset].long_int = longpow(machine->stack[ip->a + machine->global_offset].long_int, machine->stack[ip->b + machine->global_offset].long_int);
+			break;
+		case MACHINE_OP_CODE_LONG_EXPONENTIATE_LLG:
+			machine->stack[ip->c].long_int = longpow(machine->stack[ip->a + machine->global_offset].long_int, machine->stack[ip->b + machine->global_offset].long_int);
+			break;
+		case MACHINE_OP_CODE_LONG_EXPONENTIATE_LGL:
+			machine->stack[ip->c + machine->global_offset].long_int = longpow(machine->stack[ip->a + machine->global_offset].long_int, machine->stack[ip->b].long_int);
+			break;
+		case MACHINE_OP_CODE_LONG_EXPONENTIATE_LGG:
+			machine->stack[ip->c].long_int = longpow(machine->stack[ip->a + machine->global_offset].long_int, machine->stack[ip->b].long_int);
+			break;
+		case MACHINE_OP_CODE_LONG_EXPONENTIATE_GLL:
+			machine->stack[ip->c + machine->global_offset].long_int = longpow(machine->stack[ip->a].long_int, machine->stack[ip->b + machine->global_offset].long_int);
+			break;
+		case MACHINE_OP_CODE_LONG_EXPONENTIATE_GLG:
+			machine->stack[ip->c].long_int = longpow(machine->stack[ip->a].long_int, machine->stack[ip->b + machine->global_offset].long_int);
+			break;
+		case MACHINE_OP_CODE_LONG_EXPONENTIATE_GGL:
+			machine->stack[ip->c + machine->global_offset].long_int = longpow(machine->stack[ip->a].long_int, machine->stack[ip->b].long_int);
+			break;
+		case MACHINE_OP_CODE_LONG_EXPONENTIATE_GGG:
+			machine->stack[ip->c].long_int = longpow(machine->stack[ip->a].long_int, machine->stack[ip->b].long_int);
+			break; 
+		case MACHINE_OP_CODE_FLOAT_MORE_EQUAL_LLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].float_int >= machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_EQUAL_LLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].float_int >= machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_EQUAL_LGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].float_int >= machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_EQUAL_LGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].float_int >= machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_EQUAL_GLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].float_int >= machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_EQUAL_GLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].float_int >= machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_EQUAL_GGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].float_int >= machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_EQUAL_GGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].float_int >= machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_EQUAL_LLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].float_int <= machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_EQUAL_LLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].float_int <= machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_EQUAL_LGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].float_int <= machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_EQUAL_LGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].float_int <= machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_EQUAL_GLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].float_int <= machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_EQUAL_GLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].float_int <= machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_EQUAL_GGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].float_int <= machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_EQUAL_GGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].float_int <= machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_LLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].float_int > machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_LLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].float_int > machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_LGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].float_int > machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_LGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].float_int > machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_GLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].float_int > machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_GLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].float_int > machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_GGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].float_int > machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MORE_GGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].float_int > machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_LLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].float_int < machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_LLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].float_int < machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_LGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a + machine->global_offset].float_int < machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_LGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a + machine->global_offset].float_int < machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_GLL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].float_int < machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_GLG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].float_int < machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_GGL:
+			machine->stack[ip->c + machine->global_offset].bool_flag = machine->stack[ip->a].float_int < machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_LESS_GGG:
+			machine->stack[ip->c].bool_flag = machine->stack[ip->a].float_int < machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_ADD_LLL:
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a + machine->global_offset].float_int + machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_ADD_LLG:
+			machine->stack[ip->c].float_int = machine->stack[ip->a + machine->global_offset].float_int + machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_ADD_LGL:
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a + machine->global_offset].float_int + machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_ADD_LGG:
+			machine->stack[ip->c].float_int = machine->stack[ip->a + machine->global_offset].float_int + machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_ADD_GLL:
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a].float_int + machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_ADD_GLG:
+			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int + machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_ADD_GGL:
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a].float_int + machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_ADD_GGG:
+			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int + machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_SUBTRACT_LLL:
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a + machine->global_offset].float_int - machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_SUBTRACT_LLG:
+			machine->stack[ip->c].float_int = machine->stack[ip->a + machine->global_offset].float_int - machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_SUBTRACT_LGL:
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a + machine->global_offset].float_int - machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_SUBTRACT_LGG:
+			machine->stack[ip->c].float_int = machine->stack[ip->a + machine->global_offset].float_int - machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_SUBTRACT_GLL:
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a].float_int - machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_SUBTRACT_GLG:
+			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int - machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_SUBTRACT_GGL:
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a].float_int - machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_SUBTRACT_GGG:
+			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int - machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MULTIPLY_LLL:
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a + machine->global_offset].float_int * machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MULTIPLY_LLG:
+			machine->stack[ip->c].float_int = machine->stack[ip->a + machine->global_offset].float_int * machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MULTIPLY_LGL:
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a + machine->global_offset].float_int * machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MULTIPLY_LGG:
+			machine->stack[ip->c].float_int = machine->stack[ip->a + machine->global_offset].float_int * machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MULTIPLY_GLL:
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a].float_int * machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MULTIPLY_GLG:
+			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int * machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MULTIPLY_GGL:
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a].float_int * machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_MULTIPLY_GGG:
+			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int * machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_DIVIDE_LLL: {
+			double d = machine->stack[ip->b + machine->global_offset].float_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a + machine->global_offset].float_int / d;
+			break;
+		}
+		case MACHINE_OP_CODE_FLOAT_DIVIDE_LLG: {
+			double d = machine->stack[ip->b + machine->global_offset].float_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[ip->c].float_int = machine->stack[ip->a + machine->global_offset].float_int / d;
+			break;
+		}
+		case MACHINE_OP_CODE_FLOAT_DIVIDE_LGL: {
+			double d = machine->stack[ip->b].float_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a + machine->global_offset].float_int / d;
+			break;
+		}
+		case MACHINE_OP_CODE_FLOAT_DIVIDE_LGG: {
+			double d = machine->stack[ip->b].float_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[ip->c].float_int = machine->stack[ip->a + machine->global_offset].float_int / d;
+			break;
+		}
+		case MACHINE_OP_CODE_FLOAT_DIVIDE_GLL: {
+			double d = machine->stack[ip->b + machine->global_offset].float_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a].float_int / d;
+			break;
+		}
+		case MACHINE_OP_CODE_FLOAT_DIVIDE_GLG: {
+			double d = machine->stack[ip->b + machine->global_offset].float_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int / d;
+			break;
+		}
+		case MACHINE_OP_CODE_FLOAT_DIVIDE_GGL: {
+			double d = machine->stack[ip->b].float_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a].float_int / d;
+			break;
+		}
+		case MACHINE_OP_CODE_FLOAT_DIVIDE_GGG: {
+			double d = machine->stack[ip->b].float_int;
+			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int / d;
+			break;
+		}
+		case MACHINE_OP_CODE_FLOAT_MODULO_LLL:
+			machine->stack[ip->c + machine->global_offset].float_int = fmod(machine->stack[ip->a + machine->global_offset].float_int, machine->stack[ip->b + machine->global_offset].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_MODULO_LLG:
+			machine->stack[ip->c].float_int = fmod(machine->stack[ip->a + machine->global_offset].float_int, machine->stack[ip->b + machine->global_offset].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_MODULO_LGL:
+			machine->stack[ip->c + machine->global_offset].float_int = fmod(machine->stack[ip->a + machine->global_offset].float_int, machine->stack[ip->b].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_MODULO_LGG:
+			machine->stack[ip->c].float_int = fmod(machine->stack[ip->a + machine->global_offset].float_int, machine->stack[ip->b].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_MODULO_GLL:
+			machine->stack[ip->c + machine->global_offset].float_int = fmod(machine->stack[ip->a].float_int, machine->stack[ip->b + machine->global_offset].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_MODULO_GLG:
+			machine->stack[ip->c].float_int = fmod(machine->stack[ip->a].float_int, machine->stack[ip->b + machine->global_offset].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_MODULO_GGL:
+			machine->stack[ip->c + machine->global_offset].float_int = fmod(machine->stack[ip->a].float_int, machine->stack[ip->b].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_MODULO_GGG:
+			machine->stack[ip->c].float_int = fmod(machine->stack[ip->a].float_int, machine->stack[ip->b].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_EXPONENTIATE_LLL:
+			machine->stack[ip->c + machine->global_offset].float_int = pow(machine->stack[ip->a + machine->global_offset].float_int, machine->stack[ip->b + machine->global_offset].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_EXPONENTIATE_LLG:
+			machine->stack[ip->c].float_int = pow(machine->stack[ip->a + machine->global_offset].float_int, machine->stack[ip->b + machine->global_offset].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_EXPONENTIATE_LGL:
+			machine->stack[ip->c + machine->global_offset].float_int = pow(machine->stack[ip->a + machine->global_offset].float_int, machine->stack[ip->b].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_EXPONENTIATE_LGG:
+			machine->stack[ip->c].float_int = pow(machine->stack[ip->a + machine->global_offset].float_int, machine->stack[ip->b].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_EXPONENTIATE_GLL:
+			machine->stack[ip->c + machine->global_offset].float_int = pow(machine->stack[ip->a].float_int, machine->stack[ip->b + machine->global_offset].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_EXPONENTIATE_GLG:
+			machine->stack[ip->c].float_int = pow(machine->stack[ip->a].float_int, machine->stack[ip->b + machine->global_offset].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_EXPONENTIATE_GGL:
+			machine->stack[ip->c + machine->global_offset].float_int = pow(machine->stack[ip->a].float_int, machine->stack[ip->b].float_int);
+			break;
+		case MACHINE_OP_CODE_FLOAT_EXPONENTIATE_GGG:
+			machine->stack[ip->c].float_int = pow(machine->stack[ip->a].float_int, machine->stack[ip->b].float_int);
+			break;
+		case MACHINE_OP_CODE_LONG_NEGATE_LL:
+			machine->stack[ip->a + machine->global_offset].long_int = -machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_NEGATE_LG:
+			machine->stack[ip->a + machine->global_offset].long_int = -machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_NEGATE_GL:
+			machine->stack[ip->a].long_int = -machine->stack[ip->b + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_NEGATE_GG:
+			machine->stack[ip->a].long_int = -machine->stack[ip->b].long_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_NEGATE_LL:
+			machine->stack[ip->a + machine->global_offset].float_int = -machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_NEGATE_LG:
+			machine->stack[ip->a + machine->global_offset].float_int = -machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_NEGATE_GL:
+			machine->stack[ip->a].float_int = -machine->stack[ip->b + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_NEGATE_GG:
+			machine->stack[ip->a].float_int = -machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_ABORT:
 			if (ip->a == ERROR_NONE)
 				return 1;
 			else
 				PANIC(machine, ip->a);
-		case OP_CODE_FOREIGN:
-			if (!ffi_invoke(&machine->ffi_table, machine, &machine->stack[AREG], &machine->stack[BREG], &machine->stack[CREG]))
+		{
+			machine_reg_t* a;
+			machine_reg_t* b;
+			machine_reg_t* c;
+		case MACHINE_OP_CODE_FOREIGN_LLL:
+			a = &machine->stack[ip->a + machine->global_offset];
+			b = &machine->stack[ip->b + machine->global_offset];
+			c = &machine->stack[ip->c + machine->global_offset];
+			goto invoke_foreign;
+		case MACHINE_OP_CODE_FOREIGN_LLG:
+			a = &machine->stack[ip->a + machine->global_offset];
+			b = &machine->stack[ip->b + machine->global_offset];
+			c = &machine->stack[ip->c];
+			goto invoke_foreign;
+		case MACHINE_OP_CODE_FOREIGN_LGL:
+			a = &machine->stack[ip->a + machine->global_offset];
+			b = &machine->stack[ip->b];
+			c = &machine->stack[ip->c + machine->global_offset];
+			goto invoke_foreign;
+		case MACHINE_OP_CODE_FOREIGN_LGG:
+			a = &machine->stack[ip->a + machine->global_offset];
+			b = &machine->stack[ip->b];
+			c = &machine->stack[ip->c];
+			goto invoke_foreign;
+		case MACHINE_OP_CODE_FOREIGN_GLL:
+			a = &machine->stack[ip->a];
+			b = &machine->stack[ip->b + machine->global_offset];
+			c = &machine->stack[ip->c + machine->global_offset];
+			goto invoke_foreign;
+		case MACHINE_OP_CODE_FOREIGN_GLG:
+			a = &machine->stack[ip->a];
+			b = &machine->stack[ip->b + machine->global_offset];
+			c = &machine->stack[ip->c];
+			goto invoke_foreign;
+		case MACHINE_OP_CODE_FOREIGN_GGL:
+			a = &machine->stack[ip->a];
+			b = &machine->stack[ip->b];
+			c = &machine->stack[ip->c + machine->global_offset];
+			goto invoke_foreign;
+		case MACHINE_OP_CODE_FOREIGN_GGG:
+			a = &machine->stack[ip->a];
+			b = &machine->stack[ip->b];
+			c = &machine->stack[ip->c];
+			goto invoke_foreign;
+		invoke_foreign:
+			if (!ffi_invoke(&machine->ffi_table, machine, a, b, c))
 				if (machine->last_err == ERROR_NONE)
 					machine->last_err = ERROR_FOREIGN;
 				else
 					return 0;
 			break;
 		}
+		}
 		ip++;
 	}
 	return 1;
 }
-
-#undef AREG
-#undef BREG
-#undef CREG
