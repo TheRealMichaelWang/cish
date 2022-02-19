@@ -206,7 +206,8 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			machine->stack[ip->a + machine->global_offset].ip = &instructions[ip->b];
 			break;
 		case MACHINE_OP_CODE_LABEL_G:
-			machine->stack[ip->b].ip = &instructions[ip->b];
+			machine->stack[ip->a].ip = &instructions[ip->b];
+			break;
 		case MACHINE_OP_CODE_RETURN:
 			ip = machine->positions[--machine->position_count];
 			break;

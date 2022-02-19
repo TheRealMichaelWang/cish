@@ -19,8 +19,11 @@ int init_ins_builder(ins_builder_t* ins_builder) {
 }
 
 int ins_builder_append_ins(ins_builder_t* ins_builder, compiler_ins_t ins) {
+	if (ins.op_code == 59) {
+		int kasd = 123;
+	}
 	if (ins_builder->instruction_count == ins_builder->alloced_ins) {
-		machine_ins_t* new_ins = realloc(ins_builder->instructions, (ins_builder->alloced_ins *= 2) * sizeof(compiler_ins_t));
+		compiler_ins_t* new_ins = realloc(ins_builder->instructions, (ins_builder->alloced_ins *= 2) * sizeof(compiler_ins_t));
 		ESCAPE_ON_FAIL(new_ins);
 		ins_builder->instructions = new_ins;
 	}
@@ -337,7 +340,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.proc_call->procedure, proc));
 		EMIT_INS(INS2(COMPILER_OP_CODE_CALL, compiler->eval_regs[value.data.proc_call->procedure.id], GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
 		if (compiler->proc_call_offsets[value.data.proc_call->id])
-			EMIT_INS(INS1(MACHINE_OP_CODE_STACK_DEOFFSET, GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
+			EMIT_INS(INS1(COMPILER_OP_CODE_STACK_DEOFFSET, GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
 		break; 
 	}
 	case AST_VALUE_FOREIGN:
@@ -590,9 +593,9 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 		3, //long equal
 		3, //float equal
 
-		3,
-		3,
-		3,
+		3, //long more
+		3, //long less
+		3, //long
 		3,
 		3,
 		3,
@@ -624,9 +627,9 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 				ins_offset += (1 << (reg_ops - j - 1));
 		machine_ins[i] = (machine_ins_t){
 			.op_code = machine_ops[compiler_ins[i].op_code] + ins_offset,
-			.a = compiler_ins[i].regs[0].offset,
-			.b = compiler_ins[i].regs[1].offset,
-			.c = compiler_ins[i].regs[2].offset
+			.a = compiler_ins[i].regs[0].reg,
+			.b = compiler_ins[i].regs[1].reg,
+			.c = compiler_ins[i].regs[2].reg
 		};
 	}
 }

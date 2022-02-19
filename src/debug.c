@@ -113,20 +113,20 @@ static const char* error_names[] = {
 };
 
 static void print_register(uint16_t loc, uint8_t offset) {
-	printf("\t%" PRIu16, loc);
-	printf(offset ? "l" : "g");
+	//printf("\t%" PRIu16, loc);
+	//printf(offset ? "l" : "g");
 }
 
 static void print_instruction(machine_ins_t ins){
-	printf("%s" ,opcode_names[ins.op_code]);
-	print_register(ins.a, ins.a_flag);
-	print_register(ins.b, ins.b_flag);
-	print_register(ins.c, ins.c_flag);
+	//printf("%s" ,opcode_names[ins.op_code]);
+	//print_register(ins.a, ins.a_flag);
+	//print_register(ins.b, ins.b_flag);
+	//print_register(ins.c, ins.c_flag);
 }
 
 void print_instructions(machine_ins_t* ins, uint16_t ins_count) {
 	for (uint_fast16_t i = 0; i < ins_count; i++) {
-		printf("%"PRIu16 ":\t", i);
+		//printf("%"PRIu16 ":\t", i);
 		print_instruction(ins[i]);
 		printf("\n");
 	}
