@@ -18,8 +18,8 @@ int main(int argc, char* argv[]) {
 
 	const char* working_dir = READ_ARG;
 	
-	if (current_arg == argc)
-		ABORT(("Expected an operation flag/argument."));
+	if (!argc)
+		ABORT(("Expected an operation flag/argument.\n"));
 	const char* op_flag = READ_ARG;
 
 	if (!strcmp(op_flag, "-cr") || !strcmp(op_flag, "-c") || !strcmp(op_flag, "-cd")) {
@@ -37,25 +37,33 @@ int main(int argc, char* argv[]) {
 		compiler_t compiler;
 		if (!compile(&compiler, &machine, &ast))
 			ABORT(("Compilation failiure(%s).\n", get_err_msg(compiler.last_err)));
+
+		machine_ins_t* machine_ins = malloc(compiler.ins_builder.instruction_count * sizeof(machine_ins_t));
+		if(!machine_ins)
+			ABORT(("Compilation failiure(memory).\n"));
+
+		compiler_ins_to_machine_ins(compiler.ins_builder.instructions, machine_ins, compiler.ins_builder.instruction_count);
+		free(compiler.ins_builder.instructions);
+
 		free_ast_parser(&parser);
 		free_ast(&ast);
 
-		//print_instructions(compiler.ins_builder.instructions, compiler.ins_builder.instruction_count);
+		//print_instructions(machine_ins, compiler.ins_builder.instruction_count);
 
 		if (!strcmp(op_flag, "-cr")) {
 			install_stdlib(&machine);
-			if (!machine_execute(&machine, compiler.ins_builder.instructions))
+			if (!machine_execute(&machine, machine_ins))
 				ABORT(("Runtime error(%s).\n", get_err_msg(machine.last_err)));
 		}
 		else if (!strcmp(op_flag, "-c")) {
 			EXPECT_FLAG("-o");
-			if (!file_save_compiled(READ_ARG, &parser, &machine, compiler.ins_builder.instructions, compiler.ins_builder.instruction_count))
+			if (!file_save_compiled(READ_ARG, &parser, &machine, machine_ins, compiler.ins_builder.instruction_count))
 				ABORT(("Error saving compiled binaries.\n"));
 		}
 		else
-			print_instructions(compiler.ins_builder.instructions, compiler.ins_builder.instruction_count);
+			print_instructions(machine_ins, compiler.ins_builder.instruction_count);
 		free_machine(&machine);
-		free(compiler.ins_builder.instructions);
+		free(machine_ins);
 	}
 	else if (!strcmp(op_flag, "-r") || !strcmp(op_flag, "-rd")) {
 		machine_t machine;
@@ -76,7 +84,7 @@ int main(int argc, char* argv[]) {
 	}
 	else if (!strcmp(op_flag, "-info")) {
 		printf("SUPERFORTH\n"
-				"Writen and developed by Michael Wang, 2020-2021.\n"
+				"Writen and developed by Michael Wang, 2020-2022.\n"
 				"General Documentation: https://github.com/TheRealMichaelWang/superforth/wiki \n"
 				"CLI Help: https://github.com/TheRealMichaelWang/superforth/wiki/Command-Line-Usage \n");
 	}
