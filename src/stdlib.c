@@ -7,6 +7,7 @@
 #include "error.h"
 #include "ffi.h"
 #include "stdlib.h"
+#include <time.h>
 
 static int std_itof(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	out->float_int = (float)in->long_int;
@@ -115,6 +116,11 @@ static int std_tan(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	return 1;
 }
 
+static int std_time(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
+	out->long_int = time(0);
+	return 1;
+}
+
 void install_stdlib(machine_t* machine) {
 	ffi_include_func(&machine->ffi_table, std_itof);
 	ffi_include_func(&machine->ffi_table, std_floor);
@@ -132,4 +138,5 @@ void install_stdlib(machine_t* machine) {
 	ffi_include_func(&machine->ffi_table, std_tan);
 	ffi_include_func(&machine->ffi_table, std_itoc);
 	ffi_include_func(&machine->ffi_table, std_ctoi);
+	ffi_include_func(&machine->ffi_table, std_time);
 }
