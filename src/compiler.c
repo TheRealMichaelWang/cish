@@ -19,9 +19,6 @@ int init_ins_builder(ins_builder_t* ins_builder) {
 }
 
 int ins_builder_append_ins(ins_builder_t* ins_builder, compiler_ins_t ins) {
-	if (ins.op_code == 59) {
-		int kasd = 123;
-	}
 	if (ins_builder->instruction_count == ins_builder->alloced_ins) {
 		compiler_ins_t* new_ins = realloc(ins_builder->instructions, (ins_builder->alloced_ins *= 2) * sizeof(compiler_ins_t));
 		ESCAPE_ON_FAIL(new_ins);

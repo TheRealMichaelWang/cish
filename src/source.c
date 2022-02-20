@@ -60,8 +60,8 @@ int main(int argc, char* argv[]) {
 			if (!file_save_compiled(READ_ARG, &parser, &machine, machine_ins, compiler.ins_builder.instruction_count))
 				ABORT(("Error saving compiled binaries.\n"));
 		}
-		//else
-			//print_instructions(compiler.ins_builder.instructions, compiler.ins_builder.instruction_count);
+		else
+			print_instructions(machine_ins, compiler.ins_builder.instruction_count);
 		free_machine(&machine);
 		free(machine_ins);
 	}
