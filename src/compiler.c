@@ -35,8 +35,8 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	switch (value.value_type)
 	{
 	case AST_VALUE_PRIMITIVE:
-		memcpy(&compiler->target_machine->stack[compiler->current_constant], &value.data.primitive.data, sizeof(uint64_t));
-		compiler->eval_regs[value.id] = GLOB_REG(compiler->current_constant++);
+		memcpy(&compiler->target_machine->stack[value.data.primitive->id], &value.data.primitive->data, sizeof(uint64_t));
+		compiler->eval_regs[value.id] = GLOB_REG(value.data.primitive->id);
 		compiler->move_eval[value.id] = 1;
 		return current_reg;
 	case AST_VALUE_ALLOC_ARRAY:
@@ -264,7 +264,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->index, proc));
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->value, proc));
 		if (value.data.set_index->index.value_type == AST_VALUE_PRIMITIVE)
-			EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC_I_BOUND, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->value.id], GLOB_REG(value.data.set_index->index.data.primitive.data.long_int)))
+			EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC_I_BOUND, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->value.id], GLOB_REG(value.data.set_index->index.data.primitive->data.long_int)))
 		else
 			EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->index.id], compiler->eval_regs[value.data.set_index->value.id]));
 		ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.set_index->array, proc));
@@ -278,7 +278,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 	case AST_VALUE_GET_INDEX:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->array, proc));
 		if(value.data.get_index->index.value_type == AST_VALUE_PRIMITIVE)
-			EMIT_INS(INS3(COMPILER_OP_CODE_LOAD_ALLOC_I_BOUND, compiler->eval_regs[value.data.get_index->array.id], compiler->eval_regs[value.id], GLOB_REG(value.data.get_index->index.data.primitive.data.long_int)))
+			EMIT_INS(INS3(COMPILER_OP_CODE_LOAD_ALLOC_I_BOUND, compiler->eval_regs[value.data.get_index->array.id], compiler->eval_regs[value.id], GLOB_REG(value.data.get_index->index.data.primitive->data.long_int)))
 		else {
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->index, proc));
 			EMIT_INS(INS3(COMPILER_OP_CODE_LOAD_ALLOC, compiler->eval_regs[value.data.get_index->array.id], compiler->eval_regs[value.data.get_index->index.id], compiler->eval_regs[value.id]));
@@ -463,7 +463,6 @@ int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
 	compiler->target_machine = target_machine;
 	compiler->ast = ast;
 	compiler->last_err = ERROR_NONE;
-	compiler->current_constant = 0;
 	compiler->current_global = 0;
 	
 	PANIC_ON_FAIL(compiler->eval_regs = malloc(ast->value_count * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);

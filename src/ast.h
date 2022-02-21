@@ -70,6 +70,8 @@ typedef struct ast_primitive {
 		int64_t long_int;
 		double float_int;
 	} data;
+
+	uint16_t id;
 } ast_primitive_t;
 
 typedef struct ast_value {
@@ -94,7 +96,7 @@ typedef struct ast_value {
 	} value_type;
 
 	union ast_value_data {
-		ast_primitive_t primitive;
+		ast_primitive_t* primitive;
 		ast_alloc_t* alloc_array;
 		ast_alloc_record_t alloc_record;
 		ast_array_literal_t array_literal;
@@ -274,8 +276,10 @@ typedef struct ast {
 	ast_record_proto_t** record_protos;
 	uint8_t record_count, allocated_records;
 
+	ast_primitive_t** primitives;
+	uint16_t constant_count, allocated_constants;
+
 	uint32_t value_count, var_decl_count, proc_call_count;
-	uint16_t constant_count;
 } ast_t;
 
 typedef struct ast_parser_frame ast_parser_frame_t;

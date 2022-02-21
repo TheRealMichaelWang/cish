@@ -111,7 +111,7 @@ typedef struct compiler {
 
 	ins_builder_t ins_builder;
 
-	uint16_t current_constant, current_global;
+	uint16_t current_global;
 	
 	error_t last_err;
 } compiler_t;
