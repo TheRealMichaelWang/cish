@@ -341,7 +341,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 	case AST_VALUE_GET_INDEX:
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.get_index->array, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, GET_TYPE_TRACE(value->data.get_index->array.type) == POSTPROC_TRACE_NONE ? POSTPROC_PARENT_IRRELEVANT : parent_stat, parent_proc));
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.get_index->index, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
-		value->gc_status = postproc_type_to_gc_stat(value->data.get_index->array.gc_status, value->data.get_index->array.type.type);
+		value->gc_status = postproc_type_to_gc_stat(value->data.get_index->array.gc_status, value->data.get_index->array.type.sub_types[0].type);
 		break;
 	case AST_VALUE_SET_PROP:
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->record, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));

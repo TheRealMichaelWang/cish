@@ -692,7 +692,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				PANIC_ON_FAIL(new_elems, ast_parser, ERROR_MEMORY);
 				value->data.array_literal.elements = new_elems;
 			}
-			ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.array_literal.elements[value->data.array_literal.element_count], value->type.sub_types, 0));
+			ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.array_literal.elements[value->data.array_literal.element_count++], value->type.sub_types, 0));
 			if (LAST_TOK.type != TOK_CLOSE_BRACKET) {
 				MATCH_TOK(TOK_COMMA);
 				READ_TOK;
