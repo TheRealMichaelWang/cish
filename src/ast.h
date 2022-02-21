@@ -246,7 +246,6 @@ typedef struct ast_record_proto {
 	struct ast_record_proto_init_value {
 		ast_record_prop_t* property;
 		ast_value_t value;
-		uint16_t constant_count;
 	}*default_values;
 
 	uint8_t property_count, allocated_properties;

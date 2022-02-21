@@ -198,7 +198,6 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 						.property = current_proto->default_values[i].property,
 						.free_val = 0
 					};
-					ast_parser->ast->constant_count += current_proto->default_values[i].constant_count;
 				}
 
 			for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {

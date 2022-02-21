@@ -340,6 +340,9 @@ static ast_primitive_t* ast_add_prim_value(ast_parser_t* ast_parser, ast_primiti
 	PANIC_ON_FAIL(prim_buf, ast_parser, ERROR_MEMORY);
 	*prim_buf = primitive;
 	prim_buf->id = ast_parser->ast->constant_count;
+	if (prim_buf->id == 30) {
+		int asd = 0;
+	}
 	ast_parser->ast->primitives[ast_parser->ast->constant_count++] = prim_buf;
 	return prim_buf;
 }
@@ -570,7 +573,6 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 
 			record_proto->default_value_count = 0;
 			uint16_t allocated_defaults = 5;
-			uint16_t old_constants = ast_parser->ast->constant_count;
 			PANIC_ON_FAIL(record_proto->default_values = malloc(allocated_defaults * sizeof(struct ast_record_proto_init_value)), ast_parser, ERROR_MEMORY);
 			do {
 				ast_record_prop_t* prop;
@@ -601,8 +603,6 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 				
 				record_proto->default_values[record_proto->default_value_count].property = prop;
 				ESCAPE_ON_FAIL(parse_value(ast_parser, &record_proto->default_values[record_proto->default_value_count].value, &prop->type));
-				record_proto->default_values[record_proto->default_value_count].constant_count = ast_parser->ast->constant_count - old_constants;
-				ast_parser->ast->constant_count = old_constants;
 				record_proto->default_value_count++;
 
 			end_parse_prop:
