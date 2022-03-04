@@ -68,7 +68,7 @@ int dynamic_library_load(dynamic_library_table_t* dynamic_library, machine_t* ma
 	}
 #else
 	ESCAPE_ON_FAIL(new_lib->handle = dlopen(name, RTLD_LAZY));
-	if (!(new_lib->entry_point = dlsym(new_lib->handle, name))) {
+	if (!(new_lib->entry_point = dlsym(new_lib->handle, "superforth_entry"))) {
 		free(name);
 		dlclose(new_lib->handle);
 		return 0;
