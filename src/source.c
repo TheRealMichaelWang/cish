@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
 
 	const char* working_dir = READ_ARG;
 	
-	if (!argc)
+	if (current_arg == argc)
 		ABORT(("Expected an operation flag/argument.\n"));
 	const char* op_flag = READ_ARG;
 
@@ -87,13 +87,14 @@ int main(int argc, char* argv[]) {
 				"Writen and developed by Michael Wang, 2020-2022.\n"
 				"General Documentation: https://github.com/TheRealMichaelWang/superforth/wiki \n"
 				"CLI Help: https://github.com/TheRealMichaelWang/superforth/wiki/Command-Line-Usage \n"
+				"Working Dir: %s\n"
 				"Targeted Build Platform: "
 #ifdef _WIN32
 			"WINDOWS"
 #else
 			"LINUX/UNIX"
 #endif
-				"\n");
+				"\n", working_dir);
 	}
 	else
 		ABORT(("Unrecognized flag(%s).\n", op_flag));
