@@ -2,12 +2,21 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <inttypes.h>
 #include <math.h>
+#include <inttypes.h>
+#include <time.h>
 #include "error.h"
 #include "ffi.h"
 #include "stdlib.h"
-#include <time.h>
+
+static char* read_str_from_heap_alloc(heap_alloc_t* heap_alloc) {
+	char* buffer = malloc(heap_alloc->limit + 1);
+	ESCAPE_ON_FAIL(buffer);
+	for (int i = 0; i < heap_alloc->limit; i++)
+		buffer[i] = heap_alloc->registers[i].char_int;
+	buffer[heap_alloc->limit] = 0;
+	return buffer;
+}
 
 static int std_itof(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	out->float_int = (float)in->long_int;
@@ -42,12 +51,8 @@ static int std_ftos(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 }
 
 static int std_stof(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
-	char* buffer = malloc(in->heap_alloc->limit + 1);
-	ESCAPE_ON_FAIL(buffer);
-	for (uint_fast16_t i = 0; i < in->heap_alloc->limit; i++) {
-		ESCAPE_ON_FAIL(in->heap_alloc->init_stat[i]);
-		buffer[i] = in->heap_alloc->registers[i].char_int;
-	}
+	char* buffer = read_str_from_heap_alloc(in->heap_alloc);
+	PANIC_ON_FAIL(buffer, machine, ERROR_MEMORY);
 	out->float_int = strtod(buffer, NULL);
 	free(buffer);
 	return 1;
@@ -66,12 +71,8 @@ static int std_itos(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 }
 
 static int std_stoi(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
-	char* buffer = malloc(in->heap_alloc->limit + 1);
-	ESCAPE_ON_FAIL(buffer);
-	for (uint_fast16_t i = 0; i < in->heap_alloc->limit; i++) {
-		ESCAPE_ON_FAIL(in->heap_alloc->init_stat[i]);
-		buffer[i] = in->heap_alloc->registers[i].char_int;
-	}
+	char* buffer = read_str_from_heap_alloc(in->heap_alloc);
+	PANIC_ON_FAIL(buffer, machine, ERROR_MEMORY);
 	out->long_int = strtol(buffer, NULL, 10);
 	free(buffer);
 	return 1;
@@ -121,6 +122,16 @@ static int std_time(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	return 1;
 }
 
+static int std_import(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
+	char* import_name = read_str_from_heap_alloc(in->heap_alloc);
+	PANIC_ON_FAIL(import_name, machine, ERROR_MEMORY);
+	out->long_int = machine->ffi_table.func_count;
+	if (!dynamic_library_load(machine->dynamic_library_table, machine, import_name)) {
+		out->long_int = -1;
+	}
+	return 1;
+}
+
 void install_stdlib(machine_t* machine) {
 	ffi_include_func(&machine->ffi_table, std_itof);
 	ffi_include_func(&machine->ffi_table, std_floor);
@@ -139,4 +150,5 @@ void install_stdlib(machine_t* machine) {
 	ffi_include_func(&machine->ffi_table, std_itoc);
 	ffi_include_func(&machine->ffi_table, std_ctoi);
 	ffi_include_func(&machine->ffi_table, std_time);
+	ffi_include_func(&machine->ffi_table, std_import);
 }

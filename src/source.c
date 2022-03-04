@@ -86,7 +86,14 @@ int main(int argc, char* argv[]) {
 		printf("SUPERFORTH\n"
 				"Writen and developed by Michael Wang, 2020-2022.\n"
 				"General Documentation: https://github.com/TheRealMichaelWang/superforth/wiki \n"
-				"CLI Help: https://github.com/TheRealMichaelWang/superforth/wiki/Command-Line-Usage \n");
+				"CLI Help: https://github.com/TheRealMichaelWang/superforth/wiki/Command-Line-Usage \n"
+				"Targeted Build Platform: "
+#ifdef _WIN32
+			"WINDOWS"
+#else
+			"LINUX/UNIX"
+#endif
+				"\n");
 	}
 	else
 		ABORT(("Unrecognized flag(%s).\n", op_flag));

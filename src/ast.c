@@ -340,9 +340,6 @@ static ast_primitive_t* ast_add_prim_value(ast_parser_t* ast_parser, ast_primiti
 	PANIC_ON_FAIL(prim_buf, ast_parser, ERROR_MEMORY);
 	*prim_buf = primitive;
 	prim_buf->id = ast_parser->ast->constant_count;
-	if (prim_buf->id == 30) {
-		int asd = 0;
-	}
 	ast_parser->ast->primitives[ast_parser->ast->constant_count++] = prim_buf;
 	return prim_buf;
 }

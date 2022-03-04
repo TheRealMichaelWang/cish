@@ -137,7 +137,9 @@ int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_li
 	ESCAPE_ON_FAIL(machine->heap_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
 	ESCAPE_ON_FAIL(machine->trace_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
 	ESCAPE_ON_FAIL(machine->freed_heap_allocs = malloc((machine->alloc_freed_heaps = 128) * sizeof(heap_alloc_t*)));
+	ESCAPE_ON_FAIL(machine->dynamic_library_table = malloc(sizeof(dynamic_library_table_t)));
 	ESCAPE_ON_FAIL(init_ffi(&machine->ffi_table));
+	ESCAPE_ON_FAIL(dynamic_library_init(machine->dynamic_library_table));
 	return 1;
 }
 
@@ -146,6 +148,8 @@ void free_machine(machine_t* machine) {
 		free(machine->freed_heap_allocs[i]);
 	free(machine->freed_heap_allocs);
 	free_ffi(&machine->ffi_table);
+	dynamic_library_free(machine->dynamic_library_table);
+	free(machine->dynamic_library_table);
 	free(machine->stack);
 	free(machine->positions);
 	free(machine->heap_allocs);
