@@ -12,7 +12,11 @@
 
 #include <stdint.h>
 
+#ifdef _WIN32
 #define SUPERFORTH_ENTRY(BODY) __declspec(dllexport) int superforth_entry(machine_t* machine) BODY
+#else
+#define SUPERFORTH_ENTRY(BODY) __attribute__((visibility("default"))) int superforth_entry(machine_t* machine) BODY
+#endif
 
 typedef union machine_register machine_reg_t;
 typedef struct machine machine_t;
