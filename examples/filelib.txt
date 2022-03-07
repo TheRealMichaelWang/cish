@@ -1,0 +1,15 @@
+global readonly int file_lib_offset = foreign[17]("./filelib.so");
+
+global readonly auto create_file = proc(array<char> file_path) return bool {
+	foreign[file_lib_offset](file_path); $selects a file
+	if(foreign[file_lib_offset + 2]) {$check if file exists
+		return false; $no file was created
+	}
+	else {
+		foreign[file_lib_offset + 3]; $creates a file
+		foreign[file_lib_offset + 6]("Hello there, general kenobi!"); $writes and closes the file
+		return true;
+	}
+};
+
+create_file("kunta_kinte.txt");
