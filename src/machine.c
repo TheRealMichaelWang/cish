@@ -587,7 +587,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			machine->stack[ip->a].bool_flag = !machine->stack[ip->b].bool_flag;
 			break;
 		case MACHINE_OP_CODE_LENGTH_LL:
-			machine->stack[ip->a + machine->global_offset].long_int= machine->stack[ip->b + machine->global_offset].heap_alloc->limit;
+			machine->stack[ip->a + machine->global_offset].long_int = machine->stack[ip->b + machine->global_offset].heap_alloc->limit;
 			break;
 		case MACHINE_OP_CODE_LENGTH_LG:
 			machine->stack[ip->a + machine->global_offset].long_int= machine->stack[ip->b].heap_alloc->limit;
