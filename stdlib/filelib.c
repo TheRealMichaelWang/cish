@@ -68,6 +68,11 @@ int ffi_select_dir(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	return 1;
 }
 
+int ffi_deselect(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
+  selected_type = FILESYSTEM_NONE;
+  return 1;
+}
+
 int ffi_file_exists(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	ESCAPE_ON_FAIL(selected_type);
 	out->bool_flag = exists;
@@ -109,12 +114,16 @@ int ffi_read_file(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	}
 
 	if (in->bool_flag) { //read chars
-		for (uint_fast16_t i = 0; i < out->heap_alloc->limit; i++)
+		for (uint_fast16_t i = 0; i < out->heap_alloc->limit; i++) {
 			out->heap_alloc->registers[i].char_int = buffer[i];
+			out->heap_alloc->init_stat[i] = 1;
+		}
 	}
 	else { //read bytes
-		for (uint_fast16_t i = 0; i < out->heap_alloc->limit; i++)
+		for (uint_fast16_t i = 0; i < out->heap_alloc->limit; i++) {
 			out->heap_alloc->registers[i].long_int = buffer[i];
+			out->heap_alloc->init_stat[i] = 1;
+		}
 	}
 	free(buffer);
 	selected_type = FILESYSTEM_NONE;
@@ -172,6 +181,7 @@ int ffi_write_file_bytes(machine_t* machine, machine_reg_t* in, machine_reg_t* o
 SUPERFORTH_ENTRY({
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, ffi_select_file));
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, ffi_select_dir));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, ffi_deselect));
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, ffi_file_exists));
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, ffi_create_file));
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, ffi_read_file));
