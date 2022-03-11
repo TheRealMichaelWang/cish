@@ -31,6 +31,8 @@ int ins_builder_append_ins(ins_builder_t* ins_builder, compiler_ins_t ins) {
 static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code_block, uint16_t current_reg);
 
 static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uint16_t current_reg, compiler_reg_t* target_reg) {
+	if (!value.affects_state)
+		return current_reg;
 	uint16_t extra_regs = current_reg;
 	switch (value.value_type)
 	{
@@ -65,24 +67,36 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		compiler->move_eval[value.id] = 1;
 		return current_reg;
 	case AST_VALUE_SET_VAR:
-		compiler->eval_regs[value.id] = compiler->var_regs[value.data.set_var->var_info->id];
-		allocate_value_regs(compiler, value.data.set_var->set_value, current_reg, &compiler->eval_regs[value.id]);
-		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_var->set_value.id];
-		compiler->move_eval[value.id] = compiler->move_eval[value.data.set_var->set_value.id];
+		if (value.data.set_var->var_info->is_used) {
+			compiler->eval_regs[value.id] = compiler->var_regs[value.data.set_var->var_info->id];
+			allocate_value_regs(compiler, value.data.set_var->set_value, current_reg, &compiler->eval_regs[value.id]);
+			compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_var->set_value.id];
+			compiler->move_eval[value.id] = compiler->move_eval[value.data.set_var->set_value.id];
+		}
+		else if(value.data.set_var->set_value.affects_state)
+			allocate_value_regs(compiler, value.data.set_var->set_value, current_reg, NULL);
 		return current_reg;
 	case AST_VALUE_SET_INDEX:
-		extra_regs = allocate_value_regs(compiler, value.data.set_index->array, extra_regs, NULL);
-		if(value.data.set_index->index.value_type != AST_VALUE_PRIMITIVE)
-			extra_regs = allocate_value_regs(compiler, value.data.set_index->index, extra_regs, NULL);
-		allocate_value_regs(compiler, value.data.set_index->value, extra_regs, NULL);
-		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_index->value.id];
-		compiler->move_eval[value.id] = compiler->move_eval[value.data.set_index->value.id];
+		if (value.data.set_index->array.affects_state) {
+			extra_regs = allocate_value_regs(compiler, value.data.set_index->array, extra_regs, NULL);
+			if (value.data.set_index->index.value_type != AST_VALUE_PRIMITIVE)
+				extra_regs = allocate_value_regs(compiler, value.data.set_index->index, extra_regs, NULL);
+			allocate_value_regs(compiler, value.data.set_index->value, extra_regs, NULL);
+			compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_index->value.id];
+			compiler->move_eval[value.id] = compiler->move_eval[value.data.set_index->value.id];
+		}
+		else if(value.data.set_index->value.affects_state)
+			allocate_value_regs(compiler, value.data.set_index->value, current_reg, NULL);
 		return current_reg;
 	case AST_VALUE_SET_PROP:
-		extra_regs = allocate_value_regs(compiler, value.data.set_prop->record, extra_regs, NULL);
-		allocate_value_regs(compiler, value.data.set_prop->value, extra_regs, NULL);
-		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_prop->value.id];
-		compiler->move_eval[value.id] = compiler->move_eval[value.data.set_prop->value.id];
+		if (value.data.set_prop->record.affects_state) {
+			extra_regs = allocate_value_regs(compiler, value.data.set_prop->record, extra_regs, NULL);
+			allocate_value_regs(compiler, value.data.set_prop->value, extra_regs, NULL);
+			compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_prop->value.id];
+			compiler->move_eval[value.id] = compiler->move_eval[value.data.set_prop->value.id];
+		}
+		else if(value.data.set_prop->value.affects_state)
+			allocate_value_regs(compiler, value.data.set_prop->value, current_reg, NULL);
 		return current_reg;
 	case AST_VALUE_GET_INDEX:
 		extra_regs = allocate_value_regs(compiler, value.data.get_index->array, extra_regs, NULL);
@@ -139,18 +153,28 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 					var_decl.set_value.value_type == AST_VALUE_PROC ||
 					(var_decl.set_value.value_type == AST_VALUE_VAR && !var_decl.set_value.data.variable->has_mutated))) {
 				current_reg = allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL);
-				compiler->var_regs[var_decl.var_info->id] = compiler->eval_regs[var_decl.set_value.id];
-				compiler->move_eval[var_decl.set_value.id] = 0;
+				if (var_decl.var_info->is_used) {
+					compiler->var_regs[var_decl.var_info->id] = compiler->eval_regs[var_decl.set_value.id];
+					compiler->move_eval[var_decl.set_value.id] = 0;
+				}
 			}
 			else {
 				if (var_decl.var_info->is_global) {
-					compiler->var_regs[var_decl.var_info->id] = GLOB_REG(compiler->ast->constant_count + compiler->current_global++);
-					allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info->id]);
+					if (var_decl.var_info->is_used) {
+						compiler->var_regs[var_decl.var_info->id] = GLOB_REG(compiler->ast->constant_count + compiler->current_global++);
+						allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info->id]);
+					}
+					else if (var_decl.set_value.affects_state)
+						allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL);
 				}
 				else {
-					compiler->var_regs[var_decl.var_info->id] = LOC_REG(current_reg);
-					allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info->id]);
-					current_reg++;
+					if (var_decl.var_info->is_used) {
+						compiler->var_regs[var_decl.var_info->id] = LOC_REG(current_reg);
+						allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info->id]);
+						current_reg++;
+					}
+					else if(var_decl.set_value.affects_state)
+						allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL);
 				}
 			}
 			break;
@@ -192,6 +216,8 @@ static int compile_value_free(compiler_t* compiler, ast_value_t value, ast_proc_
 }
 
 static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* proc) {
+	if (!value.affects_state)
+		return 1;
 	switch (value.value_type)
 	{
 	case AST_VALUE_ALLOC_ARRAY:
@@ -254,28 +280,40 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		break;
 	}
 	case AST_VALUE_SET_VAR:
-		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_var->set_value, proc));
-		if (compiler->move_eval[value.data.set_var->set_value.id]) {
-			ESCAPE_ON_FAIL(compile_force_free(compiler, compiler->var_regs[value.data.set_var->var_info->id], value.data.set_var->var_info->type, proc, value.data.set_var->free_status));
-			EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, compiler->var_regs[value.data.set_var->var_info->id], compiler->eval_regs[value.data.set_var->set_value.id]));
+		if (value.data.set_var->var_info->is_used) {
+			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_var->set_value, proc));
+			if (compiler->move_eval[value.data.set_var->set_value.id]) {
+				ESCAPE_ON_FAIL(compile_force_free(compiler, compiler->var_regs[value.data.set_var->var_info->id], value.data.set_var->var_info->type, proc, value.data.set_var->var_info->type.type == TYPE_TYPEARG ? POSTPROC_FREE_DYNAMIC : IS_REF_TYPE(value.data.set_var->var_info->type) ? POSTPROC_FREE : POSTPROC_FREE_NONE));
+				EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, compiler->var_regs[value.data.set_var->var_info->id], compiler->eval_regs[value.data.set_var->set_value.id]));
+			}
 		}
+		else
+			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_var->set_value, proc));
 		break;
 	case AST_VALUE_SET_INDEX:
-		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->array, proc));
-		if(value.data.set_index->index.value_type != AST_VALUE_PRIMITIVE)
-			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->index, proc));
-		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->value, proc));
-		if (value.data.set_index->index.value_type == AST_VALUE_PRIMITIVE)
-			EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC_I_BOUND, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->value.id], GLOB_REG(value.data.set_index->index.data.primitive->data.long_int)))
+		if (value.data.set_index->array.affects_state) {
+			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->array, proc));
+			if (value.data.set_index->index.value_type != AST_VALUE_PRIMITIVE)
+				ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->index, proc));
+			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->value, proc));
+			if (value.data.set_index->index.value_type == AST_VALUE_PRIMITIVE)
+				EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC_I_BOUND, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->value.id], GLOB_REG(value.data.set_index->index.data.primitive->data.long_int)))
+			else
+				EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->index.id], compiler->eval_regs[value.data.set_index->value.id]));
+			ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.set_index->array, proc));
+		}
 		else
-			EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->index.id], compiler->eval_regs[value.data.set_index->value.id]));
-		ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.set_index->array, proc));
+			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->value, proc));
 		break;
 	case AST_VALUE_SET_PROP:
-		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->record, proc));
-		ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->value, proc));
-		EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC_I, compiler->eval_regs[value.data.set_prop->record.id], compiler->eval_regs[value.data.set_prop->value.id], GLOB_REG(value.data.set_prop->property->id)));
-		ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.set_prop->record, proc));
+		if (value.data.set_prop->record.affects_state) {
+			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->record, proc));
+			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->value, proc));
+			EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC_I, compiler->eval_regs[value.data.set_prop->record.id], compiler->eval_regs[value.data.set_prop->value.id], GLOB_REG(value.data.set_prop->property->id)));
+			ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.set_prop->record, proc));
+		}
+		else
+			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->value, proc));
 		break;
 	case AST_VALUE_GET_INDEX:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->array, proc));
@@ -416,29 +454,33 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 }
 
 static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block, ast_proc_t* proc, uint16_t continue_ip, uint16_t* break_jumps, uint8_t* break_jump_top) {
-	for (uint_fast32_t i = 0; i < code_block.instruction_count; i++)
-		switch (code_block.instructions[i].type) {
+	for (ast_statement_t* current_statement = code_block.instructions; current_statement != &code_block.instructions[code_block.instruction_count]; current_statement++)
+		switch (current_statement->type) {
 		case AST_STATEMENT_DECL_VAR:
-			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.var_decl.set_value, proc));
-			if (compiler->move_eval[code_block.instructions[i].data.var_decl.set_value.id])
-				EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, compiler->var_regs[code_block.instructions[i].data.var_decl.var_info->id], compiler->eval_regs[code_block.instructions[i].data.var_decl.set_value.id]));
+			if (current_statement->data.var_decl.var_info->is_used) {
+				ESCAPE_ON_FAIL(compile_value(compiler, current_statement->data.var_decl.set_value, proc));
+				if (compiler->move_eval[current_statement->data.var_decl.set_value.id])
+					EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, compiler->var_regs[current_statement->data.var_decl.var_info->id], compiler->eval_regs[current_statement->data.var_decl.set_value.id]));
+			}
+			else if(current_statement->data.var_decl.set_value.affects_state)
+				ESCAPE_ON_FAIL(compile_value(compiler, current_statement->data.var_decl.set_value, proc));
 			break;
 		case AST_STATEMENT_COND:
-			ESCAPE_ON_FAIL(compile_conditional(compiler, code_block.instructions[i].data.conditional, proc, continue_ip, break_jumps, break_jump_top));
+			ESCAPE_ON_FAIL(compile_conditional(compiler, current_statement->data.conditional, proc, continue_ip, break_jumps, break_jump_top));
 			break;
 		case AST_STATEMENT_VALUE:
-			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.value, proc));
-			ESCAPE_ON_FAIL(compile_value_free(compiler, code_block.instructions[i].data.value, proc));
+			ESCAPE_ON_FAIL(compile_value(compiler, current_statement->data.value, proc));
+			ESCAPE_ON_FAIL(compile_value_free(compiler, current_statement->data.value, proc));
 			break;
 		case AST_STATEMENT_RETURN_VALUE: {
-			ESCAPE_ON_FAIL(compile_value(compiler, code_block.instructions[i].data.value, proc));
-			compiler_reg_t src_reg = compiler->eval_regs[code_block.instructions[i].data.value.id];
-			if (compiler->move_eval[code_block.instructions[i].data.value.id] && !(!src_reg.reg && src_reg.offset))
+			ESCAPE_ON_FAIL(compile_value(compiler, current_statement->data.value, proc));
+			compiler_reg_t src_reg = compiler->eval_regs[current_statement->data.value.id];
+			if (compiler->move_eval[current_statement->data.value.id] && !(!src_reg.reg && src_reg.offset))
 				EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, LOC_REG(0), src_reg));
-			if (code_block.instructions[i].data.value.gc_status == POSTPROC_GC_LOCAL_ALLOC)
+			if (current_statement->data.value.gc_status == POSTPROC_GC_LOCAL_ALLOC)
 				EMIT_INS(INS1(COMPILER_OP_CODE_GC_TRACE, LOC_REG(0)))
-			else if (code_block.instructions[i].data.value.gc_status == POSTPROC_GC_LOCAL_DYNAMIC)
-				EMIT_INS(INS2(COMPILER_OP_CODE_DYNAMIC_TRACE, LOC_REG(0), LOC_REG(proc->param_count + code_block.instructions[i].data.value.type.type_id)));
+			else if (current_statement->data.value.gc_status == POSTPROC_GC_LOCAL_DYNAMIC)
+				EMIT_INS(INS2(COMPILER_OP_CODE_DYNAMIC_TRACE, LOC_REG(0), LOC_REG(proc->param_count + current_statement->data.value.type.type_id)));
 		}
 		case AST_STATEMENT_RETURN:
 			if(proc->do_gc)

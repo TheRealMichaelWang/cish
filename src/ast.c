@@ -75,6 +75,7 @@ static int ast_parser_decl_var(ast_parser_t* ast_parser, uint64_t id, ast_var_in
 	if (ast_parser_find_var(ast_parser, id))
 		PANIC(ast_parser, ERROR_REDECLARATION);
 	var_info->has_mutated = 0;
+	var_info->is_used = 0;
 	if (var_info->is_global) {
 		if (ast_parser->global_count == ast_parser->allocated_globals) {
 			ast_var_cache_entry_t* new_globals = realloc(ast_parser->globals, (ast_parser->allocated_globals += 64) * sizeof(ast_var_cache_entry_t));
@@ -824,7 +825,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				PANIC(ast_parser, ERROR_INTERNAL);
 			value->data.procedure->params[value->data.procedure->param_count].var_info = (ast_var_info_t){
 				.is_global = 0,
-				.is_readonly = 0
+				.is_readonly = 0,
 			};
 			ESCAPE_ON_FAIL(parse_type(ast_parser, &value->data.procedure->params[value->data.procedure->param_count].var_info.type, 0, 0));
 			MATCH_TOK(TOK_IDENTIFIER);

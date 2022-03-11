@@ -29,7 +29,7 @@ typedef struct ast_set_prop ast_set_prop_t;
 typedef struct ast_var_info {
 	uint32_t id;
 	uint16_t scope_id;
-	int is_global, is_readonly, has_mutated;
+	int is_global, is_readonly, has_mutated, is_used;
 	typecheck_type_t type;
 } ast_var_info_t;
 
@@ -118,7 +118,7 @@ typedef struct ast_value {
 	postproc_gc_status_t gc_status;
 	postproc_trace_status_t trace_status;
 	postproc_free_status_t free_status;
-	int from_var;
+	int from_var, affects_state;
 } ast_value_t;
 
 typedef struct ast_decl_var {
