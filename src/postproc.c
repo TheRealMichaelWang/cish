@@ -490,13 +490,14 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 
 		for (uint_fast8_t i = 0; i < value->type.type_id; i++)
 			typearg_traces[i] = POSTPROC_TRACE_DYNAMIC;
-		for (uint_fast8_t i = 0; i < value->data.procedure->param_count; i++)
+		for (uint_fast8_t i = 0; i < value->data.procedure->param_count; i++) {
 			if (value->data.procedure->params[i].var_info.type.type == TYPE_TYPEARG)
 				new_local_stats[value->data.procedure->params[i].var_info.scope_id] = POSTPROC_GC_EXTERN_DYNAMIC;
 			else if (IS_REF_TYPE(value->data.procedure->params[i].var_info.type))
 				new_local_stats[value->data.procedure->params[i].var_info.scope_id] = POSTPROC_GC_EXTERN_ALLOC;
 			else
 				new_local_stats[value->data.procedure->params[i].var_info.scope_id] = POSTPROC_GC_NONE;
+		}
 		value->data.procedure->do_gc = 0;
 		ESCAPE_ON_FAIL(ast_postproc_code_block(ast_parser, &value->data.procedure->exec_block, typearg_traces, new_global_stats, new_local_stats, value->data.procedure->scope_size, new_shared_globals, new_shared_locals, 0, value->data.procedure));
 		free(new_local_stats);
@@ -623,6 +624,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 				else
 					value->data.proc_call->typearg_traces[i] = IS_REF_TYPE(value->data.proc_call->typeargs[i]);
 		}
+
 		for (uint_fast8_t i = 0; i < value->data.proc_call->argument_count; i++) {
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.proc_call->arguments[i], typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
 			if (value->data.proc_call->arguments[i].gc_status == POSTPROC_GC_SUPEREXT_ALLOC || value->data.proc_call->arguments[i].gc_status == POSTPROC_GC_UNKOWN_ALLOC) {

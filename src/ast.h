@@ -291,7 +291,7 @@ typedef struct ast_parser_frame {
 
 	uint64_t* generics;
 
-	uint16_t local_count, allocated_locals, scoped_locals;
+	uint16_t local_count, allocated_locals, scoped_locals, max_scoped_locals;
 	uint8_t generic_count;
 
 	ast_parser_frame_t* parent_frame;

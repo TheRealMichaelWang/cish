@@ -158,6 +158,9 @@ void free_machine(machine_t* machine) {
 	free(machine->trace_frame_bounds);
 }
 
+#define MACHINE_PANIC_COND(COND, ERR) {if(!(COND)) { machine->last_err_ip = ip - instructions; PANIC(machine, ERR); }}
+#define MACHINE_ESCAPE_COND(COND) {if(!(COND)) { machine->last_err_ip = ip - instructions; return 0; }}
+#define MACHINE_PANIC(ERR) {machine->last_err_ip = ip - instructions; PANIC(machine, ERR); };
 int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 	machine_ins_t* ip = instructions;
 	for (;;) {
@@ -193,7 +196,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			}
 			break;
 		case MACHINE_OP_CODE_CALL_L: {
-			PANIC_ON_FAIL(machine->position_count != machine->frame_limit, machine, ERROR_STACK_OVERFLOW);
+			MACHINE_PANIC_COND(machine->position_count != machine->frame_limit, ERROR_STACK_OVERFLOW);
 			machine->positions[machine->position_count++] = ip;
 			uint16_t prev_a = ip->a + machine->global_offset;
 			machine->global_offset += ip->b;
@@ -201,7 +204,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			continue;
 		}
 		case MACHINE_OP_CODE_CALL_G:
-			PANIC_ON_FAIL(machine->position_count != machine->frame_limit, machine, ERROR_STACK_OVERFLOW);
+			MACHINE_PANIC_COND(machine->position_count != machine->frame_limit, ERROR_STACK_OVERFLOW);
 			machine->positions[machine->position_count++] = ip;
 			machine->global_offset += ip->b;
 			ip = machine->stack[ip->a].ip;
@@ -301,10 +304,10 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			goto load_alloc_bounds;
 		load_alloc_bounds:
 			if (index_register < 0 || index_register >= array_register->limit)
-				PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
+				MACHINE_PANIC(ERROR_INDEX_OUT_OF_RANGE);
 		load_alloc_unbounded:
 			if (!array_register->init_stat[index_register])
-				PANIC(machine, ERROR_READ_UNINIT);
+				MACHINE_PANIC(ERROR_READ_UNINIT);
 			*dest_reg = array_register->registers[index_register];
 			break;
 		}
@@ -394,7 +397,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			goto store_alloc_bounds;
 		store_alloc_bounds:
 			if (index_register < 0 || index_register >= array_register->limit)
-				PANIC(machine, ERROR_INDEX_OUT_OF_RANGE);
+				MACHINE_PANIC(ERROR_INDEX_OUT_OF_RANGE);
 		store_alloc_unbounded:
 			array_register->registers[index_register] = *store_reg;
 			array_register->init_stat[index_register] = 1;
@@ -419,35 +422,35 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			machine->global_offset -= ip->a;
 			break;
 		case MACHINE_OP_CODE_ALLOC_LL:
-			ESCAPE_ON_FAIL(machine->stack[ip->a + machine->global_offset].heap_alloc = machine_alloc(machine, machine->stack[ip->b + machine->global_offset].long_int, ip->c));
+			MACHINE_ESCAPE_COND(machine->stack[ip->a + machine->global_offset].heap_alloc = machine_alloc(machine, machine->stack[ip->b + machine->global_offset].long_int, ip->c));
 			break;
 		case MACHINE_OP_CODE_ALLOC_LG:
-			ESCAPE_ON_FAIL(machine->stack[ip->a + machine->global_offset].heap_alloc = machine_alloc(machine, machine->stack[ip->b].long_int, ip->c));
+			MACHINE_ESCAPE_COND(machine->stack[ip->a + machine->global_offset].heap_alloc = machine_alloc(machine, machine->stack[ip->b].long_int, ip->c));
 			break;
 		case MACHINE_OP_CODE_ALLOC_GL:
-			ESCAPE_ON_FAIL(machine->stack[ip->a].heap_alloc = machine_alloc(machine, machine->stack[ip->b + machine->global_offset].long_int, ip->c));
+			MACHINE_ESCAPE_COND(machine->stack[ip->a].heap_alloc = machine_alloc(machine, machine->stack[ip->b + machine->global_offset].long_int, ip->c));
 			break;
 		case MACHINE_OP_CODE_ALLOC_GG:
-			ESCAPE_ON_FAIL(machine->stack[ip->a].heap_alloc = machine_alloc(machine, machine->stack[ip->b].long_int, ip->c));
+			MACHINE_ESCAPE_COND(machine->stack[ip->a].heap_alloc = machine_alloc(machine, machine->stack[ip->b].long_int, ip->c));
 			break;
 		case MACHINE_OP_CODE_ALLOC_I_L:
-			ESCAPE_ON_FAIL(machine->stack[ip->a + machine->global_offset].heap_alloc = machine_alloc(machine, ip->b, ip->c));
+			MACHINE_ESCAPE_COND(machine->stack[ip->a + machine->global_offset].heap_alloc = machine_alloc(machine, ip->b, ip->c));
 			break;
 		case MACHINE_OP_CODE_ALLOC_I_G:
-			ESCAPE_ON_FAIL(machine->stack[ip->a].heap_alloc = machine_alloc(machine, ip->b, ip->c));
+			MACHINE_ESCAPE_COND(machine->stack[ip->a].heap_alloc = machine_alloc(machine, ip->b, ip->c));
 			break;
 		case MACHINE_OP_CODE_DYNAMIC_FREE_LL:
 			if (!machine->stack[ip->b + machine->global_offset].bool_flag)
 				break;
 		case MACHINE_OP_CODE_FREE_L:
-			ESCAPE_ON_FAIL(free_alloc(machine, machine->stack[ip->a + machine->global_offset].heap_alloc));
+			MACHINE_ESCAPE_COND(free_alloc(machine, machine->stack[ip->a + machine->global_offset].heap_alloc));
 			break;
 		case MACHINE_OP_CODE_FREE_G:
-			ESCAPE_ON_FAIL(free_alloc(machine, machine->stack[ip->a].heap_alloc));
+			MACHINE_ESCAPE_COND(free_alloc(machine, machine->stack[ip->a].heap_alloc));
 			break;
 		case MACHINE_OP_CODE_GC_NEW_FRAME:
 			if (machine->heap_frame == machine->frame_limit)
-				PANIC(machine, ERROR_STACK_OVERFLOW);
+				MACHINE_PANIC(ERROR_STACK_OVERFLOW);
 			machine->heap_frame_bounds[machine->heap_frame] = machine->heap_count;
 			machine->trace_frame_bounds[machine->heap_frame] = machine->trace_count;
 			machine->heap_frame++;
@@ -472,7 +475,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 		not_super_traced:
 			if (machine->trace_count == machine->trace_alloc_limit) {
 				heap_alloc_t** new_trace_stack = realloc(machine->heap_traces, (machine->trace_alloc_limit += 10) * sizeof(heap_alloc_t*));
-				PANIC_ON_FAIL(new_trace_stack, machine, ERROR_MEMORY);
+				MACHINE_PANIC_COND(new_trace_stack, ERROR_MEMORY);
 				machine->heap_traces = new_trace_stack;
 			}
 			(machine->heap_traces[machine->trace_count++] = heap_alloc)->gc_flag = super_traced;
@@ -864,49 +867,49 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			break;
 		case MACHINE_OP_CODE_LONG_DIVIDE_LLL: {
 			uint64_t d = machine->stack[ip->b + machine->global_offset].long_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a + machine->global_offset].long_int / d;
 			break;
 		}
 		case MACHINE_OP_CODE_LONG_DIVIDE_LLG: {
 			uint64_t d = machine->stack[ip->b + machine->global_offset].long_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c].long_int = machine->stack[ip->a + machine->global_offset].long_int / d;
 			break;
 		}
 		case MACHINE_OP_CODE_LONG_DIVIDE_LGL: {
 			uint64_t d = machine->stack[ip->b].long_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a + machine->global_offset].long_int / d;
 			break;
 		}
 		case MACHINE_OP_CODE_LONG_DIVIDE_LGG: {
 			uint64_t d = machine->stack[ip->b].long_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c].long_int = machine->stack[ip->a + machine->global_offset].long_int / d;
 			break;
 		}
 		case MACHINE_OP_CODE_LONG_DIVIDE_GLL: {
 			uint64_t d = machine->stack[ip->b + machine->global_offset].long_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a].long_int / d;
 			break;
 		}
 		case MACHINE_OP_CODE_LONG_DIVIDE_GLG: {
 			uint64_t d = machine->stack[ip->b + machine->global_offset].long_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c].long_int = machine->stack[ip->a].long_int / d;
 			break;
 		}
 		case MACHINE_OP_CODE_LONG_DIVIDE_GGL: {
 			uint64_t d = machine->stack[ip->b].long_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c + machine->global_offset].long_int = machine->stack[ip->a].long_int / d;
 			break;
 		}
 		case MACHINE_OP_CODE_LONG_DIVIDE_GGG: {
 			uint64_t d = machine->stack[ip->b].long_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c].long_int = machine->stack[ip->a].long_int / d;
 			break;
 		}
@@ -1128,49 +1131,49 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			break;
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_LLL: {
 			double d = machine->stack[ip->b + machine->global_offset].float_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a + machine->global_offset].float_int / d;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_LLG: {
 			double d = machine->stack[ip->b + machine->global_offset].float_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c].float_int = machine->stack[ip->a + machine->global_offset].float_int / d;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_LGL: {
 			double d = machine->stack[ip->b].float_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a + machine->global_offset].float_int / d;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_LGG: {
 			double d = machine->stack[ip->b].float_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c].float_int = machine->stack[ip->a + machine->global_offset].float_int / d;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_GLL: {
 			double d = machine->stack[ip->b + machine->global_offset].float_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a].float_int / d;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_GLG: {
 			double d = machine->stack[ip->b + machine->global_offset].float_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int / d;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_GGL: {
 			double d = machine->stack[ip->b].float_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a].float_int / d;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_GGG: {
 			double d = machine->stack[ip->b].float_int;
-			PANIC_ON_FAIL(d, machine, ERROR_DIVIDE_BY_ZERO);
+			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
 			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int / d;
 			break;
 		}
@@ -1308,3 +1311,6 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 	}
 	return 1;
 }
+#undef MACHINE_PANIC_COND
+#undef MACHINE_PANIC
+#undef MACHINE_ESCAPE_COND

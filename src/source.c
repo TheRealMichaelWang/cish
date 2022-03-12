@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 #include "compiler.h"
 #include "machine.h"
 #include "ast.h"
@@ -52,8 +53,10 @@ int main(int argc, char* argv[]) {
 
 		if (!strcmp(op_flag, "-cr")) {
 			install_stdlib(&machine);
-			if (!machine_execute(&machine, machine_ins))
+			if (!machine_execute(&machine, machine_ins)) {
+				printf("Last IP: %" PRIu64 "\n", machine.last_err_ip);
 				ABORT(("Runtime error(%s).\n", get_err_msg(machine.last_err)));
+			}
 		}
 		else if (!strcmp(op_flag, "-c")) {
 			EXPECT_FLAG("-o");
@@ -74,8 +77,10 @@ int main(int argc, char* argv[]) {
 			ABORT(("Unable to load binaries from file.\n"));
 		if (!strcmp(op_flag, "-r")) {
 			install_stdlib(&machine);
-			if (!machine_execute(&machine, instructions))
+			if (!machine_execute(&machine, instructions)) {
+				printf("Last IP: %" PRIu64 "\n", machine.last_err_ip);
 				ABORT(("Runtime error(%s).\n", get_err_msg(machine.last_err)))
+			}
 		}
 		else
 			print_instructions(instructions, instruction_count);

@@ -51,6 +51,7 @@ void dynamic_library_free(dynamic_library_table_t* dynamic_library) {
 		dlclose(dynamic_library->imported_libs[i].handle);
 #endif
 	}
+	free(dynamic_library->imported_libs);
 }
 
 int dynamic_library_load(dynamic_library_table_t* dynamic_library, machine_t* machine, char* name) {
