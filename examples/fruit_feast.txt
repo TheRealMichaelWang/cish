@@ -1,0 +1,48 @@
+include "io.txt";
+include "string.txt";
+include "std.txt";
+
+int x = stoi(input());
+int a = stoi(input());
+int b = stoi(input());
+
+array<bool> reached_nodrank = new bool[x + 1];
+array<bool> reached_dranked = new bool[x + 1];
+memset<bool>(reached_nodrank, false);
+memset<bool>(reached_dranked, false);
+reached_nodrank[0] = true;
+
+int res = 0;
+int i = 0;
+while(i < x) {
+	if(reached_nodrank[i]) {
+		if(i + a <= x) {
+			reached_nodrank[i + a] = true;
+			res = max(i + a, res);
+		}
+		if(i + b <= x) {
+			reached_nodrank[i + b] = true;
+			res = max(i + b, res);
+		}
+		reached_dranked[i / 2] = true;
+		res = max((i + 1) / 2, res);
+	}
+	i = i + 1;
+}
+
+i = 0;
+while(i < x) {
+	if(reached_dranked[i]) {
+		if(i + a <= x) {
+			reached_dranked[i + a] = true;
+			res = max(i + a, res);
+		}
+		if(i + b <= x) {
+			reached_dranked[i + b] = true;
+			res = max(i + b, res);
+		}
+	}
+	i = i + 1;
+}
+
+println(itos(res));
