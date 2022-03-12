@@ -54,14 +54,93 @@ static int comes_from_used_var(ast_value_t value) {
 
 static int ast_postproc_codeblock_affects_state(ast_code_block_t* code_block, int second_pass);
 
+static void mark_code_block_no_affects_state(ast_code_block_t* code_block);
+
+static void mark_value_no_affect_state(ast_value_t* value) {
+	value->affects_state = 0;
+	switch (value->value_type)
+	{
+	case AST_VALUE_ALLOC_RECORD:
+		for (uint_fast16_t i = 0; i < value->data.alloc_record.init_value_count; i++)
+			mark_value_no_affect_state(value->data.alloc_record.init_values[i].value);
+		break;
+	case AST_VALUE_ARRAY_LITERAL:
+		for (uint_fast16_t i = 0; i < value->data.array_literal.element_count; i++)
+			mark_value_no_affect_state(&value->data.array_literal.elements[i]);
+		break;
+	case AST_VALUE_PROC:
+		mark_code_block_no_affects_state(&value->data.procedure->exec_block);
+		break;
+	case AST_VALUE_SET_VAR:
+		mark_value_no_affect_state(&value->data.set_var->set_value);
+		break;
+	case AST_VALUE_SET_INDEX:
+		mark_value_no_affect_state(&value->data.set_index->array);
+		mark_value_no_affect_state(&value->data.set_index->index);
+		mark_value_no_affect_state(&value->data.set_index->value);
+		break;
+	case AST_VALUE_SET_PROP:
+		mark_value_no_affect_state(&value->data.set_prop->record);
+		mark_value_no_affect_state(&value->data.set_prop->value);
+		break;
+	case AST_VALUE_GET_INDEX:
+		mark_value_no_affect_state(&value->data.get_index->array);
+		mark_value_no_affect_state(&value->data.get_index->index);
+		break;
+	case AST_VALUE_GET_PROP:
+		mark_value_no_affect_state(&value->data.get_prop->record);
+		break;
+	case AST_VALUE_BINARY_OP:
+		mark_value_no_affect_state(&value->data.binary_op->lhs);
+		mark_value_no_affect_state(&value->data.binary_op->rhs);
+		break;
+	case AST_VALUE_UNARY_OP:
+		mark_value_no_affect_state(&value->data.unary_op->operand);
+		break;
+	case AST_VALUE_FOREIGN:
+		if (value->data.foreign->input)
+			mark_value_no_affect_state(value->data.foreign->input);
+		mark_value_no_affect_state(&value->data.foreign->op_id);
+		break;
+	case AST_VALUE_PROC_CALL:
+		mark_value_no_affect_state(&value->data.proc_call->procedure);
+		for (uint_fast16_t i = 0; i < value->data.proc_call->argument_count; i++)
+			mark_value_no_affect_state(&value->data.proc_call->arguments[i]);
+		break;
+	}
+}
+
+static void mark_code_block_no_affects_state(ast_code_block_t* code_block) {
+	for (ast_statement_t* current_statement = code_block->instructions; current_statement != &code_block->instructions[code_block->instruction_count]; current_statement++) {
+		switch (current_statement->type)
+		{
+		case AST_STATEMENT_DECL_VAR:
+			mark_value_no_affect_state(&current_statement->data.var_decl.set_value);
+			break;
+		case AST_STATEMENT_COND:{
+			ast_cond_t* current_cond = current_statement->data.conditional; 
+			while (current_cond)
+			{
+				if (current_cond->condition)
+					mark_value_no_affect_state(current_cond->condition);
+				mark_code_block_no_affects_state(&current_cond->exec_block);
+				current_cond = current_cond->next_if_false;
+			}
+			break;
+		}
+		case AST_STATEMENT_VALUE:
+		case AST_STATEMENT_RETURN_VALUE:
+			mark_value_no_affect_state(&current_statement->data.value);
+			break;
+		}
+	}
+}
+
 static int ast_postproc_value_affects_state(int affects_state, ast_value_t* value, int second_pass) {
 	int changes_made = 0;
 	value->affects_state = affects_state;
 	switch (value->value_type)
 	{
-	case AST_VALUE_PROC:
-		changes_made = ast_postproc_codeblock_affects_state(&value->data.procedure->exec_block, second_pass);
-		break;
 	case AST_VALUE_ALLOC_ARRAY:
 		CHECK_AFFECTS_STATE(affects_state, &value->data.alloc_array->size);
 		break;
@@ -72,6 +151,12 @@ static int ast_postproc_value_affects_state(int affects_state, ast_value_t* valu
 	case AST_VALUE_ARRAY_LITERAL:
 		for (uint_fast16_t i = 0; i < value->data.array_literal.element_count; i++)
 			CHECK_AFFECTS_STATE(affects_state, &value->data.array_literal.elements[i]);
+		break;
+	case AST_VALUE_PROC:
+		if (affects_state)
+			changes_made = ast_postproc_codeblock_affects_state(&value->data.procedure->exec_block, second_pass);
+		else
+			mark_code_block_no_affects_state(&value->data.procedure->exec_block);
 		break;
 	case AST_VALUE_VAR:
 		if (affects_state && !value->data.variable->is_used) {
@@ -89,7 +174,7 @@ static int ast_postproc_value_affects_state(int affects_state, ast_value_t* valu
 		break;
 	case AST_VALUE_SET_INDEX:
 		if (second_pass)
-			value->affects_state = value->affects_state || value->data.set_index->array.gc_status == POSTPROC_GC_EXTERN_ALLOC || value->data.set_index->array.gc_status == POSTPROC_GC_SUPEREXT_ALLOC;
+			value->affects_state = value->affects_state || value->data.set_index->array.gc_status == POSTPROC_GC_EXTERN_ALLOC;
 		value->affects_state = value->affects_state || comes_from_used_var(value->data.set_index->array);
 		CHECK_AFFECTS_STATE(value->affects_state, &value->data.set_index->array);
 		CHECK_AFFECTS_STATE(value->affects_state, &value->data.set_index->index);
@@ -97,7 +182,7 @@ static int ast_postproc_value_affects_state(int affects_state, ast_value_t* valu
 		break;
 	case AST_VALUE_SET_PROP:
 		if(second_pass)
-			value->affects_state = value->affects_state || value->data.set_prop->record.gc_status == POSTPROC_GC_EXTERN_ALLOC || value->data.set_prop->record.gc_status == POSTPROC_GC_SUPEREXT_ALLOC;
+			value->affects_state = value->affects_state || value->data.set_prop->record.gc_status == POSTPROC_GC_EXTERN_ALLOC;
 		value->affects_state = value->affects_state || comes_from_used_var(value->data.set_prop->record);
 		CHECK_AFFECTS_STATE(value->affects_state, &value->data.set_prop->record);
 		CHECK_AFFECTS_STATE(value->affects_state, &value->data.set_prop->value);

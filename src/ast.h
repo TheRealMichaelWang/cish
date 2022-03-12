@@ -198,6 +198,8 @@ typedef struct ast_statement {
 typedef struct ast_code_block {
 	ast_statement_t* instructions;
 	uint32_t instruction_count, allocated_instructions;
+
+	int affects_state;
 } ast_code_block_t;
 
 typedef struct ast_cond {
