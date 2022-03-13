@@ -9,7 +9,6 @@
 #include <dirent.h>
 #endif
 
-
 #define ESCAPE_ON_FAIL(WHAT) if(!(WHAT)) { return 0; }
  
 enum filesystem_type {

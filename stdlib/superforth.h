@@ -104,6 +104,8 @@ typedef struct machine {
 	
 	uint16_t global_offset, position_count, heap_frame, frame_limit, heap_count, heap_alloc_limit, trace_count, trace_alloc_limit, freed_heap_count, alloc_freed_heaps;
 
+	int last_ip;
+
 	ffi_t ffi_table;
 	void* dynamic_library_table;
 } machine_t;
