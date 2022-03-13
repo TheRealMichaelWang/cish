@@ -1,2 +1,2 @@
 all:
-	gcc -c -fPIC superforth.c -o superforth.o
+	gcc -c -fPIC -Ofast superforth.c -o superforth.o
