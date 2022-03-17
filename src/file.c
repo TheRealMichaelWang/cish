@@ -6,6 +6,7 @@
 #include "file.h"
 
 #define MAGIC_NUM 2187
+#define _CRT_SECURE_NO_WARNINGS
 
 static int read_ins(machine_ins_t* output, FILE* infile) {
 	uint16_t op_code_buffer;

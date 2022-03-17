@@ -44,7 +44,7 @@ heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode
 }
 
 int free_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
-	if (heap_alloc->pre_freed)
+	if (heap_alloc->pre_freed || heap_alloc->gc_flag)
 		return 1;
 	heap_alloc->pre_freed = 1;
 
@@ -98,7 +98,7 @@ static void machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, hea
 
 	heap_alloc->gc_flag = 1;
 	
-	if(*reset_count >= 64) {
+	if(*reset_count >= 128) {
 		machine_heap_supertrace(machine, heap_alloc);
 		return;
 	}
@@ -483,7 +483,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 		}
 		case MACHINE_OP_CODE_GC_CLEAN: {
 			uint16_t reseted_heap_count = 0;
-			static heap_alloc_t* reset_stack[64];
+			static heap_alloc_t* reset_stack[128];
 			
 			--machine->heap_frame;
 			heap_alloc_t** frame_start = &machine->heap_allocs[machine->heap_frame_bounds[machine->heap_frame]];

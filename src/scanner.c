@@ -5,6 +5,8 @@
 #include "file.h"
 #include "scanner.h"
 
+#define _CRT_SECURE_NO_WARNINGS
+
 static char scanner_peek_char(scanner_t* scanner) {
 	if (scanner->length == scanner->position)
 		return 0;
@@ -67,7 +69,7 @@ int scanner_scan_tok(scanner_t* scanner) {
 	while (scanner->last_char == ' ' || scanner->last_char == '\t' || scanner->last_char == '\r' || scanner->last_char == '\n')
 		scanner_read_char(scanner);
 
-	scanner->last_tok.str = &scanner->source[scanner->position - 1];
+	scanner->last_tok.str = &scanner->source[scanner->last_char ? scanner->position - 1 : scanner->position];
 	scanner->last_tok.length = 0;
 
 	if (isalpha(scanner->last_char) || scanner->last_char == '_') {
@@ -302,9 +304,9 @@ int multi_scanner_scan_tok(multi_scanner_t* scanner) {
 		PANIC_ON_FAIL(scanner_scan_tok(&scanner->scanners[scanner->current_file - 1]), scanner, scanner->scanners[scanner->current_file - 1].last_err);
 		scanner->last_tok = scanner->scanners[scanner->current_file - 1].last_tok;
 		if (scanner->last_tok.type == TOK_EOF) {
-			free(scanner->file_paths[scanner->current_file - 1]);
-			free(scanner->sources[scanner->current_file - 1]);
 			--scanner->current_file;
+			free(scanner->file_paths[scanner->current_file]);
+			free(scanner->sources[scanner->current_file]);
 			if (scanner->current_file)
 				ESCAPE_ON_FAIL(multi_scanner_scan_tok(scanner));
 		}

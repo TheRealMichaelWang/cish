@@ -391,11 +391,11 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		else
 			EMIT_INS(INS3(COMPILER_OP_CODE_FOREIGN, compiler->eval_regs[value.data.foreign->op_id.id], LOC_REG(0), compiler->eval_regs[value.id]));
 	}
-	if (value.trace_status == POSTPROC_TRACE_CHILDREN)//|| value.trace_status == POSTPROC_SUPERTRACE_CHILDREN)
+	if (value.trace_status == POSTPROC_TRACE_CHILDREN && (proc && proc->do_gc))//|| value.trace_status == POSTPROC_SUPERTRACE_CHILDREN)
 		EMIT_INS(INS2(COMPILER_OP_CODE_GC_TRACE, compiler->eval_regs[value.id], GLOB_REG(0)))
 	else if(value.trace_status == POSTPROC_SUPERTRACE_CHILDREN)
 		EMIT_INS(INS2(COMPILER_OP_CODE_GC_TRACE, compiler->eval_regs[value.id], GLOB_REG(1)))
-	else if (value.trace_status == POSTPROC_TRACE_DYNAMIC)
+	else if (value.trace_status == POSTPROC_TRACE_DYNAMIC && (proc && proc->do_gc))
 		EMIT_INS(INS2(COMPILER_OP_CODE_DYNAMIC_TRACE, compiler->eval_regs[value.id], TYPEARG_INFO_REG(value.type)));
 	return 1;
 }

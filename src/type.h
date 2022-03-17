@@ -41,6 +41,7 @@ static typecheck_type_t typecheck_float = { .type = TYPE_PRIMITIVE_FLOAT };
 static typecheck_type_t typecheck_char = { .type = TYPE_PRIMITIVE_CHAR };
 static typecheck_type_t typecheck_bool = { .type = TYPE_PRIMITIVE_BOOL };
 static typecheck_type_t typecheck_array = { .type = TYPE_SUPER_ARRAY };
+static typecheck_type_t typecheck_any = { .type = TYPE_ANY };
 
 void free_typecheck_type(typecheck_type_t* typecheck_type);
 int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src);
@@ -50,4 +51,5 @@ int typecheck_compatible(ast_t* ast, typecheck_type_t* target_type, typecheck_ty
 int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type);
 
 int typeargs_substitute(typecheck_type_t* input_typeargs, typecheck_type_t* proto_type);
+int typecheck_lowest_common_type(ast_t* ast, typecheck_type_t a, typecheck_type_t b, typecheck_type_t* result);
 #endif // !TYPE

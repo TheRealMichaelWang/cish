@@ -42,14 +42,16 @@ typedef struct ast_array_literal {
 	postproc_trace_status_t children_trace;
 } ast_array_literal_t;
 
+typedef struct ast_alloc_record_init_value {
+	ast_record_prop_t* property;
+	ast_value_t* value;
+	int free_val;
+} ast_alloc_record_init_value_t;
+
 typedef struct ast_alloc_record {
 	ast_record_proto_t* proto;
 	
-	struct ast_alloc_record_init_value {
-		ast_record_prop_t* property;
-		ast_value_t* value;
-		int free_val;
-	}* init_values;
+	ast_alloc_record_init_value_t* init_values;
 
 	uint8_t init_value_count, allocated_init_values;
 	postproc_trace_status_t* typearg_traces;
@@ -241,8 +243,9 @@ typedef struct ast_record_proto {
 	uint64_t hash_id;
 
 	typecheck_type_t* base_record;
-
 	ast_record_prop_t* properties;
+
+	typecheck_type_t* generic_req_types;
 	uint8_t generic_arguments;
 
 	struct ast_record_proto_init_value {
@@ -250,10 +253,10 @@ typedef struct ast_record_proto {
 		ast_value_t value;
 	}*default_values;
 
-	uint8_t property_count, allocated_properties;
-	uint16_t id, index_offset, default_value_count;
+	uint8_t id, property_count, allocated_properties;
+	uint16_t index_offset, default_value_count;
 
-	int defined, do_gc;
+	int typeargs_defined, fully_defined, do_gc;
 } ast_record_proto_t;
 
 typedef struct ast_get_prop {
@@ -270,6 +273,13 @@ typedef struct ast_var_cache_entry {
 	uint64_t id_hash;
 	ast_var_info_t* var_info;
 } ast_var_cache_entry_t;
+
+typedef struct ast_generic_cache_entry {
+	uint64_t id_hash, gen_id;
+	typecheck_type_t* req_type;
+
+	int replace_type;
+} ast_generic_cache_entry_t;
 
 typedef struct ast {
 	ast_code_block_t exec_block;
@@ -289,10 +299,10 @@ typedef struct ast_parser_frame {
 	ast_var_cache_entry_t* locals;
 	typecheck_type_t* return_type;
 
-	uint64_t* generics;
+	ast_generic_cache_entry_t* generics;
 
 	uint16_t local_count, allocated_locals, scoped_locals, max_scoped_locals;
-	uint8_t generic_count;
+	uint8_t generic_count, generic_id_count;
 
 	ast_parser_frame_t* parent_frame;
 } ast_parser_frame_t;
