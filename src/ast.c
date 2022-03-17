@@ -50,7 +50,7 @@ static int ast_parser_new_frame(ast_parser_t* ast_parser, typecheck_type_t* retu
 		next_frame->max_scoped_locals = next_frame->parent_frame->max_scoped_locals;
 	}
 	else {
-		PANIC_ON_FAIL(next_frame->generics = malloc(UINT8_MAX * sizeof(uint64_t)), ast_parser, ERROR_MEMORY);
+		PANIC_ON_FAIL(next_frame->generics = malloc(TYPE_MAX_SUBTYPES * sizeof(uint64_t)), ast_parser, ERROR_MEMORY);
 		next_frame->scoped_locals = 0;
 		next_frame->max_scoped_locals = 0;
 		next_frame->return_type = return_type;
@@ -141,7 +141,7 @@ static int ast_parser_decl_generic(ast_parser_t* ast_parser, uint64_t id, typech
 		PANIC(ast_parser, ERROR_REDECLARATION);
 	while (current_frame->parent_frame)
 		current_frame = current_frame->parent_frame;
-	if (current_frame->generic_count == UINT8_MAX)
+	if (current_frame->generic_count == TYPE_MAX_SUBTYPES)
 		PANIC(ast_parser, ERROR_MEMORY);
 	current_frame->generics[current_frame->generic_count++] = (ast_generic_cache_entry_t){
 		.id_hash = id,
@@ -275,8 +275,8 @@ static int parse_type(ast_parser_t* ast_parser, typecheck_type_t* type, int allo
 		type->type = TYPE_PRIMITIVE_BOOL + (LAST_TOK.type - TOK_TYPECHECK_BOOL);
 		type->type_id = 0;
 	}
-	else if (LAST_TOK.type == TOK_AUTO || LAST_TOK.type == TOK_NOTHING) {
-		PANIC_ON_FAIL(LAST_TOK.type == TOK_AUTO ? allow_auto : allow_nothing, ast_parser, ERROR_TYPE_NOT_ALLOWED);
+	else if (LAST_TOK.type >= TOK_AUTO && LAST_TOK.type <= TOK_TYPECHECK_ANY) {
+		PANIC_ON_FAIL((LAST_TOK.type == TOK_AUTO) ? allow_auto : ((LAST_TOK.type == TOK_NOTHING) ? allow_nothing : 1), ast_parser, ERROR_TYPE_NOT_ALLOWED);
 		type->type = LAST_TOK.type - TOK_AUTO + TYPE_AUTO;
 	}
 	else if (LAST_TOK.type == TOK_IDENTIFIER) {

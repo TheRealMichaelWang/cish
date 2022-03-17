@@ -106,6 +106,8 @@ int scanner_scan_tok(scanner_t* scanner) {
 			RETURN(TOK_TYPECHECK_PROC);
 		case 229476388586812: //nothing
 			RETURN(TOK_NOTHING);
+		case 193486381:
+			RETURN(TOK_TYPECHECK_ANY);
 		case 6385058142: //auto
 			RETURN(TOK_AUTO);
 		case 6953552265174: //global
