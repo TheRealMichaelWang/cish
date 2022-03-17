@@ -65,6 +65,7 @@ typedef struct machine {
 
 	heap_alloc_t** freed_heap_allocs;
 
+	uint64_t last_ip;
 	enum error {
 		ERROR_NONE,
 		ERROR_MEMORY,
@@ -103,8 +104,6 @@ typedef struct machine {
 	} last_err;
 	
 	uint16_t global_offset, position_count, heap_frame, frame_limit, heap_count, heap_alloc_limit, trace_count, trace_alloc_limit, freed_heap_count, alloc_freed_heaps;
-
-	int last_ip;
 
 	ffi_t ffi_table;
 	void* dynamic_library_table;
