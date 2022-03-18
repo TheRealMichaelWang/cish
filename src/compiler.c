@@ -126,9 +126,12 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		extra_regs = allocate_value_regs(compiler, value.data.foreign->op_id, extra_regs, NULL);
 		if(value.data.foreign->input)
 			extra_regs = allocate_value_regs(compiler, *value.data.foreign->input, extra_regs, NULL);
-		compiler->eval_regs[value.id] = LOC_REG(extra_regs++);
-		compiler->move_eval[value.id] = 1;
-		return extra_regs;
+    if(!target_reg) {
+		  compiler->eval_regs[value.id] = LOC_REG(extra_regs++);
+		  compiler->move_eval[value.id] = 1;
+		  return extra_regs;
+    }
+    break;
 	}
 	if (target_reg) {
 		compiler->eval_regs[value.id] = *target_reg;
