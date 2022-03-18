@@ -126,11 +126,6 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		extra_regs = allocate_value_regs(compiler, value.data.foreign->op_id, extra_regs, NULL);
 		if(value.data.foreign->input)
 			extra_regs = allocate_value_regs(compiler, *value.data.foreign->input, extra_regs, NULL);
-    if(!target_reg) {
-		  compiler->eval_regs[value.id] = LOC_REG(extra_regs++);
-		  compiler->move_eval[value.id] = 1;
-		  return extra_regs;
-    }
     break;
 	}
 	if (target_reg) {
@@ -192,9 +187,11 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 			}
 			break;
 		}
-		case AST_STATEMENT_VALUE:
-			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, NULL);
+		case AST_STATEMENT_VALUE: {
+      compiler_reg_t local_scratchpad = LOC_REG(0);
+			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, &local_scratchpad);
 			break;
+    }
 		case AST_STATEMENT_RETURN_VALUE: {
 			compiler_reg_t return_reg = LOC_REG(0);
 			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, &return_reg);
