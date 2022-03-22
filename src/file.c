@@ -38,7 +38,7 @@ machine_ins_t* file_load_ins(const char* path, machine_t* machine, uint16_t* ins
 	ESCAPE_ON_FAIL(fread(&const_allocs, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fread(instruction_count, sizeof(uint16_t), 1, infile));
 
-	ESCAPE_ON_FAIL(init_machine(machine, UINT16_MAX, 1000, 1000));
+	ESCAPE_ON_FAIL(init_machine(machine, UINT16_MAX, 1000));
 	machine_ins_t* instructions = malloc(*instruction_count * sizeof(machine_ins_t));
 	ESCAPE_ON_FAIL(instructions);
 

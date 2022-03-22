@@ -17,8 +17,12 @@ static int64_t longpow(int64_t base, int64_t exp) {
 }
 
 heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode_t trace_mode) {
-	if (machine->heap_count == machine->heap_alloc_limit)
-		PANIC(machine, ERROR_STACK_OVERFLOW);
+	if (machine->heap_count == machine->alloced_heap_allocs) {
+		heap_alloc_t** new_heap_allocs = realloc(machine->heap_allocs, (machine->alloced_heap_allocs += 100) * sizeof(heap_alloc_t*));
+		PANIC_ON_FAIL(new_heap_allocs, machine, ERROR_MEMORY);
+		machine->heap_allocs = new_heap_allocs;
+	}
+
 	heap_alloc_t* heap_alloc;
 	if (machine->freed_heap_count) {
 		heap_alloc = machine->freed_heap_allocs[--machine->freed_heap_count];
@@ -118,8 +122,7 @@ static void machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, hea
 	}
 }
 
-int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_limit, uint16_t frame_limit) {
-	machine->heap_alloc_limit = heap_alloc_limit;
+int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit) {
 	machine->frame_limit = frame_limit;
 
 	machine->last_err = ERROR_NONE;
@@ -132,8 +135,8 @@ int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_li
 
 	ESCAPE_ON_FAIL(machine->stack = malloc(stack_size * sizeof(machine_reg_t)));
 	ESCAPE_ON_FAIL(machine->positions = malloc(machine->frame_limit * sizeof(machine_ins_t*)));
-	ESCAPE_ON_FAIL(machine->heap_allocs = malloc(machine->heap_alloc_limit * sizeof(heap_alloc_t*)));
-	ESCAPE_ON_FAIL(machine->heap_traces = malloc((machine->trace_alloc_limit = 128) * sizeof(heap_alloc_t*)));
+	ESCAPE_ON_FAIL(machine->heap_allocs = malloc((machine->alloced_heap_allocs = 1000) * sizeof(heap_alloc_t*)));
+	ESCAPE_ON_FAIL(machine->heap_traces = malloc((machine->alloced_trace_allocs = 128) * sizeof(heap_alloc_t*)));
 	ESCAPE_ON_FAIL(machine->heap_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
 	ESCAPE_ON_FAIL(machine->trace_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
 	ESCAPE_ON_FAIL(machine->freed_heap_allocs = malloc((machine->alloc_freed_heaps = 128) * sizeof(heap_alloc_t*)));
@@ -473,8 +476,8 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 		maybe_super_traced:
 			super_traced = ip->b;
 		not_super_traced:
-			if (machine->trace_count == machine->trace_alloc_limit) {
-				heap_alloc_t** new_trace_stack = realloc(machine->heap_traces, (machine->trace_alloc_limit += 10) * sizeof(heap_alloc_t*));
+			if (machine->trace_count == machine->alloced_trace_allocs) {
+				heap_alloc_t** new_trace_stack = realloc(machine->heap_traces, (machine->alloced_trace_allocs += 10) * sizeof(heap_alloc_t*));
 				MACHINE_PANIC_COND(new_trace_stack, ERROR_MEMORY);
 				machine->heap_traces = new_trace_stack;
 			}

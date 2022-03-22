@@ -288,8 +288,10 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 				EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, compiler->var_regs[value.data.set_var->var_info->id], compiler->eval_regs[value.data.set_var->set_value.id]));
 			}
 		}
-		else
+		else if (value.data.set_var->set_value.affects_state) {
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_var->set_value, proc));
+			ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.set_var->set_value, proc));
+		}
 		break;
 	case AST_VALUE_SET_INDEX:
 		if (value.data.set_index->array.affects_state) {
@@ -303,8 +305,10 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 				EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->index.id], compiler->eval_regs[value.data.set_index->value.id]));
 			ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.set_index->array, proc));
 		}
-		else
+		else if(value.data.set_index->value.affects_state){
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->value, proc));
+			ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.set_index->value, proc));
+		}
 		break;
 	case AST_VALUE_SET_PROP:
 		if (value.data.set_prop->record.affects_state) {
@@ -313,8 +317,10 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 			EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC_I, compiler->eval_regs[value.data.set_prop->record.id], compiler->eval_regs[value.data.set_prop->value.id], GLOB_REG(value.data.set_prop->property->id)));
 			ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.set_prop->record, proc));
 		}
-		else
+		else if(value.data.set_prop->value.affects_state){
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->value, proc));
+			ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.set_prop->value, proc));
+		}
 		break;
 	case AST_VALUE_GET_INDEX:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->array, proc));
@@ -336,6 +342,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.binary_op->rhs, proc));
 		compiler_reg_t lhs = compiler->eval_regs[value.data.binary_op->lhs.id];
 		compiler_reg_t rhs = compiler->eval_regs[value.data.binary_op->rhs.id];
+
  		if (value.data.binary_op->operator == TOK_EQUALS || value.data.binary_op->operator == TOK_NOT_EQUAL) {
 			EMIT_INS(INS3(COMPILER_OP_CODE_BOOL_EQUAL + value.data.binary_op->lhs.type.type - TYPE_PRIMITIVE_BOOL, lhs, rhs, compiler->eval_regs[value.id]));
 			if (value.data.binary_op->operator == TOK_NOT_EQUAL)
@@ -515,7 +522,7 @@ int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
 	PANIC_ON_FAIL(compiler->var_regs = malloc(ast->var_decl_count * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(compiler->proc_call_offsets = malloc(ast->proc_call_count * sizeof(uint16_t)), compiler, ERROR_MEMORY);
 
-	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX, 1000, 1000), compiler, target_machine->last_err);
+	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX, 1000), compiler, target_machine->last_err);
 	allocate_code_block_regs(compiler, ast->exec_block, 0);
 
 	PANIC_ON_FAIL(init_ins_builder(&compiler->ins_builder), compiler, ERROR_MEMORY);

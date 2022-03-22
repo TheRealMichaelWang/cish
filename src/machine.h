@@ -125,13 +125,13 @@ typedef struct machine {
 	uint64_t last_err_ip;
 	error_t last_err;
 	
-	uint16_t global_offset, position_count, heap_frame, frame_limit, heap_count, heap_alloc_limit, trace_count, trace_alloc_limit, freed_heap_count, alloc_freed_heaps;
+	uint16_t global_offset, position_count, heap_frame, frame_limit, heap_count, alloced_heap_allocs, trace_count, alloced_trace_allocs, freed_heap_count, alloc_freed_heaps;
 
 	ffi_t ffi_table;
 	dynamic_library_table_t* dynamic_library_table;
 } machine_t;
 
-int init_machine(machine_t* machine, uint16_t stack_size, uint16_t heap_alloc_limit, uint16_t frame_limit);
+int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit);
 void free_machine(machine_t* machine);
 
 int machine_execute(machine_t* machine, machine_ins_t* instructions);

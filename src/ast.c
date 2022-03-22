@@ -902,7 +902,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				PANIC(ast_parser, ERROR_INTERNAL);
 			value->data.procedure->params[value->data.procedure->param_count].var_info = (ast_var_info_t){
 				.is_global = 0,
-				.is_readonly = 0,
+				.is_readonly = 1,
 			};
 			ESCAPE_ON_FAIL(parse_type(ast_parser, &value->data.procedure->params[value->data.procedure->param_count].var_info.type, 0, 0));
 			MATCH_TOK(TOK_IDENTIFIER);
@@ -1076,26 +1076,37 @@ static int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typech
 	ast_value_t lhs;
 	lhs.type = (typecheck_type_t){ .type = TYPE_AUTO };
 	ESCAPE_ON_FAIL(parse_value(ast_parser, &lhs, &lhs.type));
+
 	while (LAST_TOK.type >= TOK_EQUALS && LAST_TOK.type <= TOK_OR && op_precs[LAST_TOK.type - TOK_EQUALS] > min_prec) {
 		PANIC_ON_FAIL(value->data.binary_op = malloc(sizeof(ast_binary_op_t)), ast_parser, ERROR_MEMORY);
-		value->data.binary_op->lhs = lhs;
 		value->data.binary_op->operator = LAST_TOK.type;
-
 		value->value_type = AST_VALUE_BINARY_OP;
+		READ_TOK;
 
 		if (value->data.binary_op->operator >= TOK_EQUALS && value->data.binary_op->operator <= TOK_LESS_EQUAL)
 			value->type.type = TYPE_PRIMITIVE_BOOL;
-		else if (value->data.binary_op->operator >= TOK_ADD && value->data.binary_op->operator <= TOK_POWER)
-			value->type.type = lhs.type.type;
-
-		if (value->data.binary_op->operator >= TOK_MORE && value->data.binary_op->operator <= TOK_POWER)
-			PANIC_ON_FAIL(TYPE_COMP(&lhs.type, typecheck_int) || TYPE_COMP(&lhs.type, typecheck_float), ast_parser, ERROR_UNEXPECTED_TYPE)
-		else if (value->data.binary_op->operator == TOK_AND || value->data.binary_op->operator == TOK_OR) {
-			PANIC_ON_FAIL(TYPE_COMP(type, typecheck_bool), ast_parser, ERROR_UNEXPECTED_TYPE);
+		else if (value->data.binary_op->operator >= TOK_AND && value->data.binary_op->operator <= TOK_OR) {
 			PANIC_ON_FAIL(TYPE_COMP(&lhs.type, typecheck_bool), ast_parser, ERROR_UNEXPECTED_TYPE);
+			value->type.type = TYPE_PRIMITIVE_BOOL;
 		}
-		READ_TOK;
+
 		ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.binary_op->rhs, &lhs.type, op_precs[value->data.binary_op->operator - TOK_EQUALS]));
+
+		if (lhs.type.type == TYPE_AUTO) {
+			PANIC_ON_FAIL(value->data.binary_op->rhs.type.type != TYPE_AUTO, ast_parser, ERROR_UNEXPECTED_TYPE);
+			TYPE_COMP(&lhs.type, value->data.binary_op->rhs.type);
+		}
+		else if (value->data.binary_op->rhs.type.type == TYPE_AUTO) {
+			PANIC_ON_FAIL(lhs.type.type == TYPE_AUTO, ast_parser, ERROR_UNEXPECTED_TYPE);
+			TYPE_COMP(&value->data.binary_op->rhs.type, lhs.type);
+		}
+		else
+			PANIC_ON_FAIL(TYPE_COMP(&lhs.type, value->data.binary_op->rhs.type), ast_parser, ERROR_UNEXPECTED_TYPE);
+
+		if (value->data.binary_op->operator >= TOK_ADD && value->data.binary_op->operator <= TOK_POWER) {
+			PANIC_ON_FAIL(TYPE_COMP(&lhs.type, typecheck_int) || TYPE_COMP(&lhs.type, typecheck_float), ast_parser, ERROR_UNEXPECTED_TYPE);
+			value->type = lhs.type;
+		}
 
 		if ((value->data.binary_op->operator == TOK_DIVIDE)
 			&& ((lhs.type.type == TYPE_PRIMITIVE_LONG && value->data.binary_op->rhs.data.primitive->data.long_int == 0)
@@ -1103,6 +1114,7 @@ static int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typech
 			PANIC(ast_parser, ERROR_DIVIDE_BY_ZERO);
 
 		value->id = ast_parser->ast->value_count++;
+		value->data.binary_op->lhs = lhs;
 		lhs = *value;
 	}
 	if (type->type == TYPE_AUTO)

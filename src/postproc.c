@@ -174,7 +174,7 @@ static int ast_postproc_value_affects_state(int affects_state, ast_value_t* valu
 		break;
 	case AST_VALUE_SET_INDEX:
 		if (second_pass)
-			value->affects_state = value->affects_state || value->data.set_index->array.gc_status == POSTPROC_GC_EXTERN_ALLOC;
+			value->affects_state = value->affects_state || value->data.set_index->array.gc_status == POSTPROC_GC_EXTERN_ALLOC || value->data.set_index->array.gc_status == POSTPROC_GC_UNKOWN_ALLOC;
 		value->affects_state = value->affects_state || comes_from_used_var(value->data.set_index->array);
 		CHECK_AFFECTS_STATE(value->affects_state, &value->data.set_index->array);
 		CHECK_AFFECTS_STATE(value->affects_state, &value->data.set_index->index);
@@ -182,7 +182,7 @@ static int ast_postproc_value_affects_state(int affects_state, ast_value_t* valu
 		break;
 	case AST_VALUE_SET_PROP:
 		if(second_pass)
-			value->affects_state = value->affects_state || value->data.set_prop->record.gc_status == POSTPROC_GC_EXTERN_ALLOC;
+			value->affects_state = value->affects_state || value->data.set_prop->record.gc_status == POSTPROC_GC_EXTERN_ALLOC || value->data.set_prop->record.gc_status == POSTPROC_GC_UNKOWN_ALLOC;
 		value->affects_state = value->affects_state || comes_from_used_var(value->data.set_prop->record);
 		CHECK_AFFECTS_STATE(value->affects_state, &value->data.set_prop->record);
 		CHECK_AFFECTS_STATE(value->affects_state, &value->data.set_prop->value);
