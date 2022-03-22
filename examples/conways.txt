@@ -42,10 +42,10 @@ global readonly auto evolve = proc(array<array<bool>> cells) return auto {
 	
 	readonly auto neighboors = proc(array<array<bool>> cells, int r, int c) return int {
 		int n = 0;	
-		int i = max(0, r);
+		int i = max(0, r - 1);
 		while(i < min(#cells - 1, r + 1)) {
-			int j = max(0, c);
-			while(j < max(#cells[i] - 1, c + 1)) {
+			int j = max(0, c - 1);
+			while(j < min(#cells[i] - 1, c + 1)) {
 				if(cells[i][j]) {
 					n = n + 1;
 				}
@@ -75,7 +75,7 @@ global readonly auto evolve = proc(array<array<bool>> cells) return auto {
 	return next_gen;
 };
 
-auto cells = random_cells(10, 10);
+auto cells = random_cells(20, 30);
 
 print("Requested generations?>");
 int gens = stoi(input());
@@ -86,8 +86,11 @@ print_cells(cells);
 int i = 0;
 while(i < gens) {
 	cells = evolve(cells);
+	
+	print(itos(i));
+	put_char(':');
+	put_char('\n');
+
+	print_cells(cells);
 	i = i + 1;
 }
-
-println("End State:");
-print_cells(cells);
