@@ -60,7 +60,7 @@ int main(int argc, char* argv[]) {
 		}
 		else if (!strcmp(op_flag, "-c")) {
 			EXPECT_FLAG("-o");
-			if (!file_save_compiled(READ_ARG, &parser, &machine, machine_ins, compiler.ins_builder.instruction_count))
+			if (!file_save_compiled(READ_ARG, &ast, &machine, machine_ins, compiler.ins_builder.instruction_count))
 				ABORT(("Error saving compiled binaries.\n"));
 		}
 		else

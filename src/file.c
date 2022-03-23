@@ -52,16 +52,16 @@ machine_ins_t* file_load_ins(const char* path, machine_t* machine, uint16_t* ins
 	return instructions;
 }
 
-int file_save_compiled(const char* path, ast_parser_t* ast_parser, machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count){
+int file_save_compiled(const char* path, ast_t* ast, machine_t* machine, machine_ins_t* instructions, uint16_t instruction_count) {
 	FILE* infile = fopen(path, "wb+");
 	ESCAPE_ON_FAIL(infile);
 
-	uint16_t magic_num = MAGIC_NUM; 
+	uint16_t magic_num = MAGIC_NUM;
 	ESCAPE_ON_FAIL(fwrite(&magic_num, sizeof(uint16_t), 1, infile));
-	ESCAPE_ON_FAIL(fwrite(&ast_parser->ast->constant_count, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(&ast->constant_count, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fwrite(&instruction_count, sizeof(uint16_t), 1, infile));
-	
-	for (uint_fast16_t i = 0; i < ast_parser->ast->constant_count; i++)
+
+	for (uint_fast16_t i = 0; i < ast->constant_count; i++)
 		ESCAPE_ON_FAIL(fwrite(&machine->stack[i], sizeof(uint64_t), 1, infile));
 
 	for (uint_fast16_t i = 0; i < instruction_count; i++)
