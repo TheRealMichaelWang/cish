@@ -13,7 +13,7 @@
 
 #ifdef _DEBUG
 int santize_type_comp(ast_parser_t* ast_parser, typecheck_type_t* a, typecheck_type_t b) {
-	if (!typecheck_compatible(ast_parser, a, b))
+	if (!typecheck_compatible(ast_parser->ast, a, b))
 		return 0;
 	return 1;
 }
