@@ -17,7 +17,7 @@ int santize_type_comp(ast_parser_t* ast_parser, typecheck_type_t* a, typecheck_t
 		return 0;
 	return 1;
 }
-#define TYPE_COMP(A, B) santize_type_comp(ast_parser->ast, A, B)
+#define TYPE_COMP(A, B) santize_type_comp(ast_parser, A, B)
 #else
 #define TYPE_COMP(A, B) typecheck_compatible(ast_parser->ast, A, B)
 #endif
