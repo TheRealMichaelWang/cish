@@ -82,6 +82,11 @@ char* file_read_source(const char* path) {
 	ESCAPE_ON_FAIL(buffer);
 
 	ESCAPE_ON_FAIL(fread(buffer, sizeof(char), size, infile));
+	if (size >= 3 && (unsigned char)buffer[0] == 0xEF && (unsigned char)buffer[1] == 0xBB && (unsigned char)buffer[2] == 0xBF) { //bom-detection
+		size -= 3;
+		memcpy(buffer, buffer + 3, size);
+	}
+
 	buffer[size] = 0;
 
 	fclose(infile);
