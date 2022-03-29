@@ -380,6 +380,7 @@ static void share_var_from_value(ast_parser_t* ast_parser, ast_value_t value, in
 }
 
 #define GET_TYPE_TRACE(TYPE) (((TYPE).type == TYPE_TYPEARG) ? typearg_traces[(TYPE).type_id] : IS_REF_TYPE(TYPE))
+#define GET_TYPE_FREE(TYPE) (((TYPE).type != TYPE_TYPEARG) ? IS_REF_TYPE(TYPE) : (typearg_traces[(TYPE).type_id] == POSTPROC_TRACE_DYNAMIC ? POSTPROC_FREE_DYNAMIC : POSTPROC_FREE))
 #define PROC_DO_GC if(parent_proc && value->affects_state) {parent_proc->do_gc = 1;};
 
 static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, postproc_trace_status_t* typearg_traces, postproc_gc_status_t* global_gc_stats, postproc_gc_status_t* local_gc_stats, int* shared_globals, int* shared_locals, uint16_t local_scope_size, postproc_parent_status_t parent_stat, ast_proc_t* parent_proc) {
@@ -549,7 +550,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 				ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_var->set_value, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_LOCAL, parent_proc));
 
 			value->gc_status = global_gc_stats[SANITIZE_SCOPE_ID(*value->data.set_var->var_info)] = value->data.set_var->set_value.gc_status;
-			value->data.set_var->free_status = shared_globals[SANITIZE_SCOPE_ID(*value->data.set_var->var_info)] ? POSTPROC_FREE_NONE : GET_TYPE_TRACE(value->data.set_var->var_info->type);
+			value->data.set_var->free_status = shared_globals[SANITIZE_SCOPE_ID(*value->data.set_var->var_info)] ? POSTPROC_FREE_NONE : GET_TYPE_FREE(value->data.set_var->var_info->type);
 			shared_globals[SANITIZE_SCOPE_ID(*value->data.set_var->var_info)] = value->from_var;
 			if (parent_stat != POSTPROC_PARENT_IRRELEVANT)
 				shared_globals[SANITIZE_SCOPE_ID(*value->data.set_var->var_info)] = 1;
@@ -563,7 +564,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 				ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_var->set_value, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_LOCAL, parent_proc));
 
 			value->gc_status = local_gc_stats[SANITIZE_SCOPE_ID(*value->data.set_var->var_info)] = value->data.set_var->set_value.gc_status;
-			value->data.set_var->free_status = shared_locals[SANITIZE_SCOPE_ID(*value->data.set_var->var_info)] ? POSTPROC_FREE_NONE : GET_TYPE_TRACE(value->data.set_var->var_info->type);
+			value->data.set_var->free_status = shared_locals[SANITIZE_SCOPE_ID(*value->data.set_var->var_info)] ? POSTPROC_FREE_NONE : GET_TYPE_FREE(value->data.set_var->var_info->type);
 			shared_locals[SANITIZE_SCOPE_ID(*value->data.set_var->var_info)] = value->from_var;
 			if (parent_stat != POSTPROC_PARENT_IRRELEVANT)
 				shared_locals[SANITIZE_SCOPE_ID(*value->data.set_var->var_info)] = 1;
@@ -665,7 +666,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 
 	if (value->gc_status == POSTPROC_GC_NONE || parent_stat == POSTPROC_PARENT_IRRELEVANT) {
 		if (parent_stat == POSTPROC_PARENT_IRRELEVANT && !value->from_var && value->gc_status == POSTPROC_GC_LOCAL_ALLOC)
-			value->free_status = GET_TYPE_TRACE(value->type);
+			value->free_status = GET_TYPE_FREE(value->type);
 		value->trace_status = POSTPROC_TRACE_NONE;
 		goto no_trace_postproc;
 	}

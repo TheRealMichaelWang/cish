@@ -875,8 +875,8 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		ESCAPE_ON_FAIL(parse_value(ast_parser, &value->data.unary_op->operand, value->data.unary_op->operator == TOK_SUBTRACT || value->data.unary_op->operator == TOK_NOT ? type : &array_typecheck));
 
 		if ((value->data.unary_op->operator == TOK_SUBTRACT && !TYPE_COMP(type, typecheck_int) && !TYPE_COMP(type, typecheck_float)) ||
-			(value->data.unary_op->operator == TOK_HASHTAG && !TYPE_COMP(type, typecheck_int) ||
-				(value->data.unary_op->operator == TOK_NOT && !TYPE_COMP(type, typecheck_bool))))
+			(value->data.unary_op->operator == TOK_HASHTAG && !TYPE_COMP(type, typecheck_int)) ||
+				(value->data.unary_op->operator == TOK_NOT && !TYPE_COMP(type, typecheck_bool)))
 			PANIC(ast_parser, ERROR_UNEXPECTED_TYPE);
 		free_typecheck_type(&array_typecheck);
 		break;
