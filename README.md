@@ -13,6 +13,8 @@ A minimal, performant, strongly-typed, and functional programming language focus
 * Structured programming, with some OOP features like inheritance. 
   * The linking process is done automatically - there's no need for C-like forward declarations.
   * While casting is done automatically from derived types to their super type, downcasting is not allowed. 
+* Interoperability with other C languages, and **C#**.
+  * See [this related project](https://github.com/TheRealMichaelWang/superforthcsharp) for details.
 
 ## Important Links
 * [Documentation](https://github.com/TheRealMichaelWang/superforth/wiki)
