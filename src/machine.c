@@ -99,14 +99,13 @@ static void machine_heap_supertrace(machine_t* machine, heap_alloc_t* heap_alloc
 static void machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, heap_alloc_t** reset_stack, uint16_t* reset_count) {
 	if (heap_alloc->gc_flag)
 		return;
-
-	heap_alloc->gc_flag = 1;
 	
-	if(*reset_count >= 128) {
+	if(*reset_count == 128) {
 		machine_heap_supertrace(machine, heap_alloc);
 		return;
 	}
 	
+	heap_alloc->gc_flag = 1;
 	reset_stack[(*reset_count)++] = heap_alloc;
 	switch (heap_alloc->trace_mode) {
 	case GC_TRACE_MODE_ALL:
