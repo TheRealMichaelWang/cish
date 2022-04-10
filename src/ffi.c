@@ -31,7 +31,7 @@ int ffi_include_func(ffi_t* ffi_table, foreign_func func) {
 }
 
 int ffi_invoke(ffi_t* ffi_table, machine_t* machine, machine_reg_t* id_reg, machine_reg_t* in_reg, machine_reg_t* out_reg) {
-	if (id_reg->long_int >= ffi_table->func_count)
+	if (id_reg->long_int >= ffi_table->func_count || id_reg->long_int < 0)
 		return 0;
 	return ffi_table->func_table[id_reg->long_int](machine, in_reg, out_reg);
 }
