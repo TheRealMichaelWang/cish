@@ -489,8 +489,13 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		postproc_trace_status_t* typearg_traces = malloc(value->type.type_id * sizeof(postproc_trace_status_t));
 		PANIC_ON_FAIL(typearg_traces, ast_parser, ERROR_MEMORY);
 
-		for (uint_fast8_t i = 0; i < value->type.type_id; i++)
-			typearg_traces[i] = POSTPROC_TRACE_DYNAMIC;
+		for (uint_fast8_t i = 0; i < value->type.type_id; i++) {
+			if (value->type.sub_types[i].type == TYPE_ANY)
+				typearg_traces[i] = POSTPROC_TRACE_DYNAMIC;
+			else
+				typearg_traces[i] = GET_TYPE_TRACE(value->type.sub_types[i]);
+		}
+		
 		for (uint_fast8_t i = 0; i < value->data.procedure->param_count; i++) {
 			if (value->data.procedure->params[i].var_info.type.type == TYPE_TYPEARG)
 				new_local_stats[value->data.procedure->params[i].var_info.scope_id] = POSTPROC_GC_EXTERN_DYNAMIC;
@@ -499,6 +504,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 			else
 				new_local_stats[value->data.procedure->params[i].var_info.scope_id] = POSTPROC_GC_NONE;
 		}
+
 		value->data.procedure->do_gc = 0;
 		ESCAPE_ON_FAIL(ast_postproc_code_block(ast_parser, &value->data.procedure->exec_block, typearg_traces, new_global_stats, new_local_stats, value->data.procedure->scope_size, new_shared_globals, new_shared_locals, 0, value->data.procedure));
 		free(new_local_stats);

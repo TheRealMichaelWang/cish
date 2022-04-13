@@ -163,7 +163,7 @@ int typeargs_substitute(typecheck_type_t* input_typeargs, typecheck_type_t* prot
 	if (proto_type->type == TYPE_TYPEARG)
 		ESCAPE_ON_FAIL(copy_typecheck_type(proto_type, input_typeargs[proto_type->type_id]))
 	else if (proto_type->type >= TYPE_SUPER_ARRAY) {
-		for (uint_fast8_t i = 0; i < proto_type->sub_type_count; i++)
+		for (uint_fast8_t i = proto_type->type == TYPE_SUPER_PROC ? proto_type->type_id : 0; i < proto_type->sub_type_count; i++)
 			ESCAPE_ON_FAIL(typeargs_substitute(input_typeargs, &proto_type->sub_types[i]));
 	}
 	return 1;

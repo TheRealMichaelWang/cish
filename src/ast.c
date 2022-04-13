@@ -246,7 +246,7 @@ void free_ast_parser(ast_parser_t* ast_parser) {
 
 static int parse_subtypes(ast_parser_t* ast_parser, typecheck_type_t* super_type, typecheck_type_t* req_types, int8_t expected_subtypes) {
 	MATCH_TOK(TOK_LESS);
-	typecheck_type_t* sub_types = malloc(TYPE_MAX_SUBTYPES * sizeof(typecheck_type_t));
+	typecheck_type_t sub_types[TYPE_MAX_SUBTYPES];
 	PANIC_ON_FAIL(sub_types, ast_parser, ERROR_MEMORY);
 	super_type->sub_type_count = 0;
 	do {
@@ -266,7 +266,6 @@ static int parse_subtypes(ast_parser_t* ast_parser, typecheck_type_t* super_type
 		PANIC_ON_FAIL(super_type->sub_types = malloc(super_type->sub_type_count * sizeof(typecheck_type_t)), ast_parser, ERROR_MEMORY);
 		memcpy(super_type->sub_types, sub_types, super_type->sub_type_count * sizeof(typecheck_type_t));
 	}
-	free(sub_types);
 	return 1;
 }
 
@@ -358,8 +357,7 @@ static int parse_type_params(ast_parser_t* ast_parser, typecheck_type_t* req_typ
 			ESCAPE_ON_FAIL(ast_parser_decl_generic(ast_parser, id, &req_types[*decled_type_params], replace_gen_type));
 		}
 		else {
-			if(req_types)
-				req_types[*decled_type_params].type = TYPE_ANY;
+			req_types[*decled_type_params].type = TYPE_ANY;
 			ESCAPE_ON_FAIL(ast_parser_decl_generic(ast_parser, id, NULL, replace_gen_type));
 		}
 
@@ -886,8 +884,10 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		value->value_type = AST_VALUE_PROC;
 		ESCAPE_ON_FAIL(ast_parser_new_frame(ast_parser, NULL, 0));
 
-		if (LAST_TOK.type == TOK_LESS)
-			ESCAPE_ON_FAIL(parse_type_params(ast_parser, NULL, &value->type.type_id, 0, -1, 0))
+		typecheck_type_t generic_type_reqs[TYPE_MAX_SUBTYPES];
+		if (LAST_TOK.type == TOK_LESS) {
+			ESCAPE_ON_FAIL(parse_type_params(ast_parser, generic_type_reqs, &value->type.type_id, 0, -1, 1))
+		}
 		else
 			value->type.type_id = 0;
 
@@ -915,17 +915,19 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				READ_TOK;
 		}
 		value->type.type = TYPE_SUPER_PROC;
-		value->type.sub_types = malloc((value->type.sub_type_count = value->data.procedure->param_count + 1) * sizeof(typecheck_type_t));
+		value->type.sub_types = malloc((value->type.sub_type_count = value->data.procedure->param_count + 1 + value->type.type_id) * sizeof(typecheck_type_t));
+
+		memcpy(value->type.sub_types, generic_type_reqs, value->type.type_id * sizeof(typecheck_type_t));
 
 		for (uint_fast8_t i = 0; i < value->data.procedure->param_count; i++)
-			PANIC_ON_FAIL(copy_typecheck_type(&value->type.sub_types[i + 1], value->data.procedure->params[i].var_info.type), ast_parser, ERROR_MEMORY);
+			PANIC_ON_FAIL(copy_typecheck_type(&value->type.sub_types[i + 1 + value->type.type_id], value->data.procedure->params[i].var_info.type), ast_parser, ERROR_MEMORY);
 
 		READ_TOK;
 		MATCH_TOK(TOK_RETURN);
 		READ_TOK;
-		ESCAPE_ON_FAIL(parse_type(ast_parser, value->type.sub_types, 1, 1));
+		ESCAPE_ON_FAIL(parse_type(ast_parser, &value->type.sub_types[value->type.type_id], 1, 1));
 
-		CURRENT_FRAME.return_type = value->data.procedure->return_type = value->type.sub_types;
+		CURRENT_FRAME.return_type = value->data.procedure->return_type = &value->type.sub_types[value->type.type_id];
 
 		PANIC_ON_FAIL(value->data.procedure->thisproc = malloc(sizeof(ast_var_info_t)), ast_parser, ERROR_MEMORY);
 		*value->data.procedure->thisproc = (ast_var_info_t){
@@ -1034,27 +1036,27 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 			typecheck_type_t call_type;
 			PANIC_ON_FAIL(copy_typecheck_type(&call_type, proc_val.type), ast_parser, ERROR_MEMORY);
 			if (call_type.type_id) {
-				ESCAPE_ON_FAIL(parse_subtypes(ast_parser, &value->type, NULL, -1));
-				PANIC_ON_FAIL(value->type.sub_type_count == call_type.type_id, ast_parser, ERROR_UNEXPECTED_ARGUMENT_SIZE);
+				ESCAPE_ON_FAIL(parse_subtypes(ast_parser, &value->type, call_type.sub_types, call_type.type_id));
 				PANIC_ON_FAIL(typeargs_substitute(value->data.proc_call->typeargs = value->type.sub_types, &call_type), ast_parser, ERROR_MEMORY);
 			}
 
 			value->data.proc_call->procedure = proc_val;
 			value->data.proc_call->argument_count = 0;
 			value->data.proc_call->id = ast_parser->ast->proc_call_count++;
-			PANIC_ON_FAIL(copy_typecheck_type(&value->type, call_type.sub_types[0]), ast_parser, ERROR_MEMORY);
+			PANIC_ON_FAIL(copy_typecheck_type(&value->type, call_type.sub_types[call_type.type_id]), ast_parser, ERROR_MEMORY);
 			READ_TOK;
+
 			while (LAST_TOK.type != TOK_CLOSE_PAREN) {
 				if (value->data.proc_call->argument_count == TYPE_MAX_SUBTYPES || value->data.proc_call->argument_count == call_type.sub_type_count - 1)
 					PANIC(ast_parser, ERROR_UNEXPECTED_ARGUMENT_SIZE);
-				ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.proc_call->arguments[value->data.proc_call->argument_count], &call_type.sub_types[value->data.proc_call->argument_count + 1], 0));
+				ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.proc_call->arguments[value->data.proc_call->argument_count], &call_type.sub_types[value->data.proc_call->argument_count + 1 + call_type.type_id], 0));
 				value->data.proc_call->argument_count++;
 				if (LAST_TOK.type != TOK_COMMA)
 					MATCH_TOK(TOK_CLOSE_PAREN)
 				else
 					READ_TOK;
 			}
-			if (value->data.proc_call->argument_count < call_type.sub_type_count - 1)
+			if (value->data.proc_call->argument_count < call_type.sub_type_count - (1 + call_type.type_id))
 				PANIC(ast_parser, ERROR_UNEXPECTED_ARGUMENT_SIZE);
 
 			free_typecheck_type(&call_type);
@@ -1218,13 +1220,13 @@ static void free_ast_value(ast_value_t* value) {
 		free(value->data.unary_op);
 		break;
 	case AST_VALUE_PROC_CALL:
-		free_ast_value(&value->data.proc_call->procedure);
 		if (value->data.proc_call->procedure.type.type_id) {
 			for (uint_fast8_t i = 0; i < value->data.proc_call->procedure.type.type_id; i++)
 				free_typecheck_type(&value->data.proc_call->typeargs[i]);
 			free(value->data.proc_call->typeargs);
 			free(value->data.proc_call->typearg_traces);
 		}
+		free_ast_value(&value->data.proc_call->procedure);
 		for (uint_fast8_t i = 0; i < value->data.proc_call->argument_count; i++)
 			free_ast_value(&value->data.proc_call->arguments[i]);
 		free(value->data.proc_call);
