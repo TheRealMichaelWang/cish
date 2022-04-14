@@ -63,7 +63,7 @@ int dynamic_library_load(dynamic_library_table_t* dynamic_library, machine_t* ma
 	static wchar_t libid_buf[100];
 	mbstowcs(libid_buf, name, 100);
 	ESCAPE_ON_FAIL(new_lib->handle = LoadLibrary(libid_buf));
-	if (!(new_lib->entry_point = GetProcAddress(new_lib->handle, TEXT("superforth_entry")))) {
+	if (!(new_lib->entry_point = (superforth_dll_entry)GetProcAddress(new_lib->handle, TEXT("superforth_entry")))) {
 		free(name);
 		FreeLibrary(new_lib->handle);
 		return 0;
@@ -76,7 +76,7 @@ int dynamic_library_load(dynamic_library_table_t* dynamic_library, machine_t* ma
 		return 0;
 	}
 #endif
-	ESCAPE_ON_FAIL(new_lib->entry_point(machine));
+	ESCAPE_ON_FAIL((*new_lib->entry_point)(machine));
 	dynamic_library->imported_lib_count++;
 	return 1;
 }
