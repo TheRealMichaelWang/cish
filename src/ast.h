@@ -277,8 +277,6 @@ typedef struct ast_var_cache_entry {
 typedef struct ast_generic_cache_entry {
 	uint64_t id_hash, gen_id;
 	typecheck_type_t* req_type;
-
-	int replace_type;
 } ast_generic_cache_entry_t;
 
 typedef struct ast {

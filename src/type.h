@@ -51,5 +51,6 @@ int typecheck_compatible(ast_t* ast, typecheck_type_t* target_type, typecheck_ty
 int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type);
 
 int typeargs_substitute(typecheck_type_t* input_typeargs, typecheck_type_t* proto_type);
+int typeargs_replace_generics(typecheck_type_t* input_type_reqs, typecheck_type_t* proto_type, int req_static_types);
 int typecheck_lowest_common_type(ast_t* ast, typecheck_type_t a, typecheck_type_t b, typecheck_type_t* result);
 #endif // !TYPE

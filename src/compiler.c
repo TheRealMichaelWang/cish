@@ -375,6 +375,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 			if (compiler->move_eval[value.data.proc_call->arguments[i].id])
 				EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] + i + 1), compiler->eval_regs[value.data.proc_call->arguments[i].id]));
 		}
+
 		if (value.data.proc_call->procedure.type.type_id) {
 			for (uint_fast8_t i = 0; i < value.data.proc_call->procedure.type.type_id; i++)
 				if (value.data.proc_call->procedure.type.sub_types[i].type == TYPE_ANY) {
@@ -384,6 +385,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 						EMIT_INS(INS2(COMPILER_OP_CODE_SET, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] + value.data.proc_call->argument_count + i + 1), GLOB_REG(IS_REF_TYPE(value.data.proc_call->typeargs[i]))));
 				}
 		}
+
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.proc_call->procedure, proc));
 		EMIT_INS(INS2(COMPILER_OP_CODE_CALL, compiler->eval_regs[value.data.proc_call->procedure.id], GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
 		if (compiler->proc_call_offsets[value.data.proc_call->id])

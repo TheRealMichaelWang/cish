@@ -59,7 +59,13 @@ int typecheck_compatible(ast_t* ast, typecheck_type_t* target_type, typecheck_ty
 			free_typecheck_type(&current_rec_type);
 			return res;
 		}
-		if (target_type->type >= TYPE_SUPER_ARRAY) {
+
+		if (target_type->type == TYPE_SUPER_PROC) {
+			ESCAPE_ON_FAIL(target_type->sub_type_count == match_type.sub_type_count);
+			for (uint_fast8_t i = 0; i < target_type->sub_type_count; i++)
+				ESCAPE_ON_FAIL(typecheck_compatible(ast, &match_type.sub_types[i], target_type->sub_types[i]));
+		}
+		else if (target_type->type >= TYPE_SUPER_ARRAY) {
 			ESCAPE_ON_FAIL(target_type->sub_type_count == match_type.sub_type_count);
 			for (uint_fast8_t i = 0; i < target_type->sub_type_count; i++)
 				ESCAPE_ON_FAIL(typecheck_compatible(ast, &target_type->sub_types[i], match_type.sub_types[i]));
@@ -73,6 +79,7 @@ int typecheck_lowest_common_type(ast_t* ast, typecheck_type_t a, typecheck_type_
 		*result = typecheck_any;
 		return 1;
 	}
+
 	typecheck_type_t common_type = { .type = a.type };
 	if (a.type == TYPE_SUPER_RECORD) {
 		if (a.type_id != b.type_id) {
@@ -142,6 +149,7 @@ int typecheck_lowest_common_type(ast_t* ast, typecheck_type_t a, typecheck_type_
 		}
 		common_type.sub_type_count = a.sub_type_count;
 		ESCAPE_ON_FAIL(common_type.sub_types = malloc(common_type.sub_type_count * sizeof(typecheck_type_t)));
+
 		for (uint_fast8_t i = 0; i < common_type.sub_type_count; i++)
 			ESCAPE_ON_FAIL(typecheck_lowest_common_type(ast, a.sub_types[i], b.sub_types[i], &common_type.sub_types[i]));
 	}
@@ -157,6 +165,20 @@ int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type) {
 			if (typecheck_has_type(type.sub_types[i], base_type))
 				return 1;
 	return 0;
+}
+
+int typeargs_replace_generics(typecheck_type_t* input_type_reqs, typecheck_type_t* proto_type, int req_static_types) {
+	if (proto_type->type == TYPE_TYPEARG) {
+		if (input_type_reqs[proto_type->type_id].type != TYPE_ANY)
+			ESCAPE_ON_FAIL(copy_typecheck_type(proto_type, input_type_reqs[proto_type->type_id]))
+		else
+			ESCAPE_ON_FAIL(!req_static_types);
+	}
+	else if (proto_type->type >= TYPE_SUPER_ARRAY)
+		for (uint_fast8_t i = 0; i < proto_type->sub_type_count; i++)
+			ESCAPE_ON_FAIL(typeargs_replace_generics(input_type_reqs, &proto_type->sub_types[i], req_static_types));
+
+	return 1;
 }
 
 int typeargs_substitute(typecheck_type_t* input_typeargs, typecheck_type_t* proto_type) {
