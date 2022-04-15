@@ -6,7 +6,7 @@
 #include "machine.h"
 #include "ast.h"
 #include "file.h"
-#include "stdlib.h"
+#include "stdlibf.h"
 #include "debug.h"
 
 #define ABORT(MSG) {printf MSG ; exit(EXIT_FAILURE);}
@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
 		machine_t machine;
 		uint16_t instruction_count;
 		EXPECT_FLAG("-s");
-		machine_ins_t* instructions = file_load_ins(READ_ARG, &machine, &instruction_count);
+		machine_ins_t* instructions = file_load_ins(READ_ARG, &machine, &instruction_count, NULL);
 		if (!instructions)
 			ABORT(("Unable to load binaries from file.\n"));
 		if (!strcmp(op_flag, "-r")) {

@@ -842,7 +842,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 			if (var_info->is_readonly)
 				PANIC(ast_parser, ERROR_READONLY);
 			value->value_type = AST_VALUE_SET_VAR;
-			PANIC_ON_FAIL(value->data.set_var = malloc(sizeof(ast_set_var_t)), ast_parser, ERROR_UNDECLARED);
+			PANIC_ON_FAIL(value->data.set_var = malloc(sizeof(ast_set_var_t)), ast_parser, ERROR_MEMORY);
 			value->data.set_var->var_info = var_info;
 			ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.set_var->set_value, &var_info->type, 0));
 			var_info->has_mutated = 1;

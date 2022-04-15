@@ -27,7 +27,7 @@ static int write_ins(machine_ins_t ins, FILE* infile) {
 	return 1;
 }
 
-machine_ins_t* file_load_ins(const char* path, machine_t* machine, uint16_t* instruction_count) {
+machine_ins_t* file_load_ins(const char* path, machine_t* machine, uint16_t* instruction_count, uint16_t* constant_count) {
 	FILE* infile = fopen(path, "rb");
 	ESCAPE_ON_FAIL(infile);
 
@@ -38,10 +38,12 @@ machine_ins_t* file_load_ins(const char* path, machine_t* machine, uint16_t* ins
 	ESCAPE_ON_FAIL(fread(&const_allocs, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fread(instruction_count, sizeof(uint16_t), 1, infile));
 
-	ESCAPE_ON_FAIL(init_machine(machine, UINT16_MAX, 1000));
+	ESCAPE_ON_FAIL(init_machine(machine, UINT16_MAX / 6, 1000));
 	machine_ins_t* instructions = malloc(*instruction_count * sizeof(machine_ins_t));
 	ESCAPE_ON_FAIL(instructions);
 
+	if (constant_count)
+		*constant_count = const_allocs;
 	for (uint_fast16_t i = 0; i < const_allocs; i++)
 		ESCAPE_ON_FAIL(fread(&machine->stack[i], sizeof(uint64_t), 1, infile));
 
