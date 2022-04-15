@@ -105,6 +105,7 @@ typedef struct compiler {
 	compiler_reg_t* var_regs;
 
 	uint16_t* proc_call_offsets;
+	compiler_reg_t** proc_generic_regs;
 
 	ast_t* ast;
 	machine_t* target_machine;
