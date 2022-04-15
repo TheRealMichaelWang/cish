@@ -214,25 +214,16 @@ typedef struct ast_cond {
 	ast_cond_t* next_if_false;
 } ast_cond_t;
 
-typedef struct ast_proc_param {
-	ast_var_info_t var_info;
-	//uint16_t id;
-} ast_proc_param_t;
-
 typedef struct ast_proc {
 	typecheck_type_t* return_type;
-
-	ast_proc_param_t *params;
+	ast_var_info_t* params;
 	uint8_t param_count;
-
 	postproc_trace_status_t* generic_arg_traces;
-
 	uint16_t scope_size;
 	ast_var_info_t* thisproc;
-
 	ast_code_block_t exec_block;
 
-
+	uint16_t id;
 	int do_gc;
 } ast_proc_t;
 
@@ -290,7 +281,7 @@ typedef struct ast {
 	uint8_t record_count, allocated_records;
 
 	ast_primitive_t** primitives;
-	uint16_t constant_count, allocated_constants;
+	uint16_t constant_count, allocated_constants, proc_count;
 
 	uint32_t value_count, var_decl_count, proc_call_count;
 } ast_t;

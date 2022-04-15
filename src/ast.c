@@ -893,7 +893,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		typecheck_type_t argument_unmodded_types[TYPE_MAX_SUBTYPES];
 
 		PANIC_ON_FAIL(value->data.procedure = malloc(sizeof(ast_proc_t)), ast_parser, ERROR_MEMORY);
-		PANIC_ON_FAIL(value->data.procedure->params = malloc((TYPE_MAX_SUBTYPES - 1) * sizeof(ast_proc_param_t)), ast_parser, ERROR_MEMORY);
+		PANIC_ON_FAIL(value->data.procedure->params = malloc((TYPE_MAX_SUBTYPES - 1) * sizeof(ast_var_info_t)), ast_parser, ERROR_MEMORY);
 		value->data.procedure->param_count = 0;
 		MATCH_TOK(TOK_OPEN_PAREN);
 		READ_TOK;
@@ -901,17 +901,17 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		{
 			if (value->data.procedure->param_count == TYPE_MAX_SUBTYPES - (1 + value->type.type_id))
 				PANIC(ast_parser, ERROR_INTERNAL);
-			value->data.procedure->params[value->data.procedure->param_count].var_info = (ast_var_info_t){
+			value->data.procedure->params[value->data.procedure->param_count] = (ast_var_info_t){
 				.is_global = 0,
 				.is_readonly = 1,
 			};
 			
 			ESCAPE_ON_FAIL(parse_type(ast_parser, &argument_unmodded_types[value->data.procedure->param_count], 0, 0, 0, 0, 0));
-			PANIC_ON_FAIL(copy_typecheck_type(&value->data.procedure->params[value->data.procedure->param_count].var_info.type, argument_unmodded_types[value->data.procedure->param_count]), ast_parser, ERROR_INTERNAL);
-			PANIC_ON_FAIL(typeargs_replace_generics(generic_type_reqs, &value->data.procedure->params[value->data.procedure->param_count].var_info.type, 0), ast_parser, ERROR_INTERNAL);
+			PANIC_ON_FAIL(copy_typecheck_type(&value->data.procedure->params[value->data.procedure->param_count].type, argument_unmodded_types[value->data.procedure->param_count]), ast_parser, ERROR_INTERNAL);
+			PANIC_ON_FAIL(typeargs_replace_generics(generic_type_reqs, &value->data.procedure->params[value->data.procedure->param_count].type, 0), ast_parser, ERROR_INTERNAL);
 			
 			MATCH_TOK(TOK_IDENTIFIER);
-			ESCAPE_ON_FAIL(ast_parser_decl_var(ast_parser, hash_s(LAST_TOK.str, LAST_TOK.length), &value->data.procedure->params[value->data.procedure->param_count].var_info));
+			ESCAPE_ON_FAIL(ast_parser_decl_var(ast_parser, hash_s(LAST_TOK.str, LAST_TOK.length), &value->data.procedure->params[value->data.procedure->param_count]));
 			value->data.procedure->param_count++;
 			READ_TOK;
 			if (LAST_TOK.type != TOK_COMMA)
@@ -942,6 +942,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		ESCAPE_ON_FAIL(parse_code_block(ast_parser, &value->data.procedure->exec_block, 1, 0));
 
 		value->data.procedure->scope_size = CURRENT_FRAME.max_scoped_locals;
+		value->data.procedure->id = ast_parser->ast->proc_count++;
 
 		ESCAPE_ON_FAIL(ast_parser_close_frame(ast_parser));
 		break;
@@ -1136,6 +1137,7 @@ int init_ast(ast_t* ast, ast_parser_t* ast_parser) {
 	ast->value_count = 0;
 	ast->constant_count = 0;
 	ast->var_decl_count = 0;
+	ast->proc_count = 0;
 
 	PANIC_ON_FAIL(ast->record_protos = malloc((ast->allocated_records = 4) * sizeof(ast_record_proto_t*)), ast_parser, ERROR_MEMORY);
 	PANIC_ON_FAIL(ast->primitives = malloc((ast->allocated_constants = 10) * sizeof(ast_primitive_t*)), ast_parser, ERROR_MEMORY);
@@ -1182,7 +1184,7 @@ static void free_ast_value(ast_value_t* value) {
 		break;
 	case AST_VALUE_PROC:
 		for (uint_fast8_t i = 0; i < value->data.procedure->param_count; i++)
-			free_ast_var_info(&value->data.procedure->params[i].var_info);
+			free_ast_var_info(&value->data.procedure->params[i]);
 		free(value->data.procedure->params);
 		free(value->data.procedure->generic_arg_traces);
 		free(value->data.procedure->thisproc);

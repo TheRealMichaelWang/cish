@@ -497,12 +497,12 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		}
 		
 		for (uint_fast8_t i = 0; i < value->data.procedure->param_count; i++) {
-			if (value->data.procedure->params[i].var_info.type.type == TYPE_TYPEARG)
-				new_local_stats[value->data.procedure->params[i].var_info.scope_id] = POSTPROC_GC_EXTERN_DYNAMIC;
-			else if (IS_REF_TYPE(value->data.procedure->params[i].var_info.type))
-				new_local_stats[value->data.procedure->params[i].var_info.scope_id] = POSTPROC_GC_EXTERN_ALLOC;
+			if (value->data.procedure->params[i].type.type == TYPE_TYPEARG)
+				new_local_stats[value->data.procedure->params[i].scope_id] = POSTPROC_GC_EXTERN_DYNAMIC;
+			else if (IS_REF_TYPE(value->data.procedure->params[i].type))
+				new_local_stats[value->data.procedure->params[i].scope_id] = POSTPROC_GC_EXTERN_ALLOC;
 			else
-				new_local_stats[value->data.procedure->params[i].var_info.scope_id] = POSTPROC_GC_NONE;
+				new_local_stats[value->data.procedure->params[i].scope_id] = POSTPROC_GC_NONE;
 		}
 
 		value->data.procedure->do_gc = 0;
