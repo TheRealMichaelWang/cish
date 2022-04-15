@@ -531,6 +531,7 @@ int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
 	PANIC_ON_FAIL(compiler->proc_generic_regs = malloc(ast->proc_call_count * sizeof(compiler_reg_t*)), compiler, ERROR_MEMORY);
 
 	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX / 8, 1000), compiler, target_machine->last_err);
+
 	allocate_code_block_regs(compiler, ast->exec_block, 0);
 
 	PANIC_ON_FAIL(init_ins_builder(&compiler->ins_builder), compiler, ERROR_MEMORY);

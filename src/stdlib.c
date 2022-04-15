@@ -7,7 +7,7 @@
 #include <time.h>
 #include "error.h"
 #include "ffi.h"
-#include "stdlib.h"
+#include "stdlibf.h"
 
 static char* read_str_from_heap_alloc(heap_alloc_t* heap_alloc) {
 	char* buffer = malloc(heap_alloc->limit + 1);
