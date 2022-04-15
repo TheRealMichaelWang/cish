@@ -56,6 +56,9 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	case AST_VALUE_PROC: {
 		compiler->var_regs[value.data.procedure->thisproc->id] = compiler->eval_regs[value.id] = GLOB_REG(compiler->ast->constant_count + compiler->current_global++);
 		compiler->move_eval[value.id] = 1;
+
+
+
 		for (uint_fast16_t i = 0; i < value.data.procedure->param_count; i++)
 			compiler->var_regs[value.data.procedure->params[i].var_info.id] = LOC_REG(i + 1);
 		allocate_code_block_regs(compiler, value.data.procedure->exec_block, value.data.procedure->param_count + value.type.type_id + 1);
@@ -525,8 +528,10 @@ int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
 	PANIC_ON_FAIL(compiler->move_eval = malloc(ast->value_count * sizeof(int)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(compiler->var_regs = malloc(ast->var_decl_count * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(compiler->proc_call_offsets = malloc(ast->proc_call_count * sizeof(uint16_t)), compiler, ERROR_MEMORY);
+	PANIC_ON_FAIL(compiler->proc_generic_regs = malloc(ast->proc_call_count * sizeof(compiler_reg_t*)), compiler, ERROR_MEMORY);
 
-	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX / 6, 1000), compiler, target_machine->last_err);
+	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX / 8, 1000), compiler, target_machine->last_err);
+
 	allocate_code_block_regs(compiler, ast->exec_block, 0);
 
 	PANIC_ON_FAIL(init_ins_builder(&compiler->ins_builder), compiler, ERROR_MEMORY);
@@ -541,6 +546,7 @@ int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
 	free(compiler->move_eval);
 	free(compiler->var_regs);
 	free(compiler->proc_call_offsets);
+	free(compiler->proc_generic_regs);
 
 	return 1;
 }

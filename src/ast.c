@@ -1184,7 +1184,7 @@ static void free_ast_value(ast_value_t* value) {
 		for (uint_fast8_t i = 0; i < value->data.procedure->param_count; i++)
 			free_ast_var_info(&value->data.procedure->params[i].var_info);
 		free(value->data.procedure->params);
-		//free_ast_var_info(value->data.procedure->thisproc);
+		free(value->data.procedure->generic_arg_traces);
 		free(value->data.procedure->thisproc);
 		free_ast_code_block(&value->data.procedure->exec_block);
 		free(value->data.procedure);

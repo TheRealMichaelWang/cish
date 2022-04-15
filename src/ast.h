@@ -216,7 +216,7 @@ typedef struct ast_cond {
 
 typedef struct ast_proc_param {
 	ast_var_info_t var_info;
-	uint16_t id;
+	//uint16_t id;
 } ast_proc_param_t;
 
 typedef struct ast_proc {
@@ -224,10 +224,14 @@ typedef struct ast_proc {
 
 	ast_proc_param_t *params;
 	uint8_t param_count;
+
+	postproc_trace_status_t* generic_arg_traces;
+
 	uint16_t scope_size;
 	ast_var_info_t* thisproc;
 
 	ast_code_block_t exec_block;
+
 
 	int do_gc;
 } ast_proc_t;
