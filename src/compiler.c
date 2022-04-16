@@ -283,11 +283,9 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 			PANIC_ON_FAIL(compiler->proc_generic_regs[value.data.procedure->id] = malloc(value.type.type_id * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
 			uint16_t gen_reg_begin = value.data.procedure->param_count + 1;
 			for (uint_fast8_t i = 0; i < value.type.type_id; i++)
-				if(value.data.procedure->generic_arg_traces[i] == POSTPROC_TRACE_DYNAMIC)
+				if (value.data.procedure->generic_arg_traces[i] == POSTPROC_TRACE_DYNAMIC)
 					compiler->proc_generic_regs[value.data.procedure->id][i] = LOC_REG(gen_reg_begin++);
 		}
-		else
-			compiler->proc_generic_regs[value.data.procedure->id] = NULL;
 
 		EMIT_INS(INS1(COMPILER_OP_CODE_LABEL, compiler->eval_regs[value.id]));
 		EMIT_INS(INS0(COMPILER_OP_CODE_JUMP));
@@ -297,6 +295,9 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		compile_code_block(compiler, value.data.procedure->exec_block, value.data.procedure, 0 , NULL, 0);
 		EMIT_INS(INS1(COMPILER_OP_CODE_ABORT, GLOB_REG(ERROR_UNRETURNED_FUNCTION)));
 		compiler->ins_builder.instructions[start_ip + 1].regs[0] = GLOB_REG(compiler->ins_builder.instruction_count);
+		
+		if (value.type.type_id)
+			free(compiler->proc_generic_regs[value.data.procedure->id]);
 		break;
 	}
 	case AST_VALUE_SET_VAR:
