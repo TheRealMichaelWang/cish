@@ -68,8 +68,12 @@ int typecheck_compatible(ast_parser_t* ast_parser, typecheck_type_t* target_type
 
 		if (target_type->type == TYPE_SUPER_PROC) {
 			ESCAPE_ON_FAIL(target_type->sub_type_count == match_type.sub_type_count);
-			for (uint_fast8_t i = 0; i < target_type->sub_type_count; i++)
-				ESCAPE_ON_FAIL(typecheck_compatible(ast_parser, &match_type.sub_types[i], target_type->sub_types[i]));
+			for (uint_fast8_t i = 0; i < target_type->sub_type_count; i++) {
+				if (i == target_type->type_id)
+					ESCAPE_ON_FAIL(typecheck_compatible(ast_parser, &target_type->sub_types[i], match_type.sub_types[i]))
+				else
+					ESCAPE_ON_FAIL(typecheck_compatible(ast_parser, &match_type.sub_types[i], target_type->sub_types[i]));
+			}
 		}
 		else if (target_type->type >= TYPE_SUPER_ARRAY) {
 			ESCAPE_ON_FAIL(target_type->sub_type_count == match_type.sub_type_count);

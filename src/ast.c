@@ -1285,11 +1285,9 @@ static void free_ast_record_proto(ast_record_proto_t* record_proto) {
 	for (uint_fast8_t i = 0; i < record_proto->property_count; i++)
 		free_typecheck_type(&record_proto->properties[i].type);
 	free(record_proto->properties);
-	if (record_proto->default_value_count) {
-		for (uint_fast16_t i = 0; i < record_proto->default_value_count; i++)
-			free_ast_value(&record_proto->default_values[i].value);
-		free(record_proto->default_values);
-	}
+	for (uint_fast16_t i = 0; i < record_proto->default_value_count; i++)
+		free_ast_value(&record_proto->default_values[i].value);
+	free(record_proto->default_values);
 	free(record_proto);
 }
 
