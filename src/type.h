@@ -8,7 +8,9 @@
 #define TYPE_MAX_SUBTYPES 100
 
 typedef struct typecheck_type typecheck_type_t;
-typedef struct ast ast_t;
+typedef struct ast_parser ast_parser_t;
+typedef struct ast_generic_cache_entry ast_generic_cache_entry_t;
+typedef struct ast_record_proto ast_record_proto_t;
 
 typedef enum typecheck_base_type {
 	TYPE_AUTO,
@@ -46,11 +48,13 @@ static typecheck_type_t typecheck_any = { .type = TYPE_ANY };
 void free_typecheck_type(typecheck_type_t* typecheck_type);
 int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src);
 
-int typecheck_compatible(ast_t* ast, typecheck_type_t* target_type, typecheck_type_t match_type);
+int typecheck_compatible(ast_parser_t* ast_parser, typecheck_type_t* target_type, typecheck_type_t match_type);
 
 int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type);
 
 int typeargs_substitute(typecheck_type_t* input_typeargs, typecheck_type_t* proto_type);
-int typeargs_replace_generics(typecheck_type_t* input_type_reqs, typecheck_type_t* proto_type, int req_static_types);
-int typecheck_lowest_common_type(ast_t* ast, typecheck_type_t a, typecheck_type_t b, typecheck_type_t* result);
+int typecheck_lowest_common_type(ast_parser_t* ast_parser, typecheck_type_t a, typecheck_type_t b, typecheck_type_t* result);
+
+ast_generic_cache_entry_t* generic_from_type(ast_parser_t* ast_parser, typecheck_type_t type);
+typecheck_type_t* devolve_type_from_generic(ast_parser_t* ast_parser, typecheck_type_t* type);
 #endif // !TYPE

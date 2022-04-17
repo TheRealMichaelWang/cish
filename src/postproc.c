@@ -486,32 +486,32 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		int* new_shared_globals = malloc(ast_parser->global_count * sizeof(int));
 		PANIC_ON_FAIL(new_shared_globals, ast_parser, ERROR_MEMORY);
 		memcpy(new_shared_globals, ast_parser->shared_globals, ast_parser->global_count * sizeof(int));
-		postproc_trace_status_t* typearg_traces = malloc(value->type.type_id * sizeof(postproc_trace_status_t));
-		PANIC_ON_FAIL(typearg_traces, ast_parser, ERROR_MEMORY);
+		value->data.procedure->generic_arg_traces = malloc(value->type.type_id * sizeof(postproc_trace_status_t));
+		PANIC_ON_FAIL(value->data.procedure->generic_arg_traces, ast_parser, ERROR_MEMORY);
 
 		for (uint_fast8_t i = 0; i < value->type.type_id; i++) {
 			if (value->type.sub_types[i].type == TYPE_ANY)
-				typearg_traces[i] = POSTPROC_TRACE_DYNAMIC;
+				value->data.procedure->generic_arg_traces[i] = POSTPROC_TRACE_DYNAMIC;
 			else
-				typearg_traces[i] = GET_TYPE_TRACE(value->type.sub_types[i]);
+				value->data.procedure->generic_arg_traces[i] = GET_TYPE_TRACE(value->type.sub_types[i]);
 		}
 		
 		for (uint_fast8_t i = 0; i < value->data.procedure->param_count; i++) {
-			if (value->data.procedure->params[i].var_info.type.type == TYPE_TYPEARG)
-				new_local_stats[value->data.procedure->params[i].var_info.scope_id] = POSTPROC_GC_EXTERN_DYNAMIC;
-			else if (IS_REF_TYPE(value->data.procedure->params[i].var_info.type))
-				new_local_stats[value->data.procedure->params[i].var_info.scope_id] = POSTPROC_GC_EXTERN_ALLOC;
+			if (value->data.procedure->params[i].type.type == TYPE_TYPEARG)
+				new_local_stats[value->data.procedure->params[i].scope_id] = POSTPROC_GC_EXTERN_DYNAMIC;
+			else if (IS_REF_TYPE(value->data.procedure->params[i].type))
+				new_local_stats[value->data.procedure->params[i].scope_id] = POSTPROC_GC_EXTERN_ALLOC;
 			else
-				new_local_stats[value->data.procedure->params[i].var_info.scope_id] = POSTPROC_GC_NONE;
+				new_local_stats[value->data.procedure->params[i].scope_id] = POSTPROC_GC_NONE;
 		}
 
 		value->data.procedure->do_gc = 0;
-		ESCAPE_ON_FAIL(ast_postproc_code_block(ast_parser, &value->data.procedure->exec_block, typearg_traces, new_global_stats, new_local_stats, value->data.procedure->scope_size, new_shared_globals, new_shared_locals, 0, value->data.procedure));
+		ESCAPE_ON_FAIL(ast_postproc_code_block(ast_parser, &value->data.procedure->exec_block, value->data.procedure->generic_arg_traces, new_global_stats, new_local_stats, value->data.procedure->scope_size, new_shared_globals, new_shared_locals, 0, value->data.procedure));
+
 		free(new_local_stats);
 		free(new_global_stats);
 		free(new_shared_locals);
 		free(new_shared_globals);
-		free(typearg_traces);
 		break;
 	}
 	case AST_VALUE_VAR:

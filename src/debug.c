@@ -361,11 +361,13 @@ const char* get_err_msg(error_t error) {
 }
 
 void print_error_trace(multi_scanner_t multi_scanner) {
-	for (uint_fast8_t i = 0; i < multi_scanner.current_file; i++)
-		printf("in %s: row %" PRIu32 ", col %"PRIu32 "\n", multi_scanner.file_paths[i], multi_scanner.scanners[i].row, multi_scanner.scanners[i].col);
-	printf("\t");
-	if (multi_scanner.last_tok.type == EOF) {
-		printf("EOF");
+	if (multi_scanner.current_file) {
+		for (uint_fast8_t i = 0; i < multi_scanner.current_file; i++)
+			printf("in %s: row %" PRIu32 ", col %"PRIu32 "\n", multi_scanner.file_paths[i], multi_scanner.scanners[i].row, multi_scanner.scanners[i].col);
+		printf("\t");
+	}
+	if (multi_scanner.last_tok.type == TOK_EOF) {
+		printf("Error Occured at EOF");
 	}
 	else {
 		for (uint_fast32_t i = 0; i < multi_scanner.last_tok.length; i++)

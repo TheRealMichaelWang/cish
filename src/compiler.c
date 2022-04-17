@@ -56,9 +56,17 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	case AST_VALUE_PROC: {
 		compiler->var_regs[value.data.procedure->thisproc->id] = compiler->eval_regs[value.id] = GLOB_REG(compiler->ast->constant_count + compiler->current_global++);
 		compiler->move_eval[value.id] = 1;
+
+		uint16_t current_arg_reg = 1;
+
 		for (uint_fast16_t i = 0; i < value.data.procedure->param_count; i++)
-			compiler->var_regs[value.data.procedure->params[i].var_info.id] = LOC_REG(i + 1);
-		allocate_code_block_regs(compiler, value.data.procedure->exec_block, value.data.procedure->param_count + value.type.type_id + 1);
+			compiler->var_regs[value.data.procedure->params[i].id] = LOC_REG(current_arg_reg++);
+		
+		for (uint_fast8_t i = 0; i < value.type.type_id; i++)
+			if (value.data.procedure->generic_arg_traces[i] == POSTPROC_TRACE_DYNAMIC)
+				current_arg_reg++;
+
+		allocate_code_block_regs(compiler, value.data.procedure->exec_block, current_arg_reg);
 		return current_reg;
 	}
 	case AST_VALUE_VAR:
@@ -191,7 +199,7 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
       compiler_reg_t local_scratchpad = LOC_REG(0);
 			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, &local_scratchpad);
 			break;
-    }
+		}
 		case AST_STATEMENT_RETURN_VALUE: {
 			compiler_reg_t return_reg = LOC_REG(0);
 			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, &return_reg);
@@ -200,7 +208,7 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 	}
 }
 
-#define TYPEARG_INFO_REG(TYPE)  LOC_REG(1 + proc->param_count + (TYPE).type_id)
+#define TYPEARG_INFO_REG(TYPE)  compiler->proc_generic_regs[proc->id][(TYPE).type_id]
 
 static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block, ast_proc_t* proc, uint16_t continue_ip, uint16_t* break_jumps, uint8_t* break_jump_top);
 
@@ -270,6 +278,15 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 	}
 	case AST_VALUE_PROC: {
 		uint16_t start_ip = compiler->ins_builder.instruction_count;
+
+		if (value.type.type_id) {
+			PANIC_ON_FAIL(compiler->proc_generic_regs[value.data.procedure->id] = malloc(value.type.type_id * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
+			uint16_t gen_reg_begin = value.data.procedure->param_count + 1;
+			for (uint_fast8_t i = 0; i < value.type.type_id; i++)
+				if (value.data.procedure->generic_arg_traces[i] == POSTPROC_TRACE_DYNAMIC)
+					compiler->proc_generic_regs[value.data.procedure->id][i] = LOC_REG(gen_reg_begin++);
+		}
+
 		EMIT_INS(INS1(COMPILER_OP_CODE_LABEL, compiler->eval_regs[value.id]));
 		EMIT_INS(INS0(COMPILER_OP_CODE_JUMP));
 		compiler->ins_builder.instructions[start_ip].regs[1] = GLOB_REG(compiler->ins_builder.instruction_count);
@@ -278,6 +295,9 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		compile_code_block(compiler, value.data.procedure->exec_block, value.data.procedure, 0 , NULL, 0);
 		EMIT_INS(INS1(COMPILER_OP_CODE_ABORT, GLOB_REG(ERROR_UNRETURNED_FUNCTION)));
 		compiler->ins_builder.instructions[start_ip + 1].regs[0] = GLOB_REG(compiler->ins_builder.instruction_count);
+		
+		if (value.type.type_id)
+			free(compiler->proc_generic_regs[value.data.procedure->id]);
 		break;
 	}
 	case AST_VALUE_SET_VAR:
@@ -377,12 +397,13 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		}
 
 		if (value.data.proc_call->procedure.type.type_id) {
+			uint16_t gen_arg_reg = value.data.proc_call->argument_count + 1 + compiler->proc_call_offsets[value.data.proc_call->id];
 			for (uint_fast8_t i = 0; i < value.data.proc_call->procedure.type.type_id; i++)
 				if (value.data.proc_call->procedure.type.sub_types[i].type == TYPE_ANY) {
 					if (value.data.proc_call->typeargs[i].type == TYPE_TYPEARG)
-						EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] + value.data.proc_call->argument_count + i + 1), TYPEARG_INFO_REG(value.data.set_prop->value.type)))
+						EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, LOC_REG(gen_arg_reg++), TYPEARG_INFO_REG(value.data.set_prop->value.type)))
 					else
-						EMIT_INS(INS2(COMPILER_OP_CODE_SET, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] + value.data.proc_call->argument_count + i + 1), GLOB_REG(IS_REF_TYPE(value.data.proc_call->typeargs[i]))));
+						EMIT_INS(INS2(COMPILER_OP_CODE_SET, LOC_REG(gen_arg_reg++), GLOB_REG(IS_REF_TYPE(value.data.proc_call->typeargs[i]))));
 				}
 		}
 
@@ -525,8 +546,10 @@ int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
 	PANIC_ON_FAIL(compiler->move_eval = malloc(ast->value_count * sizeof(int)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(compiler->var_regs = malloc(ast->var_decl_count * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(compiler->proc_call_offsets = malloc(ast->proc_call_count * sizeof(uint16_t)), compiler, ERROR_MEMORY);
+	PANIC_ON_FAIL(compiler->proc_generic_regs = malloc(ast->proc_count * sizeof(compiler_reg_t*)), compiler, ERROR_MEMORY);
 
-	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX, 1000), compiler, target_machine->last_err);
+	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX / 8, 1000), compiler, target_machine->last_err);
+
 	allocate_code_block_regs(compiler, ast->exec_block, 0);
 
 	PANIC_ON_FAIL(init_ins_builder(&compiler->ins_builder), compiler, ERROR_MEMORY);
@@ -541,6 +564,7 @@ int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
 	free(compiler->move_eval);
 	free(compiler->var_regs);
 	free(compiler->proc_call_offsets);
+	free(compiler->proc_generic_regs);
 
 	return 1;
 }

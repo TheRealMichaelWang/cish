@@ -27,17 +27,23 @@ int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src) {
 	return 1;
 }
 
-int typecheck_compatible(ast_t* ast, typecheck_type_t* target_type, typecheck_type_t match_type) {
+int typecheck_compatible(ast_parser_t* ast_parser, typecheck_type_t* target_type, typecheck_type_t match_type) {
 	if (match_type.type == TYPE_ANY)
 		return 1;
 	else if (target_type->type == TYPE_AUTO)
 		return copy_typecheck_type(target_type, match_type);
 	else {
-		ESCAPE_ON_FAIL(target_type->type == match_type.type);
+		if (target_type->type != match_type.type) {
+			if (target_type->type == TYPE_TYPEARG)
+				return typecheck_compatible(ast_parser, devolve_type_from_generic(ast_parser, target_type), match_type);
+			else
+				return 0;
+		}
+
 		if (target_type->type == TYPE_TYPEARG)
 			return target_type->type_id == match_type.type_id;
 		if (target_type->type == TYPE_SUPER_RECORD && target_type->type_id != match_type.type_id) {
-			ast_record_proto_t* record_proto = ast->record_protos[target_type->type_id];
+			ast_record_proto_t* record_proto = ast_parser->ast->record_protos[target_type->type_id];
 
 			typecheck_type_t current_rec_type;
 			ESCAPE_ON_FAIL(copy_typecheck_type(&current_rec_type, *target_type));
@@ -52,9 +58,9 @@ int typecheck_compatible(ast_t* ast, typecheck_type_t* target_type, typecheck_ty
 				ESCAPE_ON_FAIL(typeargs_substitute(current_rec_type.sub_types, &next_rec_type));
 				free_typecheck_type(&current_rec_type);
 				current_rec_type = next_rec_type;
-				record_proto = ast->record_protos[current_rec_type.type_id];
+				record_proto = ast_parser->ast->record_protos[current_rec_type.type_id];
 			} while (current_rec_type.type_id != match_type.type_id);
-			res = typecheck_compatible(ast, &current_rec_type, match_type);
+			res = typecheck_compatible(ast_parser, &current_rec_type, match_type);
 		typecheck_record_failed:
 			free_typecheck_type(&current_rec_type);
 			return res;
@@ -62,20 +68,30 @@ int typecheck_compatible(ast_t* ast, typecheck_type_t* target_type, typecheck_ty
 
 		if (target_type->type == TYPE_SUPER_PROC) {
 			ESCAPE_ON_FAIL(target_type->sub_type_count == match_type.sub_type_count);
-			for (uint_fast8_t i = 0; i < target_type->sub_type_count; i++)
-				ESCAPE_ON_FAIL(typecheck_compatible(ast, &match_type.sub_types[i], target_type->sub_types[i]));
+			for (uint_fast8_t i = 0; i < target_type->sub_type_count; i++) {
+				if (i == target_type->type_id)
+					ESCAPE_ON_FAIL(typecheck_compatible(ast_parser, &target_type->sub_types[i], match_type.sub_types[i]))
+				else
+					ESCAPE_ON_FAIL(typecheck_compatible(ast_parser, &match_type.sub_types[i], target_type->sub_types[i]));
+			}
 		}
 		else if (target_type->type >= TYPE_SUPER_ARRAY) {
 			ESCAPE_ON_FAIL(target_type->sub_type_count == match_type.sub_type_count);
 			for (uint_fast8_t i = 0; i < target_type->sub_type_count; i++)
-				ESCAPE_ON_FAIL(typecheck_compatible(ast, &target_type->sub_types[i], match_type.sub_types[i]));
+				ESCAPE_ON_FAIL(typecheck_compatible(ast_parser, &target_type->sub_types[i], match_type.sub_types[i]));
 		}
 		return 1;
 	}
 }
 
-int typecheck_lowest_common_type(ast_t* ast, typecheck_type_t a, typecheck_type_t b, typecheck_type_t* result) {
+int typecheck_lowest_common_type(ast_parser_t* ast_parser, typecheck_type_t a, typecheck_type_t b, typecheck_type_t* result) {
 	if (a.type != b.type) {
+		a = *devolve_type_from_generic(ast_parser, &a);
+		b = *devolve_type_from_generic(ast_parser, &b);
+
+		if (a.type == b.type)
+			return typecheck_lowest_common_type(ast_parser, a, b, result);
+
 		*result = typecheck_any;
 		return 1;
 	}
@@ -87,19 +103,19 @@ int typecheck_lowest_common_type(ast_t* ast, typecheck_type_t a, typecheck_type_
 			ESCAPE_ON_FAIL(copy_typecheck_type(&a_rec_type, a));
 			
 			for (;;) {
-				ast_record_proto_t* record_a = ast->record_protos[a_rec_type.type_id];
+				ast_record_proto_t* record_a = ast_parser->ast->record_protos[a_rec_type.type_id];
 
 				typecheck_type_t b_rec_type;
 				ESCAPE_ON_FAIL(copy_typecheck_type(&b_rec_type, b));
 				for (;;) {
-					ast_record_proto_t* record_b = ast->record_protos[b_rec_type.type_id];
+					ast_record_proto_t* record_b = ast_parser->ast->record_protos[b_rec_type.type_id];
 					
 					if (record_a == record_b) {
 						common_type.type_id = record_a->id;
 						common_type.sub_type_count = record_a->generic_arguments;
 						ESCAPE_ON_FAIL(common_type.sub_types = malloc(common_type.sub_type_count * sizeof(typecheck_type_t)));
 						for (uint_fast8_t i = 0; i < a_rec_type.sub_type_count; i++)
-							ESCAPE_ON_FAIL(typecheck_lowest_common_type(ast, a.sub_types[i], b.sub_types[i], &common_type.sub_types[i]));
+							ESCAPE_ON_FAIL(typecheck_lowest_common_type(ast_parser, a.sub_types[i], b.sub_types[i], &common_type.sub_types[i]));
 						free_typecheck_type(&a_rec_type);
 						free_typecheck_type(&b_rec_type);
 						*result = common_type;
@@ -151,7 +167,7 @@ int typecheck_lowest_common_type(ast_t* ast, typecheck_type_t a, typecheck_type_
 		ESCAPE_ON_FAIL(common_type.sub_types = malloc(common_type.sub_type_count * sizeof(typecheck_type_t)));
 
 		for (uint_fast8_t i = 0; i < common_type.sub_type_count; i++)
-			ESCAPE_ON_FAIL(typecheck_lowest_common_type(ast, a.sub_types[i], b.sub_types[i], &common_type.sub_types[i]));
+			ESCAPE_ON_FAIL(typecheck_lowest_common_type(ast_parser, a.sub_types[i], b.sub_types[i], &common_type.sub_types[i]));
 	}
 	*result = common_type;
 	return 1;
@@ -167,20 +183,6 @@ int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type) {
 	return 0;
 }
 
-int typeargs_replace_generics(typecheck_type_t* input_type_reqs, typecheck_type_t* proto_type, int req_static_types) {
-	if (proto_type->type == TYPE_TYPEARG) {
-		if (input_type_reqs[proto_type->type_id].type != TYPE_ANY)
-			ESCAPE_ON_FAIL(copy_typecheck_type(proto_type, input_type_reqs[proto_type->type_id]))
-		else
-			ESCAPE_ON_FAIL(!req_static_types);
-	}
-	else if (proto_type->type >= TYPE_SUPER_ARRAY)
-		for (uint_fast8_t i = 0; i < proto_type->sub_type_count; i++)
-			ESCAPE_ON_FAIL(typeargs_replace_generics(input_type_reqs, &proto_type->sub_types[i], req_static_types));
-
-	return 1;
-}
-
 int typeargs_substitute(typecheck_type_t* input_typeargs, typecheck_type_t* proto_type) {
 	if (proto_type->type == TYPE_TYPEARG)
 		ESCAPE_ON_FAIL(copy_typecheck_type(proto_type, input_typeargs[proto_type->type_id]))
@@ -189,4 +191,25 @@ int typeargs_substitute(typecheck_type_t* input_typeargs, typecheck_type_t* prot
 			ESCAPE_ON_FAIL(typeargs_substitute(input_typeargs, &proto_type->sub_types[i]));
 	}
 	return 1;
+}
+
+ast_generic_cache_entry_t* generic_from_type(ast_parser_t* ast_parser, typecheck_type_t type) {
+	if (type.type != TYPE_TYPEARG)
+		return NULL;
+	ast_parser_frame_t* current_frame = &ast_parser->frames[ast_parser->current_frame - 1];
+	while (current_frame->parent_frame)
+		current_frame = current_frame->parent_frame;
+	if (current_frame->generic_count <= type.type_id)
+		return NULL;
+	return &current_frame->generics[type.type_id];
+}
+
+typecheck_type_t* devolve_type_from_generic(ast_parser_t* ast_parser, typecheck_type_t* type) {
+	if (type->type == TYPE_TYPEARG) {
+		ast_generic_cache_entry_t* generic = generic_from_type(ast_parser, *type);
+		ESCAPE_ON_FAIL(generic);
+		if (generic->req_type)
+			return generic->req_type;
+	}
+	return type;
 }
