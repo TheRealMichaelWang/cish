@@ -5,6 +5,6 @@
 
 #include "machine.h"
 
-void install_stdlib(machine_t* machine);
+int install_stdlib(machine_t* machine);
 
 #endif // !STDLIB_H

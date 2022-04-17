@@ -1,4 +1,3 @@
-
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdlib.h>
 #include <stdio.h>
@@ -133,23 +132,24 @@ static int std_import(machine_t* machine, machine_reg_t* in, machine_reg_t* out)
 	return 1;
 }
 
-void install_stdlib(machine_t* machine) {
-	ffi_include_func(&machine->ffi_table, std_itof);
-	ffi_include_func(&machine->ffi_table, std_floor);
-	ffi_include_func(&machine->ffi_table, std_ceil);
-	ffi_include_func(&machine->ffi_table, std_round);
-	ffi_include_func(&machine->ffi_table, std_ftos);
-	ffi_include_func(&machine->ffi_table, std_stof);
-	ffi_include_func(&machine->ffi_table, std_itos);
-	ffi_include_func(&machine->ffi_table, std_stoi);
-	ffi_include_func(&machine->ffi_table, std_out);
-	ffi_include_func(&machine->ffi_table, std_in);
-	ffi_include_func(&machine->ffi_table, std_random);
-	ffi_include_func(&machine->ffi_table, std_sin);
-	ffi_include_func(&machine->ffi_table, std_cos);
-	ffi_include_func(&machine->ffi_table, std_tan);
-	ffi_include_func(&machine->ffi_table, std_itoc);
-	ffi_include_func(&machine->ffi_table, std_ctoi);
-	ffi_include_func(&machine->ffi_table, std_time);
-	ffi_include_func(&machine->ffi_table, std_import);
+int install_stdlib(machine_t* machine) {
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_itof));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_floor));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_ceil));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_round));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_ftos));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_stof));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_itos));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_stoi));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_out));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_in));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_random));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_sin));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_cos));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_tan));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_itoc));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_ctoi));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_time));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_import));
+	return 1;
 }

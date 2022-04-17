@@ -50,7 +50,8 @@ int main(int argc, char* argv[]) {
 		free_ast(&ast);
 
 		if (!strcmp(op_flag, "-cr")) {
-			install_stdlib(&machine);
+			if (!install_stdlib(&machine))
+				ABORT(("Failed to install SuperForth standard native libraries.\n"));
 			if (!machine_execute(&machine, machine_ins)) {
 				printf("Last IP: %" PRIu64 "\n", machine.last_err_ip);
 				ABORT(("Runtime error(%s).\n", get_err_msg(machine.last_err)));
@@ -74,7 +75,8 @@ int main(int argc, char* argv[]) {
 		if (!instructions)
 			ABORT(("Unable to load binaries from file.\n"));
 		if (!strcmp(op_flag, "-r")) {
-			install_stdlib(&machine);
+			if (!install_stdlib(&machine))
+				ABORT(("Failed to install SuperForth standard native libraries.\n"));
 			if (!machine_execute(&machine, instructions)) {
 				printf("Last IP: %" PRIu64 "\n", machine.last_err_ip);
 				ABORT(("Runtime error(%s).\n", get_err_msg(machine.last_err)))
