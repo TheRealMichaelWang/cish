@@ -5,7 +5,7 @@
 #include "compiler.h"
 #include "file.h"
 
-#define MAGIC_NUM 2187
+#define MAGIC_NUM 6942
 #define _CRT_SECURE_NO_WARNINGS
 
 static int read_ins(machine_ins_t* output, FILE* infile) {
@@ -31,14 +31,15 @@ machine_ins_t* file_load_ins(const char* path, machine_t* machine, uint16_t* ins
 	FILE* infile = fopen(path, "rb");
 	ESCAPE_ON_FAIL(infile);
 
-	uint16_t magic_num, const_allocs;
+	uint16_t magic_num, const_allocs, type_sigs;
 	ESCAPE_ON_FAIL(fread(&magic_num, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(magic_num == MAGIC_NUM);
 
 	ESCAPE_ON_FAIL(fread(&const_allocs, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fread(&type_sigs, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fread(instruction_count, sizeof(uint16_t), 1, infile));
 
-	ESCAPE_ON_FAIL(init_machine(machine, UINT16_MAX / 8, 1000));
+	ESCAPE_ON_FAIL(init_machine(machine, UINT16_MAX / 8, 1000, type_sigs));
 	machine_ins_t* instructions = malloc(*instruction_count * sizeof(machine_ins_t));
 	ESCAPE_ON_FAIL(instructions);
 
@@ -61,6 +62,7 @@ int file_save_compiled(const char* path, ast_t* ast, machine_t* machine, machine
 	uint16_t magic_num = MAGIC_NUM;
 	ESCAPE_ON_FAIL(fwrite(&magic_num, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fwrite(&ast->constant_count, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(&ast->type_signature_count, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fwrite(&instruction_count, sizeof(uint16_t), 1, infile));
 
 	for (uint_fast16_t i = 0; i < ast->constant_count; i++)

@@ -317,6 +317,18 @@ static const char* opcode_names[] = {
 	"lneg(lg)        ",
 	"lneg(gl)        ",
 	"lneg(gg)        ",
+
+	"relate type     ",
+	"configtypesig(l)",
+	"configtypesig(g)",
+	"rt-typecheck(ll)",
+	"rt-typecheck(lg)",
+	"rt-typecheck(gl)",
+	"rt-typecheck(gg)",
+	"rt-typecast(ll) ",
+	"rt-typecast(lg) ",
+	"rt-typecast(gl) ",
+	"rt-typecast(gg) ",
 };
 
 static const char* error_names[] = {

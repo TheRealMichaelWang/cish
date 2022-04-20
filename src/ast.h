@@ -249,7 +249,7 @@ typedef struct ast_record_proto {
 	}*default_values;
 
 	uint8_t id, property_count, allocated_properties;
-	uint16_t index_offset, default_value_count;
+	uint16_t index_offset, default_value_count, type_signature;
 
 	int typeargs_defined, fully_defined, do_gc;
 } ast_record_proto_t;
@@ -281,7 +281,7 @@ typedef struct ast {
 	uint8_t record_count, allocated_records;
 
 	ast_primitive_t** primitives;
-	uint16_t constant_count, allocated_constants, proc_count;
+	uint16_t constant_count, allocated_constants, proc_count, type_signature_count;
 
 	uint32_t value_count, var_decl_count, proc_call_count;
 } ast_t;

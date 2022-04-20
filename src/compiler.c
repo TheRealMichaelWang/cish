@@ -252,6 +252,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		break;
 	case AST_VALUE_ALLOC_RECORD: {
 		EMIT_INS(INS3(COMPILER_OP_CODE_ALLOC_I, compiler->eval_regs[value.id], GLOB_REG(value.data.alloc_record.proto->index_offset + value.data.alloc_record.proto->property_count), GLOB_REG(value.data.alloc_record.proto->do_gc ? GC_TRACE_MODE_SOME : GC_TRACE_MODE_NONE)));
+		EMIT_INS(INS2(COMPILER_OP_CODE_CONFIG_TYPESIG, compiler->eval_regs[value.id], GLOB_REG(value.data.alloc_record.proto->type_signature)));
 
 		for (uint_fast16_t i = 0; i < value.data.alloc_record.init_value_count; i++) {
 			ESCAPE_ON_FAIL(compile_value(compiler, *value.data.alloc_record.init_values[i].value, proc));
@@ -532,6 +533,10 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 		case AST_STATEMENT_ABORT:
 			EMIT_INS(INS1(COMPILER_OP_CODE_ABORT, GLOB_REG(ERROR_ABORT)));
 			break;
+		case AST_STATEMENT_RECORD_PROTO:
+			if (current_statement->data.record_proto->base_record)
+				EMIT_INS(INS2(COMPILER_OP_CODE_TYPE_RELATE, GLOB_REG(current_statement->data.record_proto->type_signature), GLOB_REG(compiler->ast->record_protos[current_statement->data.record_proto->base_record->type_id]->type_signature)));
+			break;
 		}
 	return 1;
 }
@@ -548,7 +553,7 @@ int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
 	PANIC_ON_FAIL(compiler->proc_call_offsets = malloc(ast->proc_call_count * sizeof(uint16_t)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(compiler->proc_generic_regs = malloc(ast->proc_count * sizeof(compiler_reg_t*)), compiler, ERROR_MEMORY);
 
-	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX / 8, 1000), compiler, target_machine->last_err);
+	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX / 8, 1000, ast->type_signature_count), compiler, target_machine->last_err);
 
 	allocate_code_block_regs(compiler, ast->exec_block, 0);
 
@@ -628,7 +633,11 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 		MACHINE_OP_CODE_FLOAT_MODULO_LLL,
 		MACHINE_OP_CODE_FLOAT_EXPONENTIATE_LLL,
 		MACHINE_OP_CODE_LONG_NEGATE_LL,
-		MACHINE_OP_CODE_FLOAT_NEGATE_LL
+		MACHINE_OP_CODE_FLOAT_NEGATE_LL,
+		MACHINE_OP_CODE_TYPE_RELATE,
+		MACHINE_OP_CODE_CONFIG_TYPESIG_L,
+		MACHINE_OP_CODE_RUNTIME_TYPECHECK_LL,
+		MACHINE_OP_CODE_RUNTIME_TYPECAST_LL
 	};
 
 	static const int reg_operands[] = {
@@ -692,7 +701,12 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 		3,
 
 		2, //long negate
-		2 //float negate
+		2, //float negate
+
+		0, //relate
+		1, //config type signature
+		2, //runtime typecheck
+		2, //runtime typecast
 	};
 	
 	for (uint_fast64_t i = 0; i < ins_count; i++) {

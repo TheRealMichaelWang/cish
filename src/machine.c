@@ -121,7 +121,15 @@ static void machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, hea
 	}
 }
 
-int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit) {
+static int type_signature_match(machine_t* machine, uint16_t match_signature, uint16_t parent_signature) {
+	if (match_signature == parent_signature)
+		return 1;
+	if (machine->type_table[match_signature])
+		return type_signature_match(machine, machine->type_table[match_signature], parent_signature);
+	return 0;
+}
+
+int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit, uint16_t type_count) {
 	machine->frame_limit = frame_limit;
 
 	machine->last_err = ERROR_NONE;
@@ -140,6 +148,7 @@ int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit) 
 	ESCAPE_ON_FAIL(machine->trace_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
 	ESCAPE_ON_FAIL(machine->freed_heap_allocs = malloc((machine->alloc_freed_heaps = 128) * sizeof(heap_alloc_t*)));
 	ESCAPE_ON_FAIL(machine->dynamic_library_table = malloc(sizeof(dynamic_library_table_t)));
+	ESCAPE_ON_FAIL(machine->type_table = calloc(type_count, sizeof(uint16_t)));
 	ESCAPE_ON_FAIL(init_ffi(&machine->ffi_table));
 	ESCAPE_ON_FAIL(dynamic_library_init(machine->dynamic_library_table));
 	return 1;
@@ -158,6 +167,7 @@ void free_machine(machine_t* machine) {
 	free(machine->heap_frame_bounds);
 	free(machine->heap_traces);
 	free(machine->trace_frame_bounds);
+	free(machine->type_table);
 }
 
 #define MACHINE_PANIC_COND(COND, ERR) {if(!(COND)) { machine->last_err_ip = ip - instructions; PANIC(machine, ERR); }}
@@ -180,7 +190,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			machine->stack[ip->a] = machine->stack[ip->b];
 			break;
 		case MACHINE_OP_CODE_SET_L:
-			machine->stack[ip->a + machine->global_offset].long_int = ip->b;
+			machine->stack[ip->a + machine->global_offset].bool_flag = ip->b;
 			break;
 		case MACHINE_OP_CODE_JUMP:
 			ip = &instructions[ip->a];
@@ -1310,6 +1320,44 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			}
 			break;
 		}
+		//runtime typing functionality opcode implementations
+		case MACHINE_OP_CODE_TYPE_RELATE:
+			machine->type_table[ip->a] = ip->b;
+			break;
+		case MACHINE_OP_CODE_CONFIG_TYPESIG_L:
+			machine->stack[ip->a + machine->global_offset].heap_alloc->type_signature = ip->b;
+			break;
+		case MACHINE_OP_CODE_CONFIG_TYPESIG_G:
+			machine->stack[ip->a].heap_alloc->type_signature = ip->b;
+			break;
+		case MACHINE_OP_CODE_RUNTIME_TYPECHECK_LL:
+			machine->stack[ip->b + machine->global_offset].bool_flag = type_signature_match(machine, machine->stack[ip->a + machine->global_offset].heap_alloc->type_signature, ip->c);
+			break;
+		case MACHINE_OP_CODE_RUNTIME_TYPECHECK_LG:
+			machine->stack[ip->b + machine->global_offset].bool_flag = type_signature_match(machine, machine->stack[ip->a].heap_alloc->type_signature, ip->c);
+			break;
+		case MACHINE_OP_CODE_RUNTIME_TYPECHECK_GL:
+			machine->stack[ip->b].bool_flag = type_signature_match(machine, machine->stack[ip->a + machine->global_offset].heap_alloc->type_signature, ip->c);
+			break;
+		case MACHINE_OP_CODE_RUNTIME_TYPECHECK_GG:
+			machine->stack[ip->b].bool_flag = type_signature_match(machine, machine->stack[ip->a].heap_alloc->type_signature, ip->c);
+			break;
+		case MACHINE_OP_CODE_RUNTIME_TYPECAST_LL:
+			MACHINE_PANIC_COND(type_signature_match(machine, machine->stack[ip->a + machine->global_offset].heap_alloc->type_signature, ip->c), ERROR_UNEXPECTED_TYPE);
+			machine->stack[ip->b + machine->global_offset] = machine->stack[ip->a + machine->global_offset];
+			break;
+		case MACHINE_OP_CODE_RUNTIME_TYPECAST_LG:
+			MACHINE_PANIC_COND(type_signature_match(machine, machine->stack[ip->a + machine->global_offset].heap_alloc->type_signature, ip->c), ERROR_UNEXPECTED_TYPE);
+			machine->stack[ip->b] = machine->stack[ip->a + machine->global_offset];
+			break;
+		case MACHINE_OP_CODE_RUNTIME_TYPECAST_GL:
+			MACHINE_PANIC_COND(type_signature_match(machine, machine->stack[ip->a].heap_alloc->type_signature, ip->c), ERROR_UNEXPECTED_TYPE);
+			machine->stack[ip->b + machine->global_offset] = machine->stack[ip->a];
+			break;
+		case MACHINE_OP_CODE_RUNTIME_TYPECAST_GG:
+			MACHINE_PANIC_COND(type_signature_match(machine, machine->stack[ip->a].heap_alloc->type_signature, ip->c), ERROR_UNEXPECTED_TYPE);
+			machine->stack[ip->b] = machine->stack[ip->a];
+			break;
 		}
 		ip++;
 	}

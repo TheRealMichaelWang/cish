@@ -80,7 +80,12 @@ typedef enum machine_op_code {
 	DECL3OP(FLOAT_EXPONENTIATE),
 
 	DECL2OP(LONG_NEGATE),
-	DECL2OP(FLOAT_NEGATE)
+	DECL2OP(FLOAT_NEGATE),
+
+	MACHINE_OP_CODE_TYPE_RELATE,
+	DECL1OP(CONFIG_TYPESIG),
+	DECL2OP(RUNTIME_TYPECHECK),
+	DECL2OP(RUNTIME_TYPECAST)
 } machine_op_code_t;
 #undef DECL1OP
 #undef DECL2OP
@@ -98,6 +103,8 @@ typedef struct machine_heap_alloc {
 
 	int gc_flag, reg_with_table, pre_freed;
 	gc_trace_mode_t trace_mode;
+
+	uint16_t type_signature;
 } heap_alloc_t;
 
 typedef union machine_register {
@@ -129,9 +136,11 @@ typedef struct machine {
 
 	ffi_t ffi_table;
 	dynamic_library_table_t* dynamic_library_table;
+
+	uint16_t* type_table;
 } machine_t;
 
-int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit);
+int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit, uint16_t type_count);
 void free_machine(machine_t* machine);
 
 int machine_execute(machine_t* machine, machine_ins_t* instructions);
