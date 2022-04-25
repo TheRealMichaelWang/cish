@@ -23,8 +23,8 @@ typedef enum typecheck_base_type {
 	TYPE_PRIMITIVE_LONG,
 	TYPE_PRIMITIVE_FLOAT,
 
-	TYPE_SUPER_ARRAY,
 	TYPE_SUPER_PROC,
+	TYPE_SUPER_ARRAY,
 	TYPE_SUPER_RECORD
 } typecheck_base_type_t;
 
@@ -35,15 +35,17 @@ typedef struct typecheck_type {
 	uint8_t type_id;
 } typecheck_type_t;
 
-#define IS_REF_TYPE(TYPE) ((TYPE).type == TYPE_SUPER_ARRAY || (TYPE).type == TYPE_SUPER_RECORD)
+#define IS_REF_TYPE(TYPE) ((TYPE).type >= TYPE_SUPER_ARRAY)
 #define IS_PRIMITIVE(TYPE) ((TYPE).type >= TYPE_PRIMITIVE_BOOL && (TYPE).type <= TYPE_PRIMITIVE_FLOAT)
 
+#define HAS_SUBTYPES(TYPE) ((TYPE).type >= TYPE_SUPER_PROC)
+
+static typecheck_type_t typecheck_bool = { .type = TYPE_PRIMITIVE_BOOL };
+static typecheck_type_t typecheck_char = { .type = TYPE_PRIMITIVE_CHAR };
 static typecheck_type_t typecheck_int = { .type = TYPE_PRIMITIVE_LONG };
 static typecheck_type_t typecheck_float = { .type = TYPE_PRIMITIVE_FLOAT };
-static typecheck_type_t typecheck_char = { .type = TYPE_PRIMITIVE_CHAR };
-static typecheck_type_t typecheck_bool = { .type = TYPE_PRIMITIVE_BOOL };
-static typecheck_type_t typecheck_array = { .type = TYPE_SUPER_ARRAY };
 static typecheck_type_t typecheck_any = { .type = TYPE_ANY };
+static typecheck_type_t typecheck_array = { .type = TYPE_SUPER_ARRAY, .sub_type_count = 1, .sub_types = &typecheck_any };
 
 void free_typecheck_type(typecheck_type_t* typecheck_type);
 int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src);

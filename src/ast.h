@@ -25,6 +25,7 @@ typedef struct ast_record_proto ast_record_proto_t;
 typedef struct ast_record_prop ast_record_prop_t;
 typedef struct ast_get_prop ast_get_prop_t;
 typedef struct ast_set_prop ast_set_prop_t;
+typedef struct ast_type_op ast_type_op_t;
 
 typedef struct ast_var_info {
 	uint32_t id;
@@ -93,6 +94,7 @@ typedef struct ast_value {
 		AST_VALUE_GET_PROP,
 		AST_VALUE_BINARY_OP,
 		AST_VALUE_UNARY_OP,
+		AST_VALUE_TYPE_OP,
 		AST_VALUE_PROC_CALL,
 		AST_VALUE_FOREIGN
 	} value_type;
@@ -111,6 +113,7 @@ typedef struct ast_value {
 		ast_get_prop_t* get_prop;
 		ast_binary_op_t* binary_op;
 		ast_unary_op_t* unary_op;
+		ast_type_op_t* type_op;
 		ast_call_proc_t* proc_call;
 		ast_foreign_call_t* foreign;
 	} data;
@@ -159,6 +162,12 @@ typedef struct ast_unary_op {
 	token_type_t operator;
 	ast_value_t operand;
 } ast_unary_op;
+
+typedef struct ast_type_op {
+	token_type_t operation;
+	ast_value_t operand;
+	typecheck_type_t match_type;
+} ast_type_op_t;
 
 typedef struct ast_call_proc {
 	ast_value_t procedure;
@@ -249,7 +258,7 @@ typedef struct ast_record_proto {
 	}*default_values;
 
 	uint8_t id, property_count, allocated_properties;
-	uint16_t index_offset, default_value_count, type_signature;
+	uint16_t index_offset, default_value_count;
 
 	int typeargs_defined, fully_defined, do_gc;
 } ast_record_proto_t;
@@ -281,7 +290,7 @@ typedef struct ast {
 	uint8_t record_count, allocated_records;
 
 	ast_primitive_t** primitives;
-	uint16_t constant_count, allocated_constants, proc_count, type_signature_count;
+	uint16_t constant_count, allocated_constants, proc_count;
 
 	uint32_t value_count, var_decl_count, proc_call_count;
 } ast_t;

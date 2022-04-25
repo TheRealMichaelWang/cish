@@ -134,6 +134,10 @@ int scanner_scan_tok(scanner_t* scanner) {
 			RETURN(TOK_INCLUDE);
 		case 6953974036516:
 			RETURN(TOK_RECORD);
+    case 5863489:
+      RETURN(TOK_IS_TYPE);
+    case 15040638317685008948:
+      RETURN(TOK_DYNAMIC_CAST);
 		case 193504585: //rem
 			do {
 				scanner_read_char(scanner);

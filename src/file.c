@@ -18,6 +18,17 @@ static int read_ins(machine_ins_t* output, FILE* infile) {
 	return 1;
 }
 
+static int read_type_sig(machine_type_sig_t* out_sig, FILE* infile) {
+	ESCAPE_ON_FAIL(fread(&out_sig->super_signature, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fread(&out_sig->sub_type_count, sizeof(uint16_t), 1, infile));
+
+	ESCAPE_ON_FAIL(out_sig->sub_types = malloc(out_sig->sub_type_count * sizeof(machine_type_sig_t)));
+
+	for (uint_fast8_t i = 0; i < out_sig->sub_type_count; i++)
+		ESCAPE_ON_FAIL(read_type_sig(&out_sig->sub_types[i], infile));
+	return 1;
+}
+
 static int write_ins(machine_ins_t ins, FILE* infile) {
 	uint16_t op_code_buffer = ins.op_code;
 	ESCAPE_ON_FAIL(fwrite(&op_code_buffer, sizeof(uint16_t), 1, infile));
@@ -27,16 +38,25 @@ static int write_ins(machine_ins_t ins, FILE* infile) {
 	return 1;
 }
 
-machine_ins_t* file_load_ins(const char* path, machine_t* machine, uint16_t* instruction_count, uint16_t* constant_count) {
+static int write_type_sig(machine_type_sig_t type_sig, FILE* infile) {
+	ESCAPE_ON_FAIL(fwrite(type_sig.super_signature, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(type_sig.sub_type_count, sizeof(uint16_t), 1, infile));
+	for (uint_fast8_t i = 0; i < type_sig.sub_type_count; i++)
+		ESCAPE_ON_FAIL(write_type_sig(type_sig.sub_types[i].sub_types[i], infile));
+	return 1;
+}
+
+machine_ins_t* file_load_ins(const char* path, machine_t* machine, uint16_t* instruction_count, uint16_t* constant_count, uint16_t* signature_count) {
 	FILE* infile = fopen(path, "rb");
 	ESCAPE_ON_FAIL(infile);
 
-	uint16_t magic_num, const_allocs, type_sigs;
+	uint16_t magic_num, const_allocs, type_sigs, defined_sigs;
 	ESCAPE_ON_FAIL(fread(&magic_num, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(magic_num == MAGIC_NUM);
 
 	ESCAPE_ON_FAIL(fread(&const_allocs, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fread(&type_sigs, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fread(&defined_sigs, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fread(instruction_count, sizeof(uint16_t), 1, infile));
 
 	ESCAPE_ON_FAIL(init_machine(machine, UINT16_MAX / 8, 1000, type_sigs));
@@ -45,8 +65,17 @@ machine_ins_t* file_load_ins(const char* path, machine_t* machine, uint16_t* ins
 
 	if (constant_count)
 		*constant_count = const_allocs;
+	if (signature_count)
+		*signature_count = defined_sigs;
+
 	for (uint_fast16_t i = 0; i < const_allocs; i++)
 		ESCAPE_ON_FAIL(fread(&machine->stack[i], sizeof(uint64_t), 1, infile));
+
+	for (uint_fast8_t i = 0; i < defined_sigs; i++) {
+		machine_type_sig_t* loaded_sig = new_type_sig(machine);
+		ESCAPE_ON_FAIL(loaded_sig);
+		ESCAPE_ON_FAIL(read_type_sig(loaded_sig, infile));
+	}
 
 	for (uint_fast16_t i = 0; i < *instruction_count; i++)
 		ESCAPE_ON_FAIL(read_ins(&instructions[i], infile));
@@ -62,11 +91,14 @@ int file_save_compiled(const char* path, ast_t* ast, machine_t* machine, machine
 	uint16_t magic_num = MAGIC_NUM;
 	ESCAPE_ON_FAIL(fwrite(&magic_num, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fwrite(&ast->constant_count, sizeof(uint16_t), 1, infile));
-	ESCAPE_ON_FAIL(fwrite(&ast->type_signature_count, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(&ast->record_count, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(&machine->defined_sig_count, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fwrite(&instruction_count, sizeof(uint16_t), 1, infile));
 
 	for (uint_fast16_t i = 0; i < ast->constant_count; i++)
 		ESCAPE_ON_FAIL(fwrite(&machine->stack[i], sizeof(uint64_t), 1, infile));
+	for (uint_fast16_t i = 0; i < machine->defined_sig_count; i++)
+		ESCAPE_ON_FAIL(write_type_sig(machine->defined_signatures[i], infile));
 
 	for (uint_fast16_t i = 0; i < instruction_count; i++)
 		ESCAPE_ON_FAIL(write_ins(instructions[i], infile));

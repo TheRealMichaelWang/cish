@@ -2,10 +2,10 @@
 #include "hash.h"
 
 uint64_t hash_s(const char* str, uint64_t len) {
-    uint64_t hash = 5381;
+    uint64_t hash_num = 5381;
     for (uint64_t i = 0; i < len; i++)
-        hash = (hash << 5) + hash + str[i];
-    return hash;
+        hash_num = (hash_num << 5) + hash_num + str[i];
+    return hash_num;
 }
 
 uint64_t hash(const char* str) {

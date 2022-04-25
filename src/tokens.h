@@ -35,6 +35,7 @@ typedef enum token_type {
 	TOK_FOREIGN,
 	TOK_RECORD,
 	TOK_EXTEND,
+  TOK_DYNAMIC_CAST,
 
 	TOK_FALSE,
 	TOK_TRUE,
@@ -64,6 +65,7 @@ typedef enum token_type {
 	TOK_OR,
 	TOK_NOT,
 	TOK_HASHTAG,
+  TOK_IS_TYPE,
 
 	TOK_OPEN_BRACE,
 	TOK_CLOSE_BRACE,

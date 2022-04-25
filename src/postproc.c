@@ -22,6 +22,8 @@ static int comes_from_used_var(ast_value_t value) {
 	case AST_VALUE_UNARY_OP:
 	case AST_VALUE_PROC:
 		return 0;
+	case AST_VALUE_TYPE_OP:
+		return comes_from_used_var(value.data.type_op->operand);
 	case AST_VALUE_PROC_CALL:
 	case AST_VALUE_FOREIGN:
 		return 1;
@@ -96,6 +98,9 @@ static void mark_value_no_affect_state(ast_value_t* value) {
 		break;
 	case AST_VALUE_UNARY_OP:
 		mark_value_no_affect_state(&value->data.unary_op->operand);
+		break;
+	case AST_VALUE_TYPE_OP:
+		mark_value_no_affect_state(&value->data.type_op->operand);
 		break;
 	case AST_VALUE_FOREIGN:
 		if (value->data.foreign->input)
@@ -200,6 +205,9 @@ static int ast_postproc_value_affects_state(int affects_state, ast_value_t* valu
 		break;
 	case AST_VALUE_UNARY_OP:
 		CHECK_AFFECTS_STATE(affects_state, &value->data.unary_op->operand);
+		break;
+	case AST_VALUE_TYPE_OP:
+		CHECK_AFFECTS_STATE(affects_state, &value->data.type_op->operand);
 		break;
 	case AST_VALUE_FOREIGN:
 		value->affects_state = 1;
@@ -363,6 +371,10 @@ static void share_var_from_value(ast_parser_t* ast_parser, ast_value_t value, in
 			shared_globals[SANITIZE_SCOPE_ID(*value.data.set_var->var_info)] = 1;
 		else
 			shared_locals[SANITIZE_SCOPE_ID(*value.data.set_var->var_info)] = 1;
+		break;
+	case AST_VALUE_TYPE_OP:
+		if(value.data.type_op->operation == TOK_DYNAMIC_CAST)
+			share_var_from_value(ast_parser, value.data.type_op->operand, shared_globals, shared_locals, local_scope_size);
 		break;
 	case AST_VALUE_SET_INDEX:
 		share_var_from_value(ast_parser, value.data.set_index->array, shared_globals, shared_locals, local_scope_size);
@@ -632,6 +644,16 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 	case AST_VALUE_UNARY_OP:
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.unary_op->operand, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
 		value->gc_status = POSTPROC_GC_NONE;
+		break;
+	case AST_VALUE_TYPE_OP:
+		if (value->data.type_op->operation == TOK_IS_TYPE) {
+			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.type_op->operand, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
+			value->gc_status = POSTPROC_GC_NONE;
+		}
+		else {
+			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.type_op->operand, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, parent_stat, parent_proc));
+			value->gc_status = value->data.type_op->operand.gc_status;
+		}
 		break;
 	case AST_VALUE_PROC_CALL:
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.proc_call->procedure, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
