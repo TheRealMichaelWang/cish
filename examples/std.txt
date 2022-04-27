@@ -53,6 +53,15 @@ global readonly auto funcfill = proc<elemType>(array<elemType> buffer, int start
 	return;
 };
 
+global readonly auto memset = proc<elemType>(array<elemType> a, elemType elem) return nothing {
+	int i = 0;
+	while(i < #a) {
+		a[i] = elem;
+		i = i + 1;
+	}
+	return;
+};
+
 global readonly auto forall = proc<elemType>(array<elemType> a, proc<nothing, array<elemType>, int> func) return nothing {
 	int i = 0;
 	while(i < #a) {
@@ -92,4 +101,11 @@ global readonly auto max = proc(int a, int b) return int {
 		return a;
 	}
 	return b;
+};
+
+global readonly auto fabs = proc(float f) return float {
+	if(f < 0f) {
+		return -f;
+	}
+	return f;
 };

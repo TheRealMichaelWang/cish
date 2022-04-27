@@ -33,3 +33,18 @@ global readonly auto strcmp = proc(array<char> str1, array<char> str2) return bo
 	return true;
 };
 
+$appends two strings
+global readonly auto strcat = proc(array<char> str1, array<char> str2) return array<char> {
+	array<char> newStr = new char[#str1 + #str2];
+	int i = 0;
+	while(i < #str1) {
+		newStr[i] = str1[i];
+		i = i + 1;
+	}
+	int j = 0;
+	while(j < #str2) {
+		newStr[i + j] = str2[j];
+		j = j + 1;
+	}
+	return newStr;
+};
