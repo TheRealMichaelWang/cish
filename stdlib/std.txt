@@ -1,0 +1,111 @@
+global readonly auto map = proc<elemType>(array<elemType> a, proc<elemType, elemType> transform) return array<elemType> {
+	array<elemType> output = new elemType[#a];
+	int i = 0;
+	while(i < #output) {
+		output[i] = transform(a[i]);
+		i = i + 1;
+	}
+	return output;
+};
+
+global readonly auto reduce = proc<elemType>(array<elemType> a, proc<elemType, elemType, elemType> transform, elemType init) return array<elemType> {
+	array<elemType> output = new elemType[#a + 1];
+	output[0] = init;
+	int i = 0;
+	while(i < #a) {
+		output[i + 1] = transform(output[i], a[i]);
+		i = i + 1;
+	}
+	return output;
+};
+
+global readonly auto filter = proc<elemType>(array<elemType> a, proc<bool, elemType> keepFunc) return array<elemType> {
+	array<bool> keep_flags = new bool[#a];
+	int kept_elems = 0;
+
+	int i = 0;
+	while(i < #a) {
+		if(keep_flags[i] = keepFunc(a[i])) {
+			kept_elems = kept_elems + 1;
+		}
+		i = i + 1;
+	}
+
+	array<elemType> output = new elemType[kept_elems];
+	i = 0;
+	int k = 0;
+	while(i < #a) {
+		if(keep_flags[i]) {
+			output[k] = a[i];
+			k = k + 1;
+		}
+		i = i + 1;
+	}
+	return output;
+};
+
+global readonly auto funcfill = proc<elemType>(array<elemType> buffer, int start, int length, proc<elemType> func) return nothing {
+	int i = start;
+	while(i < start + length) {
+		buffer[i] = func();
+		i = i + 1;
+	}
+	return;
+};
+
+global readonly auto memset = proc<elemType>(array<elemType> a, elemType elem) return nothing {
+	int i = 0;
+	while(i < #a) {
+		a[i] = elem;
+		i = i + 1;
+	}
+	return;
+};
+
+global readonly auto forall = proc<elemType>(array<elemType> a, proc<nothing, array<elemType>, int> func) return nothing {
+	int i = 0;
+	while(i < #a) {
+		func(a, i);
+		i = i + 1;
+	}
+	return;
+};
+
+global readonly auto irange = proc(int n) return array<int> {
+	array<int> range = new int[n];
+	int i = 0;
+	while(i < n) {
+		range[i] = i;
+		i = i + 1;
+	}
+	return range;
+};
+
+global readonly auto itoc = proc(int i) return char {
+	return foreign[14](i);
+};
+
+global readonly auto ctoi = proc(char c) return int {
+	return foreign[15](c);
+};
+
+global readonly auto min = proc(int a, int b) return int {
+	if(a < b) {
+		return a;
+	}
+	return b;
+};
+
+global readonly auto max = proc(int a, int b) return int {
+	if(a > b) {
+		return a;
+	}
+	return b;
+};
+
+global readonly auto fabs = proc(float f) return float {
+	if(f < 0f) {
+		return -f;
+	}
+	return f;
+};
