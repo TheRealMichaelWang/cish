@@ -954,9 +954,10 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		MATCH_TOK(TOK_OPEN_PAREN);
 		READ_TOK;
 
-		value->data.type_op->operand.type.type = TYPE_AUTO;
-		ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.type_op->operand, &value->data.type_op->operand.type, 0, 0));
-		PANIC_ON_FAIL(value->data.type_op->operand.type.type == TYPE_SUPER_RECORD || value->data.type_op->operand.type.type == TYPE_TYPEARG, ast_parser, ERROR_UNEXPECTED_TYPE);
+		typecheck_type_t op_type = { .type = TYPE_AUTO };
+		ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.type_op->operand, &op_type, 0, 0));
+		PANIC_ON_FAIL(op_type.type == TYPE_SUPER_RECORD || op_type.type == TYPE_TYPEARG, ast_parser, ERROR_UNEXPECTED_TYPE);
+		free_typecheck_type(&op_type);
 
 		MATCH_TOK(TOK_CLOSE_PAREN);
 		READ_TOK;

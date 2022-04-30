@@ -178,9 +178,19 @@ int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit, 
 	return 1;
 }
 
+static void free_defined_signature(machine_type_sig_t* type_sig) {
+	if (type_sig->super_signature >= TYPE_SUPER_PROC) {
+		for (uint_fast8_t i = 0; i < type_sig->sub_type_count; i++)
+			free_defined_signature(&type_sig->sub_types[i]);
+		free(type_sig->sub_types);
+	}
+}
+
 void free_machine(machine_t* machine) {
 	for (uint_fast16_t i = 0; i < machine->freed_heap_count; i++)
 		free(machine->freed_heap_allocs[i]);
+	for (uint_fast16_t i = 0; i < machine->defined_sig_count; i++)
+		free_defined_signature(&machine->defined_signatures[i]);
 	free(machine->freed_heap_allocs);
 	free_ffi(&machine->ffi_table);
 	dynamic_library_free(machine->dynamic_library_table);
