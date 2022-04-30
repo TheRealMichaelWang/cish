@@ -39,8 +39,8 @@ static int write_ins(machine_ins_t ins, FILE* infile) {
 }
 
 static int write_type_sig(machine_type_sig_t type_sig, FILE* infile) {
-	ESCAPE_ON_FAIL(fwrite(type_sig.super_signature, sizeof(uint16_t), 1, infile));
-	ESCAPE_ON_FAIL(fwrite(type_sig.sub_type_count, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(&type_sig.super_signature, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(&type_sig.sub_type_count, sizeof(uint16_t), 1, infile));
 	for (uint_fast8_t i = 0; i < type_sig.sub_type_count; i++)
 		ESCAPE_ON_FAIL(write_type_sig(type_sig.sub_types[i].sub_types[i], infile));
 	return 1;

@@ -55,7 +55,7 @@ typedef enum compiler_op_code {
 	COMPILER_OP_CODE_NOT,
 	COMPILER_OP_CODE_LENGTH,
 
-  COMPILER_OP_CODE_PTR_EQUAL,
+	COMPILER_OP_CODE_PTR_EQUAL,
 	COMPILER_OP_CODE_BOOL_EQUAL,
 	COMPILER_OP_CODE_CHAR_EQUAL,
 	COMPILER_OP_CODE_LONG_EQUAL,
@@ -91,7 +91,14 @@ typedef enum compiler_op_code {
 	COMPILER_OP_CODE_TYPE_RELATE,
 	COMPILER_OP_CODE_CONFIG_TYPESIG,
 	COMPILER_OP_CODE_RUNTIME_TYPECHECK,
-	COMPILER_OP_CODE_RUNTIME_TYPECAST
+	COMPILER_OP_CODE_RUNTIME_TYPECAST,
+
+	COMPILER_OP_CODE_DYNAMIC_TYPECHECK_DD,
+	COMPILER_OP_CODE_DYNAMIC_TYPECHECK_DR,
+	COMPILER_OP_CODE_DYNAMIC_TYPECHECK_RD,
+	COMPILER_OP_CODE_DYNAMIC_TYPECAST_DD,
+	COMPILER_OP_CODE_DYNAMIC_TYPECAST_DR,
+	COMPILER_OP_CODE_DYNAMIC_TYPECAST_RD,
 } compiler_op_code_t;
 
 typedef struct compiler_ins {
@@ -107,7 +114,6 @@ typedef struct ins_builder {
 typedef struct compiler {
 	compiler_reg_t* eval_regs;
 	int* move_eval;
-	uint16_t* eval_defed_sigs;
 
 	compiler_reg_t* var_regs;
 
@@ -119,7 +125,7 @@ typedef struct compiler {
 
 	ins_builder_t ins_builder;
 
-	uint16_t current_global, defined_sigs;
+	uint16_t current_global;
 	
 	error_t last_err;
 } compiler_t;
@@ -131,5 +137,5 @@ int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast);
 
 void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* machine_ins, uint64_t ins_count);
 
-int compiler_define_typesig(compiler_t* compiler, typecheck_type_t type);
+int compiler_define_typesig(compiler_t* compiler, ast_proc_t* proc, typecheck_type_t type);
 #endif // !COMPILER_H

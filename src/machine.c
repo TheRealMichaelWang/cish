@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "error.h"
+#include "type.h"
 #include "machine.h"
 
 static int64_t longpow(int64_t base, int64_t exp) {
@@ -122,21 +123,26 @@ static void machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, hea
 	}
 }
 
-static int type_signature_match(machine_t* machine, machine_type_sig_t* match_signature, machine_type_sig_t* parent_signature) {
-	if (match_signature->super_signature != parent_signature->super_signature) {
-		uint16_t match_super_sig = match_signature->super_signature;
+static int type_signature_match(machine_t* machine, machine_type_sig_t match_signature, machine_type_sig_t parent_signature) {
+	if (match_signature.super_signature == TYPE_TYPEARG)
+		match_signature = machine->defined_signatures[machine->stack[match_signature.sub_type_count + machine->global_offset].long_int];
+	if (parent_signature.super_signature == TYPE_TYPEARG)
+		parent_signature = machine->defined_signatures[machine->stack[parent_signature.sub_type_count + machine->global_offset].long_int];
+
+	if (match_signature.super_signature != parent_signature.super_signature) {
+		uint16_t match_super_sig = match_signature.super_signature;
 		while (machine->type_table[match_super_sig]) {
 			match_super_sig = machine->type_table[match_super_sig];
-			if (match_super_sig == parent_signature->super_signature)
+			if (match_super_sig == parent_signature.super_signature)
 				goto super_sig_check_ok;
 		}
 		return 0;
 	}
 super_sig_check_ok:
-	if (match_signature->sub_type_count != parent_signature->sub_type_count)
+	if (match_signature.sub_type_count != parent_signature.sub_type_count)
 		return 0;
-	for (uint_fast8_t i = 0; i < parent_signature->sub_type_count; i++) {
-		if (!type_signature_match(machine, &match_signature->sub_types[i], &parent_signature->sub_types[i]))
+	for (uint_fast8_t i = 0; i < parent_signature.sub_type_count; i++) {
+		if (!type_signature_match(machine, match_signature.sub_types[i], parent_signature.sub_types[i]))
 			return 0;
 	}
 	return 1;
@@ -215,7 +221,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			machine->stack[ip->a] = machine->stack[ip->b];
 			break;
 		case MACHINE_OP_CODE_SET_L:
-			machine->stack[ip->a + machine->global_offset].bool_flag = ip->b;
+			machine->stack[ip->a + machine->global_offset].long_int = ip->b;
 			break;
 		case MACHINE_OP_CODE_JUMP:
 			ip = &instructions[ip->a];
@@ -441,10 +447,10 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			break;
 		}
 		case MACHINE_OP_CODE_DYNAMIC_CONF_LL:
-			machine->stack[ip->a + machine->global_offset].heap_alloc->trace_stat[ip->b] = machine->stack[ip->c + machine->global_offset].bool_flag;
+			machine->stack[ip->a + machine->global_offset].heap_alloc->trace_stat[ip->b] = machine->stack[ip->c + machine->global_offset].long_int >= TYPE_SUPER_ARRAY;
 			break;
 		case MACHINE_OP_CODE_DYNAMIC_CONF_ALL_LL:
-			machine->stack[ip->a + machine->global_offset].heap_alloc->trace_mode = machine->stack[ip->b + machine->global_offset].bool_flag;
+			machine->stack[ip->a + machine->global_offset].heap_alloc->trace_mode = machine->stack[ip->b + machine->global_offset].long_int >= TYPE_SUPER_ARRAY;
 			break;
 		case MACHINE_OP_CODE_CONF_TRACE_L:
 			machine->stack[ip->a + machine->global_offset].heap_alloc->trace_stat[ip->b] = ip->c;
@@ -477,7 +483,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			MACHINE_ESCAPE_COND(machine->stack[ip->a].heap_alloc = machine_alloc(machine, ip->b, ip->c));
 			break;
 		case MACHINE_OP_CODE_DYNAMIC_FREE_LL:
-			if (!machine->stack[ip->b + machine->global_offset].bool_flag)
+			if (!machine->stack[ip->b + machine->global_offset].long_int >= TYPE_SUPER_ARRAY)
 				break;
 		case MACHINE_OP_CODE_FREE_L:
 			MACHINE_ESCAPE_COND(free_alloc(machine, machine->stack[ip->a + machine->global_offset].heap_alloc));
@@ -496,7 +502,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			int super_traced;
 			heap_alloc_t* heap_alloc;
 		case MACHINE_OP_CODE_DYNAMIC_TRACE_LL:
-			if (!machine->stack[ip->b + machine->global_offset].bool_flag)
+			if (!machine->stack[ip->b + machine->global_offset].long_int >= TYPE_SUPER_ARRAY)
 				break;
 			super_traced = 0;
 			heap_alloc = machine->stack[ip->a + machine->global_offset].heap_alloc;
@@ -1314,7 +1320,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			if (ip->a == ERROR_NONE)
 				return 1;
 			else
-				PANIC(machine, ip->a);
+				MACHINE_PANIC(ip->a);
 		{
 			machine_reg_t* a;
 			machine_reg_t* b;
@@ -1380,34 +1386,120 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			machine->stack[ip->a].heap_alloc->type_sig = &machine->defined_signatures[ip->b];
 			break;
 		case MACHINE_OP_CODE_RUNTIME_TYPECHECK_LL:
-			machine->stack[ip->b + machine->global_offset].bool_flag = type_signature_match(machine, machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig, &machine->defined_signatures[ip->c]);
+			machine->stack[ip->b + machine->global_offset].bool_flag = type_signature_match(machine, *machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig, machine->defined_signatures[ip->c]);
 			break;
 		case MACHINE_OP_CODE_RUNTIME_TYPECHECK_LG:
-			machine->stack[ip->b + machine->global_offset].bool_flag = type_signature_match(machine, machine->stack[ip->a].heap_alloc->type_sig, &machine->defined_signatures[ip->c]);
+			machine->stack[ip->b].bool_flag = type_signature_match(machine, *machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig, machine->defined_signatures[ip->c]);
 			break;
 		case MACHINE_OP_CODE_RUNTIME_TYPECHECK_GL:
-			machine->stack[ip->b].bool_flag = type_signature_match(machine, machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig, &machine->defined_signatures[ip->c]);
+			machine->stack[ip->b + machine->global_offset].bool_flag = type_signature_match(machine, *machine->stack[ip->a].heap_alloc->type_sig, machine->defined_signatures[ip->c]);
 			break;
 		case MACHINE_OP_CODE_RUNTIME_TYPECHECK_GG:
-			machine->stack[ip->b].bool_flag = type_signature_match(machine, machine->stack[ip->a].heap_alloc->type_sig, &machine->defined_signatures[ip->c]);
+			machine->stack[ip->b].bool_flag = type_signature_match(machine, *machine->stack[ip->a].heap_alloc->type_sig, machine->defined_signatures[ip->c]);
 			break;
 		case MACHINE_OP_CODE_RUNTIME_TYPECAST_LL:
-			MACHINE_PANIC_COND(type_signature_match(machine, machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig, &machine->defined_signatures[ip->c]), ERROR_UNEXPECTED_TYPE);
-			machine->stack[ip->b + machine->global_offset].heap_alloc = machine->stack[ip->a].heap_alloc;
+			MACHINE_PANIC_COND(type_signature_match(machine, *machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig, machine->defined_signatures[ip->c]), ERROR_UNEXPECTED_TYPE);
+			machine->stack[ip->b + machine->global_offset].heap_alloc = machine->stack[ip->a + machine->global_offset].heap_alloc;
 			break;
 		case MACHINE_OP_CODE_RUNTIME_TYPECAST_LG:
-			MACHINE_PANIC_COND(type_signature_match(machine, machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig, &machine->defined_signatures[ip->c]), ERROR_UNEXPECTED_TYPE);
-			machine->stack[ip->b].heap_alloc = machine->stack[ip->a].heap_alloc;
+			MACHINE_PANIC_COND(type_signature_match(machine, *machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig, machine->defined_signatures[ip->c]), ERROR_UNEXPECTED_TYPE);
+			machine->stack[ip->b].heap_alloc = machine->stack[ip->a + machine->global_offset].heap_alloc;
 			break;
 		case MACHINE_OP_CODE_RUNTIME_TYPECAST_GL:
-			MACHINE_PANIC_COND(type_signature_match(machine, machine->stack[ip->a].heap_alloc->type_sig, &machine->defined_signatures[ip->c]), ERROR_UNEXPECTED_TYPE);
+			MACHINE_PANIC_COND(type_signature_match(machine, *machine->stack[ip->a].heap_alloc->type_sig, machine->defined_signatures[ip->c]), ERROR_UNEXPECTED_TYPE);
 			machine->stack[ip->b + machine->global_offset].heap_alloc = machine->stack[ip->a].heap_alloc;
 			break;
 		case MACHINE_OP_CODE_RUNTIME_TYPECAST_GG:
-			MACHINE_PANIC_COND(type_signature_match(machine, machine->stack[ip->a].heap_alloc->type_sig, &machine->defined_signatures[ip->c]), ERROR_UNEXPECTED_TYPE);
+			MACHINE_PANIC_COND(type_signature_match(machine, *machine->stack[ip->a].heap_alloc->type_sig, machine->defined_signatures[ip->c]), ERROR_UNEXPECTED_TYPE);
 			machine->stack[ip->b].heap_alloc = machine->stack[ip->a].heap_alloc;
 			break;
+
+		case MACHINE_OP_CODE_DYNAMIC_TYPECHECK_DD_L:
+			machine->stack[ip->a + machine->global_offset].bool_flag = type_signature_match(machine, 
+
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int].super_signature >= TYPE_SUPER_ARRAY ? 
+			*machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig :
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int], 
+				
+			machine->defined_signatures[machine->stack[ip->c + machine->global_offset].long_int]);
+			break;
+		case MACHINE_OP_CODE_DYNAMIC_TYPECHECK_DD_G:
+			machine->stack[ip->a].bool_flag = type_signature_match(machine,
+
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int].super_signature >= TYPE_SUPER_ARRAY ?
+			*machine->stack[ip->a].heap_alloc->type_sig :
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int],
+
+			machine->defined_signatures[machine->stack[ip->c + machine->global_offset].long_int]);
+			break;
+		case MACHINE_OP_CODE_DYNAMIC_TYPECHECK_DR_L:
+			machine->stack[ip->a + machine->global_offset].bool_flag = type_signature_match(machine,
+
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int].super_signature >= TYPE_SUPER_ARRAY ?
+			*machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig :
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int],
+
+			machine->defined_signatures[ip->c]);
+			break;
+		case MACHINE_OP_CODE_DYNAMIC_TYPECHECK_DR_G:
+			machine->stack[ip->a].bool_flag = type_signature_match(machine,
+
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int].super_signature >= TYPE_SUPER_ARRAY ?
+			*machine->stack[ip->a].heap_alloc->type_sig :
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int],
+
+			machine->defined_signatures[ip->c]);
+			break;
+		case MACHINE_OP_CODE_DYNAMIC_TYPECHECK_RD_L:
+			machine->stack[ip->a + machine->global_offset].bool_flag = type_signature_match(machine, *machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig, machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int]);
+			break;
+		case MACHINE_OP_CODE_DYNAMIC_TYPECHECK_RD_G:
+			machine->stack[ip->a].bool_flag = type_signature_match(machine, *machine->stack[ip->a].heap_alloc->type_sig, machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int]);
+			break;
+		case MACHINE_OP_CODE_DYNAMIC_TYPECAST_DD_L:
+			MACHINE_PANIC_COND(type_signature_match(machine,
+
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int].super_signature >= TYPE_SUPER_ARRAY ?
+			*machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig :
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int],
+
+			machine->defined_signatures[machine->stack[ip->c + machine->global_offset].long_int]), ERROR_UNEXPECTED_TYPE);
+			break;
+		case MACHINE_OP_CODE_DYNAMIC_TYPECAST_DD_G:
+			MACHINE_PANIC_COND(type_signature_match(machine,
+
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int].super_signature >= TYPE_SUPER_ARRAY ?
+			*machine->stack[ip->a].heap_alloc->type_sig :
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int],
+
+			machine->defined_signatures[machine->stack[ip->c + machine->global_offset].long_int]), ERROR_UNEXPECTED_TYPE);
+			break;
+		case MACHINE_OP_CODE_DYNAMIC_TYPECAST_DR_L:
+			MACHINE_PANIC_COND(type_signature_match(machine,
+
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int].super_signature >= TYPE_SUPER_ARRAY ?
+			*machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig :
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int],
+
+			machine->defined_signatures[ip->c]), ERROR_UNEXPECTED_TYPE);
+			break;
+		case MACHINE_OP_CODE_DYNAMIC_TYPECAST_DR_G:
+			MACHINE_PANIC_COND(type_signature_match(machine,
+
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int].super_signature >= TYPE_SUPER_ARRAY ?
+			*machine->stack[ip->a].heap_alloc->type_sig :
+			machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int],
+
+			machine->defined_signatures[ip->c]), ERROR_UNEXPECTED_TYPE);
+			break;
+		case MACHINE_OP_CODE_DYNAMIC_TYPECAST_RD_L:
+			MACHINE_PANIC_COND(type_signature_match(machine, *machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig, machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int]), ERROR_UNEXPECTED_TYPE);
+			break;
+		case MACHINE_OP_CODE_DYNAMIC_TYPECAST_RD_G:
+			MACHINE_PANIC_COND(type_signature_match(machine, *machine->stack[ip->a].heap_alloc->type_sig, machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int]), ERROR_UNEXPECTED_TYPE);
+			break;
 		}
+
 		ip++;
 	}
 	return 1;
