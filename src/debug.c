@@ -370,6 +370,8 @@ static const char* error_names[] = {
 	"cannot return",
 	"cannot break",
 	"cannot continue",
+	"cannot extend(is final)",
+	"cannot initialize(is abstract)",
 
 	"index out of range",
 	"divide by zero",

@@ -241,6 +241,7 @@ typedef struct ast_record_prop {
 	uint16_t id;
 
 	typecheck_type_t type;
+	int must_init;
 } ast_record_prop_t;
 
 typedef struct ast_record_proto {
@@ -257,8 +258,14 @@ typedef struct ast_record_proto {
 		ast_value_t value;
 	}*default_values;
 
+	enum ast_record_use_reqs {
+		AST_RECORD_USE_ALL,
+		AST_RECORD_ABSTRACT,
+		AST_RECORD_FINAL
+	} use_reqs;
+
 	uint8_t id, property_count, allocated_properties;
-	uint16_t index_offset, default_value_count;
+	uint16_t index_offset, default_value_count, child_record_count;
 
 	int typeargs_defined, fully_defined, do_gc;
 } ast_record_proto_t;

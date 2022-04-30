@@ -182,6 +182,7 @@ static ast_record_proto_t* ast_parser_decl_record(ast_parser_t* ast_parser, uint
 	new_rec->typeargs_defined = 0;
 	new_rec->fully_defined = 0;
 	new_rec->index_offset = 0;
+	new_rec->child_record_count = 0;
 	ast_parser->ast->record_protos[ast_parser->ast->record_count++] = new_rec;
 	return new_rec;
 }
@@ -607,7 +608,22 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			free(file_source);
 			code_block->instruction_count--;
 			break;
-		case TOK_RECORD: {
+		}
+		{
+			enum ast_record_use_reqs use_req;
+		case TOK_FINAL:
+			use_req = AST_RECORD_FINAL;
+			READ_TOK;
+			goto begin_parse_record;
+		case TOK_ABSTRACT:
+			use_req = AST_RECORD_ABSTRACT;
+			READ_TOK;
+			goto begin_parse_record;
+		case TOK_RECORD: 
+			use_req = AST_RECORD_USE_ALL;
+		begin_parse_record:
+			MATCH_TOK(TOK_RECORD);
+
 			PANIC_ON_FAIL(!CURRENT_FRAME.return_type, ast_parser, ERROR_UNEXPECTED_TOK);
 			READ_TOK;
 			MATCH_TOK(TOK_IDENTIFIER);
@@ -616,6 +632,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 
 			ESCAPE_ON_FAIL(ast_parser_new_frame(ast_parser, NULL, 0));
 			ast_record_proto_t* record_proto = ast_parser_find_record_proto(ast_parser, hash_id);
+
 			if (record_proto) {
 				if (record_proto->fully_defined)
 					PANIC(ast_parser, ERROR_REDECLARATION)
@@ -642,7 +659,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 				else
 					record_proto->generic_arguments = 0;
 			}
-
+			record_proto->use_reqs = use_req;
 			record_proto->typeargs_defined = 1;
 
 			if (LAST_TOK.type == TOK_EXTEND) {
@@ -650,6 +667,18 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 				PANIC_ON_FAIL(record_proto->base_record = malloc(sizeof(typecheck_type_t)), ast_parser, ERROR_MEMORY);
 				ESCAPE_ON_FAIL(parse_type(ast_parser, record_proto->base_record, 0, 0));
 				PANIC_ON_FAIL(record_proto->base_record->type == TYPE_SUPER_RECORD, ast_parser, ERROR_UNEXPECTED_TYPE);
+
+				ast_record_proto_t* base_record = ast_parser->ast->record_protos[record_proto->base_record->type_id];
+				
+				for (ast_record_proto_t* check_type = base_record; check_type->base_record; check_type = ast_parser->ast->record_protos[check_type->base_record->type_id]) {
+					if (check_type == record_proto)
+						PANIC(ast_parser, ERROR_INTERNAL); //pls no recursive types
+				}
+
+				if (base_record->fully_defined)
+					PANIC_ON_FAIL(base_record->use_reqs != AST_RECORD_FINAL, ast_parser, ERROR_CANNOT_EXTEND)
+				else
+					base_record->child_record_count++;
 			}
 
 			record_proto->default_value_count = 0;
@@ -660,7 +689,13 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 				PANIC_ON_FAIL(record_proto->default_values = malloc(allocated_defaults * sizeof(struct ast_record_proto_init_value)), ast_parser, ERROR_MEMORY);
 				do {
 					ast_record_prop_t* prop;
-					if (LAST_TOK.type == TOK_IDENTIFIER && record_proto->base_record) {
+					int must_init = 0;
+					if (LAST_TOK.type == TOK_MUSTINIT) {
+						READ_TOK;
+						must_init = 1;
+						goto decl_prop;
+					}
+					else if (LAST_TOK.type == TOK_IDENTIFIER && record_proto->base_record) {
 						prop = ast_record_find_prop(ast_parser, ast_parser->ast->record_protos[record_proto->base_record->type_id], hash_s(LAST_TOK.str, LAST_TOK.length));
 						if (prop == NULL)
 							goto decl_prop;
@@ -673,8 +708,10 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 						MATCH_TOK(TOK_IDENTIFIER);
 						ESCAPE_ON_FAIL(prop = ast_record_decl_prop(ast_parser, record_proto, hash_s(LAST_TOK.str, LAST_TOK.length)));
 						prop->type = prop_type;
+						prop->must_init = must_init;
 						READ_TOK;
-						if (LAST_TOK.type != TOK_SET)
+
+						if (LAST_TOK.type != TOK_SET || must_init)
 							goto end_parse_prop;
 					}
 
@@ -701,7 +738,6 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 			ast_parser_close_frame(ast_parser);
 			record_proto->fully_defined = 1;
 			goto no_check_semicolon;
-		}
 		}
 		default:
 			PANIC(ast_parser, ERROR_UNEXPECTED_TOK);
@@ -814,6 +850,8 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 
 			if (LAST_TOK.type == TOK_OPEN_BRACE) {
 				PANIC_ON_FAIL(current_proto->fully_defined, ast_parser, ERROR_UNDECLARED);
+				PANIC_ON_FAIL(current_proto->use_reqs != AST_RECORD_ABSTRACT, ast_parser, ERROR_CANNOT_INIT);
+
 				READ_TOK;
 				PANIC_ON_FAIL(value->data.alloc_record.init_values = malloc((value->data.alloc_record.allocated_init_values = 5) * sizeof(struct ast_alloc_record_init_value)), ast_parser, ERROR_MEMORY);
 				do {
