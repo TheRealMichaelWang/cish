@@ -49,6 +49,9 @@ int main(int argc, char* argv[]) {
 		free_ast_parser(&parser);
 		free_ast(&ast);
 
+
+		print_instructions(machine_ins, compiler.ins_builder.instruction_count);
+
 		if (!strcmp(op_flag, "-cr")) {
 			if (!install_stdlib(&machine))
 				ABORT(("Failed to install SuperForth standard native libraries.\n"));

@@ -124,6 +124,9 @@ static void machine_heap_trace(machine_t* machine, heap_alloc_t* heap_alloc, hea
 }
 
 static int type_signature_match(machine_t* machine, machine_type_sig_t match_signature, machine_type_sig_t parent_signature) {
+	if (parent_signature.super_signature == TYPE_ANY)
+		return 1;
+
 	if (match_signature.super_signature == TYPE_TYPEARG)
 		match_signature = machine->defined_signatures[machine->stack[match_signature.sub_type_count + machine->global_offset].long_int];
 	if (parent_signature.super_signature == TYPE_TYPEARG)

@@ -732,6 +732,8 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 				} while (LAST_TOK.type != TOK_CLOSE_BRACE);
 				READ_TOK;
 			}
+			else
+				record_proto->default_values = NULL;
 
 			statement->type = AST_STATEMENT_RECORD_PROTO;
 			statement->data.record_proto = record_proto;
@@ -1392,7 +1394,8 @@ static void free_ast_record_proto(ast_record_proto_t* record_proto) {
 	free(record_proto->properties);
 	for (uint_fast16_t i = 0; i < record_proto->default_value_count; i++)
 		free_ast_value(&record_proto->default_values[i].value);
-	free(record_proto->default_values);
+	if(record_proto->default_values)
+		free(record_proto->default_values);
 	free(record_proto);
 }
 

@@ -795,7 +795,11 @@ static int compile_type_to_machine(machine_type_sig_t* out_sig, typecheck_type_t
 		out_sig->super_signature = TYPE_TYPEARG;
 		compiler_reg_t info_reg = TYPEARG_INFO_REG(type);
 		PANIC_ON_FAIL(info_reg.offset, compiler, ERROR_INTERNAL)
-		type.sub_type_count = info_reg.reg;
+		out_sig->sub_type_count = info_reg.reg;
+		return 1;
+	}
+	else if (type.type == TYPE_ANY) {
+		out_sig->super_signature = TYPE_ANY;
 		return 1;
 	}
 	if (type.type < TYPE_PRIMITIVE_BOOL)
