@@ -4,7 +4,7 @@
 #include "type.h"
 
 void free_typecheck_type(typecheck_type_t* typecheck_type) {
-	if (typecheck_type->type >= TYPE_SUPER_ARRAY && typecheck_type->sub_type_count) {
+	if (HAS_SUBTYPES(*typecheck_type) && typecheck_type->sub_type_count) {
 		for (uint_fast8_t i = 0; i < typecheck_type->sub_type_count; i++)
 			free_typecheck_type(&typecheck_type->sub_types[i]);
 		free(typecheck_type->sub_types);
@@ -14,7 +14,7 @@ void free_typecheck_type(typecheck_type_t* typecheck_type) {
 int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src) {
 	dest->type = src.type;
 	dest->type_id = src.type_id;
-	if (src.type >= TYPE_SUPER_ARRAY && src.sub_type_count) {
+	if (HAS_SUBTYPES(src) && src.sub_type_count) {
 		dest->sub_type_count = src.sub_type_count;
 		ESCAPE_ON_FAIL(dest->sub_types = malloc(src.sub_type_count * sizeof(typecheck_type_t)));
 		for (uint_fast8_t i = 0; i < src.sub_type_count; i++)
@@ -75,7 +75,7 @@ int typecheck_compatible(ast_parser_t* ast_parser, typecheck_type_t* target_type
 					ESCAPE_ON_FAIL(typecheck_compatible(ast_parser, &match_type.sub_types[i], target_type->sub_types[i]));
 			}
 		}
-		else if (target_type->type >= TYPE_SUPER_ARRAY) {
+		else if (HAS_SUBTYPES(*target_type)) {
 			ESCAPE_ON_FAIL(target_type->sub_type_count == match_type.sub_type_count);
 			for (uint_fast8_t i = 0; i < target_type->sub_type_count; i++)
 				ESCAPE_ON_FAIL(typecheck_compatible(ast_parser, &target_type->sub_types[i], match_type.sub_types[i]));
@@ -158,7 +158,7 @@ int typecheck_lowest_common_type(ast_parser_t* ast_parser, typecheck_type_t a, t
 			return 1;
 		}
 	}
-	if (a.type >= TYPE_SUPER_ARRAY) {
+	if (HAS_SUBTYPES(a)) {
 		if (a.sub_type_count != b.sub_type_count) {
 			*result = typecheck_any;
 			return 1;
@@ -176,7 +176,7 @@ int typecheck_lowest_common_type(ast_parser_t* ast_parser, typecheck_type_t a, t
 int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type) {
 	if (type.type == base_type)
 		return 1;
-	if (type.type >= TYPE_SUPER_ARRAY)
+	if (HAS_SUBTYPES(type))
 		for (uint_fast8_t i = 0; i < type.sub_type_count; i++)
 			if (typecheck_has_type(type.sub_types[i], base_type))
 				return 1;
@@ -186,7 +186,7 @@ int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type) {
 int typeargs_substitute(typecheck_type_t* input_typeargs, typecheck_type_t* proto_type) {
 	if (proto_type->type == TYPE_TYPEARG)
 		ESCAPE_ON_FAIL(copy_typecheck_type(proto_type, input_typeargs[proto_type->type_id]))
-	else if (proto_type->type >= TYPE_SUPER_ARRAY) {
+	else if (HAS_SUBTYPES(*proto_type)) {
 		for (uint_fast8_t i = proto_type->type == TYPE_SUPER_PROC ? proto_type->type_id : 0; i < proto_type->sub_type_count; i++)
 			ESCAPE_ON_FAIL(typeargs_substitute(input_typeargs, &proto_type->sub_types[i]));
 	}

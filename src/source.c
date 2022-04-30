@@ -12,7 +12,7 @@
 #define ABORT(MSG) {printf MSG ; exit(EXIT_FAILURE);}
 
 #define READ_ARG argv[current_arg++]
-#define EXPECT_FLAG(FLAG) if(current_arg == argc || strcmp(READ_ARG, FLAG)) { ABORT(("Unexpected flag %s.\n", FLAG)); }
+#define EXPECT_FLAG(FLAG) if(current_arg == argc || strcmp(READ_ARG, FLAG)) { ABORT(("Unexpected flag, expected: %s\n", FLAG)); }
 
 int main(int argc, char* argv[]) {
 	int current_arg = 0;
@@ -49,6 +49,9 @@ int main(int argc, char* argv[]) {
 		free_ast_parser(&parser);
 		free_ast(&ast);
 
+
+		print_instructions(machine_ins, compiler.ins_builder.instruction_count);
+
 		if (!strcmp(op_flag, "-cr")) {
 			if (!install_stdlib(&machine))
 				ABORT(("Failed to install SuperForth standard native libraries.\n"));
@@ -71,7 +74,7 @@ int main(int argc, char* argv[]) {
 		machine_t machine;
 		uint16_t instruction_count;
 		EXPECT_FLAG("-s");
-		machine_ins_t* instructions = file_load_ins(READ_ARG, &machine, &instruction_count, NULL);
+		machine_ins_t* instructions = file_load_ins(READ_ARG, &machine, &instruction_count, NULL, NULL);
 		if (!instructions)
 			ABORT(("Unable to load binaries from file.\n"));
 		if (!strcmp(op_flag, "-r")) {

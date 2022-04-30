@@ -22,6 +22,8 @@ static int comes_from_used_var(ast_value_t value) {
 	case AST_VALUE_UNARY_OP:
 	case AST_VALUE_PROC:
 		return 0;
+	case AST_VALUE_TYPE_OP:
+		return comes_from_used_var(value.data.type_op->operand);
 	case AST_VALUE_PROC_CALL:
 	case AST_VALUE_FOREIGN:
 		return 1;
@@ -96,6 +98,9 @@ static void mark_value_no_affect_state(ast_value_t* value) {
 		break;
 	case AST_VALUE_UNARY_OP:
 		mark_value_no_affect_state(&value->data.unary_op->operand);
+		break;
+	case AST_VALUE_TYPE_OP:
+		mark_value_no_affect_state(&value->data.type_op->operand);
 		break;
 	case AST_VALUE_FOREIGN:
 		if (value->data.foreign->input)
@@ -200,6 +205,9 @@ static int ast_postproc_value_affects_state(int affects_state, ast_value_t* valu
 		break;
 	case AST_VALUE_UNARY_OP:
 		CHECK_AFFECTS_STATE(affects_state, &value->data.unary_op->operand);
+		break;
+	case AST_VALUE_TYPE_OP:
+		CHECK_AFFECTS_STATE(affects_state, &value->data.type_op->operand);
 		break;
 	case AST_VALUE_FOREIGN:
 		value->affects_state = 1;
@@ -364,6 +372,10 @@ static void share_var_from_value(ast_parser_t* ast_parser, ast_value_t value, in
 		else
 			shared_locals[SANITIZE_SCOPE_ID(*value.data.set_var->var_info)] = 1;
 		break;
+	case AST_VALUE_TYPE_OP:
+		if(value.data.type_op->operation == TOK_DYNAMIC_CAST)
+			share_var_from_value(ast_parser, value.data.type_op->operand, shared_globals, shared_locals, local_scope_size);
+		break;
 	case AST_VALUE_SET_INDEX:
 		share_var_from_value(ast_parser, value.data.set_index->array, shared_globals, shared_locals, local_scope_size);
 		break;
@@ -412,7 +424,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		PANIC_ON_FAIL(current_typeargs, ast_parser, ERROR_MEMORY);
 		memcpy(current_typeargs, value->type.sub_types, value->type.sub_type_count * sizeof(typecheck_type_t));
 
-		int* overriden_defaults = calloc(value->data.alloc_record.proto->property_count + value->data.alloc_record.proto->index_offset, sizeof(int));
+		int* overriden_defaults = calloc((size_t)value->data.alloc_record.proto->index_offset + (size_t)value->data.alloc_record.proto->property_count, sizeof(int));
 		PANIC_ON_FAIL(overriden_defaults, ast_parser, ERROR_MEMORY);
 		for (uint_fast8_t i = 0; i < value->data.alloc_record.init_value_count; i++)
 			overriden_defaults[value->data.alloc_record.init_values[i].property->id] = 1;
@@ -440,6 +452,10 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 
 			for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
 				typecheck_type_t actual_type;
+
+				if (current_proto->properties[i].must_init)
+					PANIC_ON_FAIL(overriden_defaults[current_proto->properties[i].id], ast_parser, ERROR_READ_UNINIT);
+
 				if (current_proto->properties[i].type.type == TYPE_TYPEARG)
 					actual_type = current_typeargs[current_proto->properties[i].type.type_id];
 				else
@@ -593,11 +609,13 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		if (value->data.set_index->value.from_var && value->data.set_index->value.trace_status != POSTPROC_TRACE_NONE)
 			share_var_from_value(ast_parser, value->data.set_index->array, shared_globals, shared_locals, local_scope_size);
 		value->gc_status = value->data.set_index->value.gc_status;
+		value->from_var = value->data.set_index->array.from_var || value->data.set_index->value.from_var;
 		break;
 	case AST_VALUE_GET_INDEX:
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.get_index->array, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, GET_TYPE_TRACE(value->data.get_index->array.type) == POSTPROC_TRACE_NONE ? POSTPROC_PARENT_IRRELEVANT : parent_stat, parent_proc));
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.get_index->index, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
 		value->gc_status = postproc_type_to_gc_stat(value->data.get_index->array.gc_status, value->data.get_index->array.type.sub_types[0].type);
+		value->from_var = value->data.get_index->array.from_var;
 		break;
 	case AST_VALUE_SET_PROP:
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->record, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
@@ -615,12 +633,14 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		if (value->data.set_prop->value.from_var && value->data.set_prop->value.trace_status != POSTPROC_TRACE_NONE)
 			share_var_from_value(ast_parser, value->data.set_prop->record, shared_globals, shared_locals, local_scope_size);
 		value->gc_status = value->data.set_prop->value.gc_status;
+		value->from_var = value->data.set_prop->record.from_var || value->data.set_prop->value.from_var;
 		break;
 	case AST_VALUE_GET_PROP: {
 		typecheck_type_t prop_type;
 		ESCAPE_ON_FAIL(ast_record_sub_prop_type(ast_parser, value->data.get_prop->record.type, value->data.get_prop->property->hash_id, &prop_type));
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.get_prop->record, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, GET_TYPE_TRACE(prop_type) == POSTPROC_TRACE_NONE ? POSTPROC_PARENT_IRRELEVANT : parent_stat, parent_proc));
 		value->gc_status = postproc_type_to_gc_stat(value->data.get_prop->record.gc_status, prop_type.type);
+		value->from_var = value->data.get_prop->record.from_var;
 		free_typecheck_type(&prop_type);
 		break;
 	}
@@ -632,6 +652,17 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 	case AST_VALUE_UNARY_OP:
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.unary_op->operand, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
 		value->gc_status = POSTPROC_GC_NONE;
+		break;
+	case AST_VALUE_TYPE_OP:
+		if (value->data.type_op->operation == TOK_IS_TYPE) {
+			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.type_op->operand, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
+			value->gc_status = POSTPROC_GC_NONE;
+		}
+		else {
+			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.type_op->operand, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, parent_stat, parent_proc));
+			value->gc_status = value->data.type_op->operand.gc_status;
+			value->from_var = value->data.type_op->operand.from_var;
+		}
 		break;
 	case AST_VALUE_PROC_CALL:
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.proc_call->procedure, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
@@ -661,12 +692,14 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 			value->gc_status = POSTPROC_GC_LOCAL_DYNAMIC;
 		else
 			value->gc_status = POSTPROC_GC_NONE;
+		value->from_var = 1;
 		break;
 	case AST_VALUE_FOREIGN:
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.foreign->op_id, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
 		if (value->data.foreign->input)
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, value->data.foreign->input, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
 		value->gc_status = postproc_type_to_gc_stat(POSTPROC_GC_LOCAL_ALLOC, value->type.type);
+		value->from_var = 0;
 		break;
 	}
 

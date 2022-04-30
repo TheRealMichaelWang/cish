@@ -55,6 +55,7 @@ typedef enum compiler_op_code {
 	COMPILER_OP_CODE_NOT,
 	COMPILER_OP_CODE_LENGTH,
 
+	COMPILER_OP_CODE_PTR_EQUAL,
 	COMPILER_OP_CODE_BOOL_EQUAL,
 	COMPILER_OP_CODE_CHAR_EQUAL,
 	COMPILER_OP_CODE_LONG_EQUAL,
@@ -85,7 +86,19 @@ typedef enum compiler_op_code {
 	COMPILER_OP_CODE_FLOAT_EXPONENTIATE,
 
 	COMPILER_OP_CODE_LONG_NEGATE,
-	COMPILER_OP_CODE_FLOAT_NEGATE
+	COMPILER_OP_CODE_FLOAT_NEGATE,
+
+	COMPILER_OP_CODE_TYPE_RELATE,
+	COMPILER_OP_CODE_CONFIG_TYPESIG,
+	COMPILER_OP_CODE_RUNTIME_TYPECHECK,
+	COMPILER_OP_CODE_RUNTIME_TYPECAST,
+
+	COMPILER_OP_CODE_DYNAMIC_TYPECHECK_DD,
+	COMPILER_OP_CODE_DYNAMIC_TYPECHECK_DR,
+	COMPILER_OP_CODE_DYNAMIC_TYPECHECK_RD,
+	COMPILER_OP_CODE_DYNAMIC_TYPECAST_DD,
+	COMPILER_OP_CODE_DYNAMIC_TYPECAST_DR,
+	COMPILER_OP_CODE_DYNAMIC_TYPECAST_RD,
 } compiler_op_code_t;
 
 typedef struct compiler_ins {
@@ -123,4 +136,6 @@ int ins_builder_append_ins(ins_builder_t* ins_builder, compiler_ins_t ins);
 int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast);
 
 void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* machine_ins, uint64_t ins_count);
+
+int compiler_define_typesig(compiler_t* compiler, ast_proc_t* proc, typecheck_type_t type);
 #endif // !COMPILER_H

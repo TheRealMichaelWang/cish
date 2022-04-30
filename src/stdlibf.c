@@ -132,6 +132,15 @@ static int std_import(machine_t* machine, machine_reg_t* in, machine_reg_t* out)
 	return 1;
 }
 
+static int std_calloc(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
+	out->heap_alloc = machine_alloc(machine, in->long_int, GC_TRACE_MODE_NONE);
+	for (uint_fast16_t i = 0; i < out->heap_alloc->limit; i++) {
+		out->heap_alloc->registers[i].long_int = 0;
+		out->heap_alloc->init_stat[i] = 1;
+	}
+	return 1;
+}
+
 int install_stdlib(machine_t* machine) {
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_itof));
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_floor));
@@ -151,5 +160,6 @@ int install_stdlib(machine_t* machine) {
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_ctoi));
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_time));
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_import));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_calloc));
 	return 1;
 }
