@@ -1,0 +1,30 @@
+include "io.txt";
+
+abstract record failible<succType>
+
+final record success<succResType> extends failible<succResType> {
+	mustinit succResType result;
+}
+
+record error<succType> extends failible<succType> {
+	mustinit array<char> msg;
+}
+
+global readonly auto failible_func = proc(int i) return failible<array<char>> {
+	if(i == 10) {
+		return new success<array<char>> {
+			result = "Hello there, I succeded";
+		};
+	}
+	return new error<array<char>> {
+		msg = "An error occured, what do I know.";
+	};
+};
+
+auto res = failible_func(11);
+if(res is error<any>) {
+	println(dynamic_cast<error<any>>(res).msg);
+}
+else {
+	println(dynamic_cast<success<array<char>>>(res).result);
+}
