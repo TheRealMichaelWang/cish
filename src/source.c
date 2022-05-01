@@ -37,8 +37,8 @@ int main(int argc, char* argv[]) {
 
 		ast_t ast;
 		if (!init_ast(&ast, &parser)) {
-			free_safe_gc(&safe_gc, 1);
 			print_error_trace(parser.multi_scanner);
+			free_safe_gc(&safe_gc, 1);
 			ABORT(("Syntax error(%s).\n", get_err_msg(parser.last_err)));
 		}
 
