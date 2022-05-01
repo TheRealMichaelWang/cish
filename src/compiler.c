@@ -12,15 +12,16 @@
 
 #define EMIT_INS(INS) PANIC_ON_FAIL(ins_builder_append_ins(&compiler->ins_builder, INS), compiler, ERROR_MEMORY)
 
-int init_ins_builder(ins_builder_t* ins_builder) {
-	ESCAPE_ON_FAIL(ins_builder->instructions = malloc((ins_builder->alloced_ins = 64) * sizeof(compiler_ins_t)));
+int init_ins_builder(ins_builder_t* ins_builder, safe_gc_t* safe_gc) {
+	ins_builder->safe_gc = safe_gc;
+	ESCAPE_ON_FAIL(ins_builder->instructions = safe_malloc(safe_gc, (ins_builder->alloced_ins = 64) * sizeof(compiler_ins_t)));
 	ins_builder->instruction_count = 0;
 	return 1;
 }
 
 int ins_builder_append_ins(ins_builder_t* ins_builder, compiler_ins_t ins) {
 	if (ins_builder->instruction_count == ins_builder->alloced_ins) {
-		compiler_ins_t* new_ins = realloc(ins_builder->instructions, (ins_builder->alloced_ins *= 2) * sizeof(compiler_ins_t));
+		compiler_ins_t* new_ins = safe_realloc(ins_builder->safe_gc, ins_builder->instructions, (ins_builder->alloced_ins *= 2) * sizeof(compiler_ins_t));
 		ESCAPE_ON_FAIL(new_ins);
 		ins_builder->instructions = new_ins;
 	}
@@ -289,7 +290,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		uint16_t start_ip = compiler->ins_builder.instruction_count;
 
 		if (value.type.type_id) {
-			PANIC_ON_FAIL(compiler->proc_generic_regs[value.data.procedure->id] = malloc(value.type.type_id * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
+			PANIC_ON_FAIL(compiler->proc_generic_regs[value.data.procedure->id] = safe_malloc(compiler->safe_gc, value.type.type_id * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
 			uint16_t gen_reg_begin = value.data.procedure->param_count + 1;
 			for (uint_fast8_t i = 0; i < value.type.type_id; i++)
 				if (value.data.procedure->generic_arg_traces[i] == POSTPROC_TRACE_DYNAMIC)
@@ -308,7 +309,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		compiler->ins_builder.instructions[start_ip + 1].regs[0] = GLOB_REG(compiler->ins_builder.instruction_count);
 		
 		if (value.type.type_id)
-			free(compiler->proc_generic_regs[value.data.procedure->id]);
+			safe_free(compiler->safe_gc, compiler->proc_generic_regs[value.data.procedure->id]);
 		break;
 	}
 	case AST_VALUE_SET_VAR:
@@ -510,7 +511,7 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 				escape_jump_count++;
 			count_cond = count_cond->next_if_false;
 		}
-		uint16_t* escape_jumps = malloc(escape_jump_count * sizeof(uint16_t));
+		uint16_t* escape_jumps = safe_malloc(compiler->safe_gc, escape_jump_count * sizeof(uint16_t));
 		PANIC_ON_FAIL(escape_jumps, compiler, ERROR_MEMORY);
 		uint16_t current_escape_jump = 0;
 		while (conditional) {
@@ -533,7 +534,7 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 		}
 		for (uint_fast16_t i = 0; i < escape_jump_count; i++)
 			compiler->ins_builder.instructions[escape_jumps[i]].regs[0] = GLOB_REG(compiler->ins_builder.instruction_count);
-		free(escape_jumps);
+		safe_free(compiler->safe_gc, escape_jumps);
 	}
 	return 1;
 }
@@ -592,23 +593,24 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 	return 1;
 }
 
-int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
+int compile(compiler_t* compiler, safe_gc_t* safe_gc, machine_t* target_machine, ast_t* ast) {
 	compiler->target_machine = target_machine;
+	compiler->safe_gc = safe_gc;
 	compiler->ast = ast;
 	compiler->last_err = ERROR_NONE;
 	compiler->current_global = 0;
 
-	PANIC_ON_FAIL(compiler->eval_regs = malloc(ast->value_count * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
-	PANIC_ON_FAIL(compiler->move_eval = malloc(ast->value_count * sizeof(int)), compiler, ERROR_MEMORY);
-	PANIC_ON_FAIL(compiler->var_regs = malloc(ast->var_decl_count * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
-	PANIC_ON_FAIL(compiler->proc_call_offsets = malloc(ast->proc_call_count * sizeof(uint16_t)), compiler, ERROR_MEMORY);
-	PANIC_ON_FAIL(compiler->proc_generic_regs = malloc(ast->proc_count * sizeof(compiler_reg_t*)), compiler, ERROR_MEMORY);
+	PANIC_ON_FAIL(compiler->eval_regs = safe_malloc(safe_gc, ast->value_count * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
+	PANIC_ON_FAIL(compiler->move_eval = safe_malloc(safe_gc, ast->value_count * sizeof(int)), compiler, ERROR_MEMORY);
+	PANIC_ON_FAIL(compiler->var_regs = safe_malloc(safe_gc, ast->var_decl_count * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
+	PANIC_ON_FAIL(compiler->proc_call_offsets = safe_malloc(safe_gc, ast->proc_call_count * sizeof(uint16_t)), compiler, ERROR_MEMORY);
+	PANIC_ON_FAIL(compiler->proc_generic_regs = safe_malloc(safe_gc, ast->proc_count * sizeof(compiler_reg_t*)), compiler, ERROR_MEMORY);
 
 	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX / 8, 1000, TYPE_SUPER_RECORD + ast->record_count), compiler, target_machine->last_err);
 
 	allocate_code_block_regs(compiler, ast->exec_block, 0);
 
-	PANIC_ON_FAIL(init_ins_builder(&compiler->ins_builder), compiler, ERROR_MEMORY);
+	PANIC_ON_FAIL(init_ins_builder(&compiler->ins_builder, safe_gc), compiler, ERROR_MEMORY);
 	
 	EMIT_INS(INS1(COMPILER_OP_CODE_STACK_OFFSET, GLOB_REG(compiler->ast->constant_count + compiler->current_global)));
 	EMIT_INS(INS0(COMPILER_OP_CODE_GC_NEW_FRAME));
@@ -616,11 +618,11 @@ int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast) {
 	EMIT_INS(INS0(COMPILER_OP_CODE_GC_CLEAN));
 	EMIT_INS(INS1(COMPILER_OP_CODE_ABORT, GLOB_REG(ERROR_NONE)));
 
-	free(compiler->eval_regs);
-	free(compiler->move_eval);
-	free(compiler->var_regs);
-	free(compiler->proc_call_offsets);
-	free(compiler->proc_generic_regs);
+	safe_free(safe_gc, compiler->eval_regs);
+	safe_free(safe_gc, compiler->move_eval);
+	safe_free(safe_gc, compiler->var_regs);
+	safe_free(safe_gc, compiler->proc_call_offsets);
+	safe_free(safe_gc, compiler->proc_generic_regs);
 
 	return 1;
 }
@@ -810,7 +812,7 @@ static int compile_type_to_machine(machine_type_sig_t* out_sig, typecheck_type_t
 
 	if (HAS_SUBTYPES(type)) {
 		if (type.sub_type_count) {
-			PANIC_ON_FAIL(out_sig->sub_types = malloc(type.sub_type_count * sizeof(machine_type_sig_t)), compiler, ERROR_MEMORY);
+			PANIC_ON_FAIL(out_sig->sub_types = safe_transfer_malloc(compiler->safe_gc, type.sub_type_count * sizeof(machine_type_sig_t)), compiler, ERROR_MEMORY);
 			for (uint_fast8_t i = 0; i < type.sub_type_count; i++)
 				ESCAPE_ON_FAIL(compile_type_to_machine(&out_sig->sub_types[i], type.sub_types[i],compiler, proc));
 		}

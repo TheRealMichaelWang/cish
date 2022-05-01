@@ -179,7 +179,7 @@ int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit, 
 }
 
 static void free_defined_signature(machine_type_sig_t* type_sig) {
-	if (type_sig->super_signature >= TYPE_SUPER_PROC) {
+	if (type_sig->super_signature >= TYPE_SUPER_PROC && type_sig->sub_type_count) {
 		for (uint_fast8_t i = 0; i < type_sig->sub_type_count; i++)
 			free_defined_signature(&type_sig->sub_types[i]);
 		free(type_sig->sub_types);

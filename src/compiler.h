@@ -109,6 +109,8 @@ typedef struct compiler_ins {
 typedef struct ins_builder {
 	compiler_ins_t* instructions;
 	uint16_t instruction_count, alloced_ins;
+
+	safe_gc_t* safe_gc;
 } ins_builder_t;
 
 typedef struct compiler {
@@ -127,13 +129,14 @@ typedef struct compiler {
 
 	uint16_t current_global;
 	
+	safe_gc_t* safe_gc;
 	error_t last_err;
 } compiler_t;
 
-int init_ins_builder(ins_builder_t* ins_builder);
+int init_ins_builder(ins_builder_t* ins_builder, safe_gc_t* safe_gc);
 int ins_builder_append_ins(ins_builder_t* ins_builder, compiler_ins_t ins);
 
-int compile(compiler_t* compiler, machine_t* target_machine, ast_t* ast);
+int compile(compiler_t* compiler, safe_gc_t* safe_gc, machine_t* target_machine, ast_t* ast);
 
 void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* machine_ins, uint64_t ins_count);
 

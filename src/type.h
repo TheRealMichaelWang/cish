@@ -4,6 +4,7 @@
 #define TYPE_H
 
 #include <stdint.h>
+#include "error.h"
 
 #define TYPE_MAX_SUBTYPES 100
 
@@ -47,14 +48,14 @@ static typecheck_type_t typecheck_float = { .type = TYPE_PRIMITIVE_FLOAT };
 static typecheck_type_t typecheck_any = { .type = TYPE_ANY };
 static typecheck_type_t typecheck_array = { .type = TYPE_SUPER_ARRAY, .sub_type_count = 1, .sub_types = &typecheck_any };
 
-void free_typecheck_type(typecheck_type_t* typecheck_type);
-int copy_typecheck_type(typecheck_type_t* dest, typecheck_type_t src);
+void free_typecheck_type(safe_gc_t* safe_gc, typecheck_type_t* typecheck_type);
+int copy_typecheck_type(safe_gc_t* safe_gc, typecheck_type_t* dest, typecheck_type_t src);
 
 int typecheck_compatible(ast_parser_t* ast_parser, typecheck_type_t* target_type, typecheck_type_t match_type);
 
 int typecheck_has_type(typecheck_type_t type, typecheck_base_type_t base_type);
 
-int typeargs_substitute(typecheck_type_t* input_typeargs, typecheck_type_t* proto_type);
+int typeargs_substitute(safe_gc_t* safe_gc, typecheck_type_t* input_typeargs, typecheck_type_t* proto_type);
 int typecheck_lowest_common_type(ast_parser_t* ast_parser, typecheck_type_t a, typecheck_type_t b, typecheck_type_t* result);
 
 ast_generic_cache_entry_t* generic_from_type(ast_parser_t* ast_parser, typecheck_type_t type);

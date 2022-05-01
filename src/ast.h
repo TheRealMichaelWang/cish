@@ -46,7 +46,6 @@ typedef struct ast_array_literal {
 typedef struct ast_alloc_record_init_value {
 	ast_record_prop_t* property;
 	ast_value_t* value;
-	int free_val;
 } ast_alloc_record_init_value_t;
 
 typedef struct ast_alloc_record {
@@ -330,15 +329,15 @@ typedef struct ast_parser {
 	postproc_gc_status_t* global_gc_stats;
 	int* shared_globals;
 
+	safe_gc_t* safe_gc;
 	error_t last_err;
 } ast_parser_t;
 
 int ast_record_sub_prop_type(ast_parser_t* ast_parser, typecheck_type_t record_type, uint64_t id, typecheck_type_t* out_type);
 
-int init_ast_parser(ast_parser_t* ast_parser, const char* source);
+int init_ast_parser(ast_parser_t* ast_parser, safe_gc_t* safe_gc, const char* source);
 void free_ast_parser(ast_parser_t* ast_parser);
 
 int init_ast(ast_t* ast, ast_parser_t* ast_parser);
-void free_ast(ast_t* ast);
 
 #endif // !AST_H
