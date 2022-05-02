@@ -8,6 +8,7 @@
 #include "file.h"
 #include "stdlibf.h"
 #include "debug.h"
+#include "error.h"
 
 #define ABORT(MSG) {printf MSG ; exit(EXIT_FAILURE);}
 
@@ -57,6 +58,8 @@ int main(int argc, char* argv[]) {
 
 		compiler_ins_to_machine_ins(compiler.ins_builder.instructions, machine_ins, compiler.ins_builder.instruction_count);
 		free_safe_gc(&safe_gc, 0);
+		
+		print_instructions(machine_ins, compiler.ins_builder.instruction_count);
 
 		if (!strcmp(op_flag, "-cr")) {
 			if (!install_stdlib(&machine))

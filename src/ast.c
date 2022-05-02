@@ -757,7 +757,6 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 }
 
 static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_type_t* type) {
-	value->from_var = 0;
 	switch (LAST_TOK.type) {
 	case TOK_NUMERICAL:
 	case TOK_CHAR:
@@ -888,7 +887,6 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 	}
 	case TOK_IDENTIFIER: {
 		ast_var_info_t* var_info = ast_parser_find_var(ast_parser, hash_s(LAST_TOK.str, LAST_TOK.length));
-		value->from_var = 1;
 		PANIC_ON_FAIL(var_info, ast_parser, ERROR_UNDECLARED);
 		TYPE_COPY(&value->type, var_info->type);
 
@@ -1086,7 +1084,6 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 
 			TYPE_COMP(&array_val.type, typecheck_array);
 
-			value->from_var = array_val.from_var;
 			ESCAPE_ON_FAIL(parse_expression(ast_parser, &index_val, &typecheck_int, 0, 0));
 			if (index_val.value_type == AST_VALUE_PRIMITIVE && index_val.data.primitive->data.long_int < 0)
 				PANIC(ast_parser, ERROR_INDEX_OUT_OF_RANGE);
@@ -1116,7 +1113,6 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 			PANIC_ON_FAIL(record_val.type.type == TYPE_SUPER_RECORD, ast_parser, ERROR_UNEXPECTED_TYPE);
 			free_typecheck_type(ast_parser->safe_gc, &value->type);
 
-			value->from_var = record_val.from_var;
 			ast_record_prop_t* property;
 			MATCH_TOK(TOK_IDENTIFIER);
 			uint64_t id = hash_s(LAST_TOK.str, LAST_TOK.length);
@@ -1149,7 +1145,6 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 			PANIC_ON_FAIL(proc_val.type.type == TYPE_SUPER_PROC, ast_parser, ERROR_UNEXPECTED_TYPE);
 			free_typecheck_type(ast_parser->safe_gc, &value->type);
 
-			value->from_var = 0;
 			value->value_type = AST_VALUE_PROC_CALL;
 			PANIC_ON_FAIL(value->data.proc_call = safe_malloc(ast_parser->safe_gc, sizeof(ast_call_proc_t)), ast_parser, ERROR_MEMORY);
 

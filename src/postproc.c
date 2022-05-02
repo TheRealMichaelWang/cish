@@ -396,6 +396,8 @@ static void share_var_from_value(ast_parser_t* ast_parser, ast_value_t value, in
 
 static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, postproc_trace_status_t* typearg_traces, postproc_gc_status_t* global_gc_stats, postproc_gc_status_t* local_gc_stats, int* shared_globals, int* shared_locals, uint16_t local_scope_size, postproc_parent_status_t parent_stat, ast_proc_t* parent_proc) {
 	value->free_status = POSTPROC_FREE_NONE;
+	value->from_var = 0;
+
 	switch (value->value_type) {
 	case AST_VALUE_PRIMITIVE:
 		value->gc_status = POSTPROC_GC_NONE;
@@ -529,6 +531,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		break;
 	}
 	case AST_VALUE_VAR:
+		value->from_var = 1;
 		if (value->data.variable->is_global) {
 			value->gc_status = global_gc_stats[SANITIZE_SCOPE_ID(*value->data.variable)];
 			if (parent_stat != POSTPROC_PARENT_IRRELEVANT)
@@ -555,6 +558,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 			goto no_trace_postproc;
 		}
 	case AST_VALUE_SET_VAR:
+		value->from_var = 1;
 		if (!value->data.set_var->var_info->is_used) {
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_var->set_value, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
 			value->gc_status = POSTPROC_GC_NONE;
@@ -697,7 +701,6 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		if (value->data.foreign->input)
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, value->data.foreign->input, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
 		value->gc_status = postproc_type_to_gc_stat(POSTPROC_GC_LOCAL_ALLOC, value->type.type);
-		value->from_var = 0;
 		break;
 	}
 

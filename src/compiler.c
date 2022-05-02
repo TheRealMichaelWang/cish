@@ -128,11 +128,13 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	case AST_VALUE_PROC_CALL: {
 		compiler->eval_regs[value.id] = LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] = extra_regs++);
 		compiler->move_eval[value.id] = !(value.type.type == TYPE_NOTHING || !target_reg || (target_reg->offset && target_reg->reg == current_reg));
+
 		for (uint_fast8_t i = 0; i < value.data.proc_call->argument_count; i++) {
 			compiler_reg_t arg_reg = LOC_REG(extra_regs);
 			allocate_value_regs(compiler, value.data.proc_call->arguments[i], extra_regs++, &arg_reg);
 		}
 		allocate_value_regs(compiler, value.data.proc_call->procedure, extra_regs, NULL);
+
 		return current_reg + 1;
 	}
 	case AST_VALUE_FOREIGN:
