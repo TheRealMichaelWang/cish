@@ -34,7 +34,7 @@ int typecheck_compatible(ast_parser_t* ast_parser, typecheck_type_t* target_type
 		if (target_type->type != match_type.type) {
 			if (target_type->type == TYPE_TYPEARG) {
 				typecheck_type_t* res;
-				if(res = devolve_type_from_generic(ast_parser, target_type) != target_type)
+				if((res = devolve_type_from_generic(ast_parser, target_type)) != target_type)
 					return typecheck_compatible(ast_parser, res, match_type);
 			}
 			return 0;
