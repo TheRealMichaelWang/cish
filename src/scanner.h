@@ -28,6 +28,8 @@ typedef struct multi_scanner {
 
 	token_t last_tok;
 	error_t last_err;
+
+	safe_gc_t* safe_gc;
 } multi_scanner_t;
 
 void init_scanner(scanner_t* scanner, const char* source, uint32_t length);
@@ -35,8 +37,7 @@ void init_scanner(scanner_t* scanner, const char* source, uint32_t length);
 int scanner_scan_char(scanner_t* scanner);
 int scanner_scan_tok(scanner_t* scanner);
 
-int init_multi_scanner(multi_scanner_t* scanner, const char* path);
-void free_multi_scanner(multi_scanner_t* scanner);
+int init_multi_scanner(multi_scanner_t* scanner, safe_gc_t* safe_gc, const char* path);
 int multi_scanner_visit(multi_scanner_t* scanner, const char* file);
 int multi_scanner_scan_tok(multi_scanner_t* scanner);
 

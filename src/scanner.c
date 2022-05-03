@@ -1,6 +1,5 @@
 #include <ctype.h>
 #include <string.h>
-#include <stdlib.h>
 #include "hash.h"
 #include "file.h"
 #include "scanner.h"
@@ -276,19 +275,13 @@ int scanner_scan_tok(scanner_t* scanner) {
 }
 #undef RETURN
 
-int init_multi_scanner(multi_scanner_t* scanner, const char* path) {
+int init_multi_scanner(multi_scanner_t* scanner, safe_gc_t* safe_gc, const char* path) {
 	scanner->visited_files = 0;
 	scanner->current_file = 0;
+	scanner->safe_gc = safe_gc;
 	scanner->last_err = ERROR_NONE;
 	ESCAPE_ON_FAIL(multi_scanner_visit(scanner, path));
 	return 1;
-}
-
-void free_multi_scanner(multi_scanner_t* scanner) {
-	for (uint_fast8_t i = 0; i < scanner->current_file; i++) {
-		free(scanner->sources[i]);
-		free(scanner->file_paths[i]);
-	}
 }
 
 int multi_scanner_visit(multi_scanner_t* scanner, const char* file) {
@@ -300,8 +293,8 @@ int multi_scanner_visit(multi_scanner_t* scanner, const char* file) {
 		return 0;
 	scanner->visited_hashes[scanner->visited_files++] = id;
 
-	PANIC_ON_FAIL(scanner->sources[scanner->current_file] = file_read_source(file), scanner, ERROR_CANNOT_OPEN_FILE);
-	PANIC_ON_FAIL(scanner->file_paths[scanner->current_file] = malloc((strlen(file) + 1) * sizeof(char)), scanner, ERROR_MEMORY);
+	PANIC_ON_FAIL(safe_add_managed(scanner->safe_gc, scanner->sources[scanner->current_file] = file_read_source(file)), scanner, ERROR_CANNOT_OPEN_FILE);
+	PANIC_ON_FAIL(scanner->file_paths[scanner->current_file] = safe_malloc(scanner->safe_gc, (strlen(file) + 1) * sizeof(char)), scanner, ERROR_MEMORY);
 	strcpy(scanner->file_paths[scanner->current_file], file);
 
 	init_scanner(&scanner->scanners[scanner->current_file], scanner->sources[scanner->current_file], strlen(scanner->sources[scanner->current_file]));
@@ -317,8 +310,8 @@ int multi_scanner_scan_tok(multi_scanner_t* scanner) {
 		scanner->last_tok = scanner->scanners[scanner->current_file - 1].last_tok;
 		if (scanner->last_tok.type == TOK_EOF) {
 			--scanner->current_file;
-			free(scanner->file_paths[scanner->current_file]);
-			free(scanner->sources[scanner->current_file]);
+			safe_free(scanner->safe_gc, scanner->file_paths[scanner->current_file]);
+			safe_free(scanner->safe_gc, scanner->sources[scanner->current_file]);
 			if (scanner->current_file)
 				ESCAPE_ON_FAIL(multi_scanner_scan_tok(scanner));
 		}

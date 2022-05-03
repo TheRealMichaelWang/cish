@@ -166,10 +166,26 @@ global readonly auto getPolyArea = proc(array<point> polygon) return float {
 	return fabs(area / 2f);
 };
 
+global readonly auto makeSquare = proc(point pt, float width) return array<point> {
+	return [
+		pt,
+		new point {x = pt.x + width; y = pt.y;},
+		new point {x = pt.x + width; y = pt.y + width;},
+		new point {x = pt.x; y = pt.y + width;}
+	];
+};
+
+global readonly point origin = new point {
+	x = 0f;
+	y = 0f;
+};
+
 matrix trans = matFrom2DArray(
-	[[-3f, 4f],
-	 [-3f, 2f]]);
-matrix a = matFrom2DArray(
-	[[-2f],
-	 [2f]]);
-printMat(matMul(trans, a));
+	[[5f, 1f],
+	 [10f, 2f]]);
+array<point> poly = makeSquare(origin, 1f);
+
+printPoly(poly);
+transPoly(trans, poly);
+put_char('\n');
+printPoly(poly);

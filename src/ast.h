@@ -26,6 +26,7 @@ typedef struct ast_record_prop ast_record_prop_t;
 typedef struct ast_get_prop ast_get_prop_t;
 typedef struct ast_set_prop ast_set_prop_t;
 typedef struct ast_type_op ast_type_op_t;
+typedef struct ast_alloc_record_init_value ast_alloc_record_init_value_t;
 
 typedef struct ast_var_info {
 	uint32_t id;
@@ -42,12 +43,6 @@ typedef struct ast_array_literal {
 
 	postproc_trace_status_t children_trace;
 } ast_array_literal_t;
-
-typedef struct ast_alloc_record_init_value {
-	ast_record_prop_t* property;
-	ast_value_t* value;
-	int free_val;
-} ast_alloc_record_init_value_t;
 
 typedef struct ast_alloc_record {
 	ast_record_proto_t* proto;
@@ -244,6 +239,11 @@ typedef struct ast_record_prop {
 	int must_init;
 } ast_record_prop_t;
 
+typedef struct ast_alloc_record_init_value {
+	ast_record_prop_t* property;
+	ast_value_t value;
+} ast_alloc_record_init_value_t;
+
 typedef struct ast_record_proto {
 	uint64_t hash_id;
 
@@ -253,10 +253,13 @@ typedef struct ast_record_proto {
 	typecheck_type_t* generic_req_types;
 	uint8_t generic_arguments;
 
-	struct ast_record_proto_init_value {
-		ast_record_prop_t* property;
-		ast_value_t value;
-	}*default_values;
+	ast_alloc_record_init_value_t*default_values;
+
+	enum ast_record_use_reqs {
+		AST_RECORD_USE_ALL,
+		AST_RECORD_ABSTRACT,
+		AST_RECORD_FINAL
+	} use_reqs;
 
 	enum ast_record_use_reqs {
 		AST_RECORD_USE_ALL,
@@ -330,15 +333,15 @@ typedef struct ast_parser {
 	postproc_gc_status_t* global_gc_stats;
 	int* shared_globals;
 
+	safe_gc_t* safe_gc;
 	error_t last_err;
 } ast_parser_t;
 
 int ast_record_sub_prop_type(ast_parser_t* ast_parser, typecheck_type_t record_type, uint64_t id, typecheck_type_t* out_type);
 
-int init_ast_parser(ast_parser_t* ast_parser, const char* source);
+int init_ast_parser(ast_parser_t* ast_parser, safe_gc_t* safe_gc, const char* source);
 void free_ast_parser(ast_parser_t* ast_parser);
 
 int init_ast(ast_t* ast, ast_parser_t* ast_parser);
-void free_ast(ast_t* ast);
 
 #endif // !AST_H
