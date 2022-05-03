@@ -39,3 +39,8 @@ global readonly auto input = proc() return array<char> {
 	}
 	return output;
 };
+
+global readonly auto prompt = proc(array<char> msg) return array<char> {
+  print(msg);
+  return input();
+};

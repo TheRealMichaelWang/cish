@@ -261,6 +261,12 @@ typedef struct ast_record_proto {
 		AST_RECORD_FINAL
 	} use_reqs;
 
+	enum ast_record_use_reqs {
+		AST_RECORD_USE_ALL,
+		AST_RECORD_ABSTRACT,
+		AST_RECORD_FINAL
+	} use_reqs;
+
 	uint8_t id, property_count, allocated_properties;
 	uint16_t index_offset, default_value_count, child_record_count;
 

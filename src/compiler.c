@@ -814,6 +814,7 @@ static int compile_type_to_machine(machine_type_sig_t* out_sig, typecheck_type_t
 	if (HAS_SUBTYPES(type)) {
 		if (type.sub_type_count) {
 			PANIC_ON_FAIL(out_sig->sub_types = safe_transfer_malloc(compiler->safe_gc, type.sub_type_count * sizeof(machine_type_sig_t)), compiler, ERROR_MEMORY);
+
 			for (uint_fast8_t i = 0; i < type.sub_type_count; i++)
 				ESCAPE_ON_FAIL(compile_type_to_machine(&out_sig->sub_types[i], type.sub_types[i],compiler, proc));
 		}
