@@ -51,7 +51,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		break;
 	case AST_VALUE_ALLOC_RECORD: {
 		for (uint_fast16_t i = 0; i < value.data.alloc_record.init_value_count; i++)
-			allocate_value_regs(compiler, *value.data.alloc_record.init_values[i].value, current_reg + 1, NULL);
+			allocate_value_regs(compiler, value.data.alloc_record.init_values[i].value, current_reg + 1, NULL);
 		break;
 	}
 	case AST_VALUE_PROC: {
@@ -262,12 +262,11 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 
 		uint16_t sig_id = compiler->target_machine->defined_sig_count;
 		ESCAPE_ON_FAIL(compiler_define_typesig(compiler, proc, value.type));
-
 		EMIT_INS(INS2(COMPILER_OP_CODE_CONFIG_TYPESIG, compiler->eval_regs[value.id], GLOB_REG(sig_id)));
 
 		for (uint_fast16_t i = 0; i < value.data.alloc_record.init_value_count; i++) {
-			ESCAPE_ON_FAIL(compile_value(compiler, *value.data.alloc_record.init_values[i].value, proc));
-			EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC_I, compiler->eval_regs[value.id], compiler->eval_regs[value.data.alloc_record.init_values[i].value->id], GLOB_REG(value.data.alloc_record.init_values[i].property->id)));
+			ESCAPE_ON_FAIL(compile_value(compiler, value.data.alloc_record.init_values[i].value, proc));
+			EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC_I, compiler->eval_regs[value.id], compiler->eval_regs[value.data.alloc_record.init_values[i].value.id], GLOB_REG(value.data.alloc_record.init_values[i].property->id)));
 		}
 
 		if (value.data.alloc_record.proto->do_gc) {

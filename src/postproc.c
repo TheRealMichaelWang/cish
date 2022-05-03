@@ -28,7 +28,7 @@ static int comes_from_used_var(ast_value_t value) {
 		return 1;
 	case AST_VALUE_ALLOC_RECORD:
 		for (uint_fast16_t i = 0; i < value.data.alloc_record.init_value_count; i++)
-			if (comes_from_used_var(*value.data.alloc_record.init_values[i].value))
+			if (comes_from_used_var(value.data.alloc_record.init_values[i].value))
 				return 1;
 		return 0;
 	case AST_VALUE_ARRAY_LITERAL:
@@ -63,7 +63,7 @@ static void mark_value_no_affect_state(ast_value_t* value) {
 	{
 	case AST_VALUE_ALLOC_RECORD:
 		for (uint_fast16_t i = 0; i < value->data.alloc_record.init_value_count; i++)
-			mark_value_no_affect_state(value->data.alloc_record.init_values[i].value);
+			mark_value_no_affect_state(&value->data.alloc_record.init_values[i].value);
 		break;
 	case AST_VALUE_ARRAY_LITERAL:
 		for (uint_fast16_t i = 0; i < value->data.array_literal.element_count; i++)
@@ -150,7 +150,7 @@ static int ast_postproc_value_affects_state(int affects_state, ast_value_t* valu
 		break;
 	case AST_VALUE_ALLOC_RECORD:
 		for (uint_fast16_t i = 0; i < value->data.alloc_record.init_value_count; i++)
-			CHECK_AFFECTS_STATE(affects_state, value->data.alloc_record.init_values[i].value);
+			CHECK_AFFECTS_STATE(affects_state, &value->data.alloc_record.init_values[i].value);
 		break;
 	case AST_VALUE_ARRAY_LITERAL:
 		for (uint_fast16_t i = 0; i < value->data.array_literal.element_count; i++)
@@ -425,36 +425,10 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		PANIC_ON_FAIL(current_typeargs, ast_parser, ERROR_MEMORY);
 		memcpy(current_typeargs, value->type.sub_types, value->type.sub_type_count * sizeof(typecheck_type_t));
 
-		int* overriden_defaults = safe_calloc(ast_parser->safe_gc, (size_t)value->data.alloc_record.proto->index_offset + (size_t)value->data.alloc_record.proto->property_count, sizeof(int));
-		PANIC_ON_FAIL(overriden_defaults, ast_parser, ERROR_MEMORY);
-		for (uint_fast8_t i = 0; i < value->data.alloc_record.init_value_count; i++)
-			overriden_defaults[value->data.alloc_record.init_values[i].property->id] = 1;
-
 		ast_record_proto_t* current_proto = value->data.alloc_record.proto;
 		for (;;) {
-			for (uint_fast16_t i = 0; i < current_proto->default_value_count; i++)
-				if (!overriden_defaults[current_proto->default_values[i].property->id]) {
-					overriden_defaults[current_proto->default_values[i].property->id] = 1;
-					if (value->data.alloc_record.init_value_count == value->data.alloc_record.allocated_init_values) {
-						if (value->data.alloc_record.allocated_init_values) {
-							struct ast_alloc_record_init_value* new_init_values = safe_realloc(ast_parser->safe_gc, value->data.alloc_record.init_values, (value->data.alloc_record.allocated_init_values += 2) * sizeof(struct ast_alloc_record_init_value));
-							PANIC_ON_FAIL(new_init_values, ast_parser, ERROR_MEMORY);
-							value->data.alloc_record.init_values = new_init_values;
-						}
-						else
-							PANIC_ON_FAIL(value->data.alloc_record.init_values = safe_malloc(ast_parser->safe_gc, (value->data.alloc_record.allocated_init_values = 5) * sizeof(ast_alloc_record_init_value_t)), ast_parser, ERROR_MEMORY);
-					}
-					value->data.alloc_record.init_values[value->data.alloc_record.init_value_count++] = (ast_alloc_record_init_value_t){
-						.value = &current_proto->default_values[i].value,
-						.property = current_proto->default_values[i].property
-					};
-				}
-
 			for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
 				typecheck_type_t actual_type;
-
-				if (current_proto->properties[i].must_init)
-					PANIC_ON_FAIL(overriden_defaults[current_proto->properties[i].id], ast_parser, ERROR_READ_UNINIT);
 
 				if (current_proto->properties[i].type.type == TYPE_TYPEARG)
 					actual_type = current_typeargs[current_proto->properties[i].type.type_id];
@@ -478,11 +452,10 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 			else break;
 		}
 		safe_free(ast_parser->safe_gc, current_typeargs);
-		safe_free(ast_parser->safe_gc, overriden_defaults);
 
 		for (uint_fast16_t i = 0; i < value->data.alloc_record.init_value_count; i++) {
-			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, value->data.alloc_record.init_values[i].value, value->data.alloc_record.typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, parent_stat, parent_proc));
-			if (value->data.alloc_record.init_values[i].value->from_var && value->data.alloc_record.typearg_traces[value->data.alloc_record.init_values[i].property->id] != POSTPROC_TRACE_NONE)
+			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.alloc_record.init_values[i].value, value->data.alloc_record.typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, parent_stat, parent_proc));
+			if (value->data.alloc_record.init_values[i].value.from_var && value->data.alloc_record.typearg_traces[value->data.alloc_record.init_values[i].property->id] != POSTPROC_TRACE_NONE)
 				value->from_var = 1;
 		}
 		value->gc_status = POSTPROC_GC_LOCAL_ALLOC;

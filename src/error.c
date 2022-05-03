@@ -47,6 +47,7 @@ static void** find_entry(safe_gc_t* safe_gc, void* data) {
 
 void* safe_malloc(safe_gc_t* safe_gc, int size) {
 	void* data = malloc(size);
+
 	ESCAPE_ON_FAIL(data);
 
 	void** entry = new_entry(safe_gc);
@@ -77,6 +78,7 @@ void* safe_transfer_malloc(safe_gc_t* safe_gc, int size) {
 
 void* safe_calloc(safe_gc_t* safe_gc, int count, size_t size) {
 	void* data = calloc(count, size);
+
 	ESCAPE_ON_FAIL(data);
 
 	void** entry = new_entry(safe_gc);
