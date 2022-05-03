@@ -179,7 +179,7 @@ int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit, 
 }
 
 static void free_defined_signature(machine_type_sig_t* type_sig) {
-	if (type_sig->super_signature >= TYPE_SUPER_PROC) {
+	if (type_sig->super_signature >= TYPE_SUPER_PROC && type_sig->sub_type_count) {
 		for (uint_fast8_t i = 0; i < type_sig->sub_type_count; i++)
 			free_defined_signature(&type_sig->sub_types[i]);
 		free(type_sig->sub_types);
@@ -220,6 +220,10 @@ machine_type_sig_t* new_type_sig(machine_t* machine) {
 int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 	machine_ins_t* ip = instructions;
 	for (;;) {
+		if (ip - instructions == 69) {//165) {
+			int sadd = 23;
+		}
+
 		switch (ip->op_code) {
 		case MACHINE_OP_CODE_MOVE_LL:
 			machine->stack[ip->a + machine->global_offset] = machine->stack[ip->b + machine->global_offset];
@@ -460,10 +464,10 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			break;
 		}
 		case MACHINE_OP_CODE_DYNAMIC_CONF_LL:
-			machine->stack[ip->a + machine->global_offset].heap_alloc->trace_stat[ip->b] = machine->stack[ip->c + machine->global_offset].long_int >= TYPE_SUPER_ARRAY;
+			machine->stack[ip->a + machine->global_offset].heap_alloc->trace_stat[ip->b] = machine->defined_signatures[machine->stack[ip->c + machine->global_offset].long_int].super_signature >= TYPE_SUPER_ARRAY;
 			break;
 		case MACHINE_OP_CODE_DYNAMIC_CONF_ALL_LL:
-			machine->stack[ip->a + machine->global_offset].heap_alloc->trace_mode = machine->stack[ip->b + machine->global_offset].long_int >= TYPE_SUPER_ARRAY;
+			machine->stack[ip->a + machine->global_offset].heap_alloc->trace_mode = machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int].super_signature >= TYPE_SUPER_ARRAY;
 			break;
 		case MACHINE_OP_CODE_CONF_TRACE_L:
 			machine->stack[ip->a + machine->global_offset].heap_alloc->trace_stat[ip->b] = ip->c;
@@ -496,7 +500,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			MACHINE_ESCAPE_COND(machine->stack[ip->a].heap_alloc = machine_alloc(machine, ip->b, ip->c));
 			break;
 		case MACHINE_OP_CODE_DYNAMIC_FREE_LL:
-			if (!machine->stack[ip->b + machine->global_offset].long_int >= TYPE_SUPER_ARRAY)
+			if (!(machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int].super_signature >= TYPE_SUPER_ARRAY))
 				break;
 		case MACHINE_OP_CODE_FREE_L:
 			MACHINE_ESCAPE_COND(free_alloc(machine, machine->stack[ip->a + machine->global_offset].heap_alloc));
@@ -515,7 +519,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			int super_traced;
 			heap_alloc_t* heap_alloc;
 		case MACHINE_OP_CODE_DYNAMIC_TRACE_LL:
-			if (!machine->stack[ip->b + machine->global_offset].long_int >= TYPE_SUPER_ARRAY)
+			if (!(machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int].super_signature >= TYPE_SUPER_ARRAY))
 				break;
 			super_traced = 0;
 			heap_alloc = machine->stack[ip->a + machine->global_offset].heap_alloc;

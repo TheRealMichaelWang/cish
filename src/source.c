@@ -8,6 +8,7 @@
 #include "file.h"
 #include "stdlibf.h"
 #include "debug.h"
+#include "error.h"
 
 #define ABORT(MSG) {printf MSG ; exit(EXIT_FAILURE);}
 
@@ -24,33 +25,39 @@ int main(int argc, char* argv[]) {
 	const char* op_flag = READ_ARG;
 
 	if (!strcmp(op_flag, "-cr") || !strcmp(op_flag, "-c") || !strcmp(op_flag, "-cd")) {
+		safe_gc_t safe_gc;
+		if (!init_safe_gc(&safe_gc))
+			ABORT(("Error initializing safe-gc."));
+
 		ast_parser_t parser;
 		EXPECT_FLAG("-s");
-		if (!init_ast_parser(&parser, READ_ARG))
+		if (!init_ast_parser(&parser, &safe_gc, READ_ARG)) {
+			free_safe_gc(&safe_gc, 1);
 			ABORT(("Error initializing parser(%s).\n", get_err_msg(parser.last_err)));
+		}
+
 		ast_t ast;
 		if (!init_ast(&ast, &parser)) {
 			print_error_trace(parser.multi_scanner);
+			free_safe_gc(&safe_gc, 1);
 			ABORT(("Syntax error(%s).\n", get_err_msg(parser.last_err)));
 		}
 
 		machine_t machine;
 		compiler_t compiler;
-		if (!compile(&compiler, &machine, &ast))
+		if (!compile(&compiler, &safe_gc, &machine, &ast)) {
+			free_safe_gc(&safe_gc, 1);
 			ABORT(("Compilation failiure(%s).\n", get_err_msg(compiler.last_err)));
+		}
 
 		machine_ins_t* machine_ins = malloc(compiler.ins_builder.instruction_count * sizeof(machine_ins_t));
-		if(!machine_ins)
+		if (!machine_ins) {
+			free_safe_gc(&safe_gc, 1);
 			ABORT(("Compilation failiure(memory).\n"));
+		}
 
 		compiler_ins_to_machine_ins(compiler.ins_builder.instructions, machine_ins, compiler.ins_builder.instruction_count);
-		free(compiler.ins_builder.instructions);
-
-		free_ast_parser(&parser);
-		free_ast(&ast);
-
-
-		print_instructions(machine_ins, compiler.ins_builder.instruction_count);
+		free_safe_gc(&safe_gc, 0);
 
 		if (!strcmp(op_flag, "-cr")) {
 			if (!install_stdlib(&machine))

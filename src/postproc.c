@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include <string.h>
 #include "ast.h"
 #include "postproc.h"
@@ -29,7 +28,7 @@ static int comes_from_used_var(ast_value_t value) {
 		return 1;
 	case AST_VALUE_ALLOC_RECORD:
 		for (uint_fast16_t i = 0; i < value.data.alloc_record.init_value_count; i++)
-			if (comes_from_used_var(*value.data.alloc_record.init_values[i].value))
+			if (comes_from_used_var(value.data.alloc_record.init_values[i].value))
 				return 1;
 		return 0;
 	case AST_VALUE_ARRAY_LITERAL:
@@ -64,7 +63,7 @@ static void mark_value_no_affect_state(ast_value_t* value) {
 	{
 	case AST_VALUE_ALLOC_RECORD:
 		for (uint_fast16_t i = 0; i < value->data.alloc_record.init_value_count; i++)
-			mark_value_no_affect_state(value->data.alloc_record.init_values[i].value);
+			mark_value_no_affect_state(&value->data.alloc_record.init_values[i].value);
 		break;
 	case AST_VALUE_ARRAY_LITERAL:
 		for (uint_fast16_t i = 0; i < value->data.array_literal.element_count; i++)
@@ -151,7 +150,7 @@ static int ast_postproc_value_affects_state(int affects_state, ast_value_t* valu
 		break;
 	case AST_VALUE_ALLOC_RECORD:
 		for (uint_fast16_t i = 0; i < value->data.alloc_record.init_value_count; i++)
-			CHECK_AFFECTS_STATE(affects_state, value->data.alloc_record.init_values[i].value);
+			CHECK_AFFECTS_STATE(affects_state, &value->data.alloc_record.init_values[i].value);
 		break;
 	case AST_VALUE_ARRAY_LITERAL:
 		for (uint_fast16_t i = 0; i < value->data.array_literal.element_count; i++)
@@ -292,26 +291,26 @@ static int ast_postproc_code_block(ast_parser_t* ast_parser, ast_code_block_t* c
 			ast_cond_t* current_cond = code_block->instructions[i].data.conditional;
 			while (current_cond) {
 				if (current_cond->condition)
-					ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, current_cond->condition, trace_stats, is_top_level ? ast_parser->top_level_global_gc_stats : global_gc_stats, local_gc_stats, is_top_level ? ast_parser->shared_globals : shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc))
+					ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, current_cond->condition, trace_stats, is_top_level ? ast_parser->top_level_global_gc_stats : global_gc_stats, local_gc_stats, is_top_level ? ast_parser->shared_globals : shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
 
-					postproc_gc_status_t* new_gc_context = malloc(local_scope_size * sizeof(postproc_gc_status_t));
+				postproc_gc_status_t* new_gc_context = safe_malloc(ast_parser->safe_gc, local_scope_size * sizeof(postproc_gc_status_t));
 				PANIC_ON_FAIL(new_gc_context, ast_parser, ERROR_MEMORY);
-				postproc_gc_status_t* new_global_stats = malloc(ast_parser->global_count * sizeof(postproc_gc_status_t));
+				postproc_gc_status_t* new_global_stats = safe_malloc(ast_parser->safe_gc, ast_parser->global_count * sizeof(postproc_gc_status_t));
 				PANIC_ON_FAIL(new_global_stats, ast_parser, ERROR_MEMORY);
 				memcpy(new_global_stats, is_top_level ? ast_parser->top_level_global_gc_stats : global_gc_stats, ast_parser->global_count * sizeof(postproc_gc_status_t));
-				int* new_shared_locals = malloc(local_scope_size * sizeof(int));
+				int* new_shared_locals = safe_malloc(ast_parser->safe_gc, local_scope_size * sizeof(int));
 				PANIC_ON_FAIL(new_shared_locals, ast_parser, ERROR_MEMORY);
-				int* new_shared_globals = malloc(ast_parser->global_count * sizeof(int));
+				int* new_shared_globals = safe_malloc(ast_parser->safe_gc, ast_parser->global_count * sizeof(int));
 				PANIC_ON_FAIL(new_shared_globals, ast_parser, ERROR_MEMORY);
 				memcpy(new_gc_context, local_gc_stats, local_scope_size * sizeof(postproc_gc_status_t));
 				memcpy(new_shared_locals, shared_locals, local_scope_size * sizeof(int));
 				memcpy(new_shared_globals, is_top_level ? ast_parser->shared_globals : shared_globals, ast_parser->global_count * sizeof(int));
 
 				ESCAPE_ON_FAIL(ast_postproc_code_block(ast_parser, &current_cond->exec_block, trace_stats, is_top_level ? ast_parser->top_level_global_gc_stats : new_global_stats, new_gc_context, local_scope_size, new_shared_globals, new_shared_locals, is_top_level, parent_proc));
-				free(new_gc_context);
-				free(new_global_stats);
-				free(new_shared_locals);
-				free(new_shared_globals);
+				safe_free(ast_parser->safe_gc, new_gc_context);
+				safe_free(ast_parser->safe_gc, new_global_stats);
+				safe_free(ast_parser->safe_gc, new_shared_locals);
+				safe_free(ast_parser->safe_gc, new_shared_globals);
 				current_cond = current_cond->next_if_false;
 			}
 			break;
@@ -397,6 +396,8 @@ static void share_var_from_value(ast_parser_t* ast_parser, ast_value_t value, in
 
 static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, postproc_trace_status_t* typearg_traces, postproc_gc_status_t* global_gc_stats, postproc_gc_status_t* local_gc_stats, int* shared_globals, int* shared_locals, uint16_t local_scope_size, postproc_parent_status_t parent_stat, ast_proc_t* parent_proc) {
 	value->free_status = POSTPROC_FREE_NONE;
+	value->from_var = 0;
+
 	switch (value->value_type) {
 	case AST_VALUE_PRIMITIVE:
 		value->gc_status = POSTPROC_GC_NONE;
@@ -418,43 +419,16 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		break;
 	case AST_VALUE_ALLOC_RECORD: {
 		PROC_DO_GC;
-		PANIC_ON_FAIL(value->data.alloc_record.typearg_traces = malloc((value->data.alloc_record.proto->index_offset + value->data.alloc_record.proto->property_count) * sizeof(postproc_trace_status_t)), ast_parser, ERROR_MEMORY);
+		PANIC_ON_FAIL(value->data.alloc_record.typearg_traces = safe_malloc(ast_parser->safe_gc, (value->data.alloc_record.proto->index_offset + value->data.alloc_record.proto->property_count) * sizeof(postproc_trace_status_t)), ast_parser, ERROR_MEMORY);
 
-		typecheck_type_t* current_typeargs = malloc(TYPE_MAX_SUBTYPES * sizeof(typecheck_type_t));
+		typecheck_type_t* current_typeargs = safe_malloc(ast_parser->safe_gc, TYPE_MAX_SUBTYPES * sizeof(typecheck_type_t));
 		PANIC_ON_FAIL(current_typeargs, ast_parser, ERROR_MEMORY);
 		memcpy(current_typeargs, value->type.sub_types, value->type.sub_type_count * sizeof(typecheck_type_t));
 
-		int* overriden_defaults = calloc((size_t)value->data.alloc_record.proto->index_offset + (size_t)value->data.alloc_record.proto->property_count, sizeof(int));
-		PANIC_ON_FAIL(overriden_defaults, ast_parser, ERROR_MEMORY);
-		for (uint_fast8_t i = 0; i < value->data.alloc_record.init_value_count; i++)
-			overriden_defaults[value->data.alloc_record.init_values[i].property->id] = 1;
-
 		ast_record_proto_t* current_proto = value->data.alloc_record.proto;
 		for (;;) {
-			for (uint_fast16_t i = 0; i < current_proto->default_value_count; i++)
-				if (!overriden_defaults[current_proto->default_values[i].property->id]) {
-					overriden_defaults[current_proto->default_values[i].property->id] = 1;
-					if (value->data.alloc_record.init_value_count == value->data.alloc_record.allocated_init_values) {
-						if (value->data.alloc_record.allocated_init_values) {
-							struct ast_alloc_record_init_value* new_init_values = realloc(value->data.alloc_record.init_values, (value->data.alloc_record.allocated_init_values += 2) * sizeof(struct ast_alloc_record_init_value));
-							PANIC_ON_FAIL(new_init_values, ast_parser, ERROR_MEMORY);
-							value->data.alloc_record.init_values = new_init_values;
-						}
-						else
-							PANIC_ON_FAIL(value->data.alloc_record.init_values = malloc((value->data.alloc_record.allocated_init_values = 5) * sizeof(ast_alloc_record_init_value_t)), ast_parser, ERROR_MEMORY);
-					}
-					value->data.alloc_record.init_values[value->data.alloc_record.init_value_count++] = (ast_alloc_record_init_value_t){
-						.value = &current_proto->default_values[i].value,
-						.property = current_proto->default_values[i].property,
-						.free_val = 0
-					};
-				}
-
 			for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
 				typecheck_type_t actual_type;
-
-				if (current_proto->properties[i].must_init)
-					PANIC_ON_FAIL(overriden_defaults[current_proto->properties[i].id], ast_parser, ERROR_READ_UNINIT);
 
 				if (current_proto->properties[i].type.type == TYPE_TYPEARG)
 					actual_type = current_typeargs[current_proto->properties[i].type.type_id];
@@ -477,12 +451,11 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 			}
 			else break;
 		}
-		free(current_typeargs);
-		free(overriden_defaults);
+		safe_free(ast_parser->safe_gc, current_typeargs);
 
 		for (uint_fast16_t i = 0; i < value->data.alloc_record.init_value_count; i++) {
-			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, value->data.alloc_record.init_values[i].value, value->data.alloc_record.typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, parent_stat, parent_proc));
-			if (value->data.alloc_record.init_values[i].value->from_var && value->data.alloc_record.typearg_traces[value->data.alloc_record.init_values[i].property->id] != POSTPROC_TRACE_NONE)
+			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.alloc_record.init_values[i].value, value->data.alloc_record.typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, parent_stat, parent_proc));
+			if (value->data.alloc_record.init_values[i].value.from_var && value->data.alloc_record.typearg_traces[value->data.alloc_record.init_values[i].property->id] != POSTPROC_TRACE_NONE)
 				value->from_var = 1;
 		}
 		value->gc_status = POSTPROC_GC_LOCAL_ALLOC;
@@ -492,17 +465,17 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		value->trace_status = POSTPROC_TRACE_NONE;
 		value->gc_status = POSTPROC_GC_NONE;
 
-		postproc_gc_status_t* new_local_stats = malloc(value->data.procedure->scope_size * sizeof(postproc_gc_status_t));
+		postproc_gc_status_t* new_local_stats = safe_malloc(ast_parser->safe_gc, value->data.procedure->scope_size * sizeof(postproc_gc_status_t));
 		PANIC_ON_FAIL(new_local_stats, ast_parser, ERROR_MEMORY);
-		postproc_gc_status_t* new_global_stats = malloc(ast_parser->global_count * sizeof(int));
+		postproc_gc_status_t* new_global_stats = safe_malloc(ast_parser->safe_gc, ast_parser->global_count * sizeof(int));
 		PANIC_ON_FAIL(new_global_stats, ast_parser, ERROR_MEMORY);
 		memcpy(new_global_stats, ast_parser->global_gc_stats, ast_parser->global_count * sizeof(postproc_gc_status_t));
-		int* new_shared_locals = calloc(value->data.procedure->scope_size, sizeof(int));
+		int* new_shared_locals = safe_calloc(ast_parser->safe_gc, value->data.procedure->scope_size, sizeof(int));
 		PANIC_ON_FAIL(new_shared_locals, ast_parser, ERROR_MEMORY);
-		int* new_shared_globals = malloc(ast_parser->global_count * sizeof(int));
+		int* new_shared_globals = safe_malloc(ast_parser->safe_gc, ast_parser->global_count * sizeof(int));
 		PANIC_ON_FAIL(new_shared_globals, ast_parser, ERROR_MEMORY);
 		memcpy(new_shared_globals, ast_parser->shared_globals, ast_parser->global_count * sizeof(int));
-		value->data.procedure->generic_arg_traces = malloc(value->type.type_id * sizeof(postproc_trace_status_t));
+		value->data.procedure->generic_arg_traces = safe_malloc(ast_parser->safe_gc, value->type.type_id * sizeof(postproc_trace_status_t));
 		PANIC_ON_FAIL(value->data.procedure->generic_arg_traces, ast_parser, ERROR_MEMORY);
 
 		for (uint_fast8_t i = 0; i < value->type.type_id; i++) {
@@ -524,13 +497,14 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		value->data.procedure->do_gc = 0;
 		ESCAPE_ON_FAIL(ast_postproc_code_block(ast_parser, &value->data.procedure->exec_block, value->data.procedure->generic_arg_traces, new_global_stats, new_local_stats, value->data.procedure->scope_size, new_shared_globals, new_shared_locals, 0, value->data.procedure));
 
-		free(new_local_stats);
-		free(new_global_stats);
-		free(new_shared_locals);
-		free(new_shared_globals);
+		safe_free(ast_parser->safe_gc, new_local_stats);
+		safe_free(ast_parser->safe_gc, new_global_stats);
+		safe_free(ast_parser->safe_gc, new_shared_locals);
+		safe_free(ast_parser->safe_gc, new_shared_globals);
 		break;
 	}
 	case AST_VALUE_VAR:
+		value->from_var = 1;
 		if (value->data.variable->is_global) {
 			value->gc_status = global_gc_stats[SANITIZE_SCOPE_ID(*value->data.variable)];
 			if (parent_stat != POSTPROC_PARENT_IRRELEVANT)
@@ -557,6 +531,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 			goto no_trace_postproc;
 		}
 	case AST_VALUE_SET_VAR:
+		value->from_var = 1;
 		if (!value->data.set_var->var_info->is_used) {
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_var->set_value, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
 			value->gc_status = POSTPROC_GC_NONE;
@@ -641,7 +616,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.get_prop->record, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, GET_TYPE_TRACE(prop_type) == POSTPROC_TRACE_NONE ? POSTPROC_PARENT_IRRELEVANT : parent_stat, parent_proc));
 		value->gc_status = postproc_type_to_gc_stat(value->data.get_prop->record.gc_status, prop_type.type);
 		value->from_var = value->data.get_prop->record.from_var;
-		free_typecheck_type(&prop_type);
+		free_typecheck_type(ast_parser->safe_gc, &prop_type);
 		break;
 	}
 	case AST_VALUE_BINARY_OP:
@@ -666,7 +641,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		break;
 	case AST_VALUE_PROC_CALL:
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.proc_call->procedure, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
-		PANIC_ON_FAIL(value->data.proc_call->typearg_traces = malloc(value->data.proc_call->procedure.type.type_id * sizeof(postproc_trace_status_t)), ast_parser, ERROR_MEMORY);
+		PANIC_ON_FAIL(value->data.proc_call->typearg_traces = safe_malloc(ast_parser->safe_gc, value->data.proc_call->procedure.type.type_id * sizeof(postproc_trace_status_t)), ast_parser, ERROR_MEMORY);
 		if (value->data.proc_call->procedure.type.type_id) {
 			for (uint_fast8_t i = 0; i < value->data.proc_call->procedure.type.type_id; i++)
 				if (value->data.proc_call->typeargs[i].type == TYPE_TYPEARG)
@@ -699,7 +674,6 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		if (value->data.foreign->input)
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, value->data.foreign->input, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc));
 		value->gc_status = postproc_type_to_gc_stat(POSTPROC_GC_LOCAL_ALLOC, value->type.type);
-		value->from_var = 0;
 		break;
 	}
 
@@ -769,21 +743,21 @@ int ast_postproc(ast_parser_t* ast_parser) {
 	while (ast_postproc_codeblock_affects_state(&ast_parser->ast->exec_block, 0)) {}
 
 	//allocate memory used for analysis
-	PANIC_ON_FAIL(ast_parser->top_level_global_gc_stats = malloc(ast_parser->global_count * sizeof(postproc_gc_status_t)), ast_parser, ERROR_MEMORY);
-	PANIC_ON_FAIL(ast_parser->global_gc_stats = malloc(ast_parser->global_count * sizeof(postproc_gc_status_t)), ast_parser, ERROR_MEMORY);
-	postproc_gc_status_t* top_level_locals = malloc(ast_parser->top_level_local_count * sizeof(postproc_gc_status_t));
+	PANIC_ON_FAIL(ast_parser->top_level_global_gc_stats = safe_malloc(ast_parser->safe_gc, ast_parser->global_count * sizeof(postproc_gc_status_t)), ast_parser, ERROR_MEMORY);
+	PANIC_ON_FAIL(ast_parser->global_gc_stats = safe_malloc(ast_parser->safe_gc, ast_parser->global_count * sizeof(postproc_gc_status_t)), ast_parser, ERROR_MEMORY);
+	postproc_gc_status_t* top_level_locals = safe_malloc(ast_parser->safe_gc, ast_parser->top_level_local_count * sizeof(postproc_gc_status_t));
 	PANIC_ON_FAIL(top_level_locals, ast_parser, ERROR_MEMORY);
-	PANIC_ON_FAIL(ast_parser->shared_globals = calloc(ast_parser->global_count, sizeof(int)), ast_parser, ERROR_MEMORY);
-	int* shared_top_level = calloc(ast_parser->top_level_local_count, sizeof(int));
+	PANIC_ON_FAIL(ast_parser->shared_globals = safe_calloc(ast_parser->safe_gc, ast_parser->global_count, sizeof(int)), ast_parser, ERROR_MEMORY);
+	int* shared_top_level = safe_calloc(ast_parser->safe_gc, ast_parser->top_level_local_count, sizeof(int));
 	PANIC_ON_FAIL(shared_top_level, ast_parser, ERROR_MEMORY);
 	ESCAPE_ON_FAIL(ast_postproc_code_block(ast_parser, &ast_parser->ast->exec_block, NULL, NULL, top_level_locals, ast_parser->top_level_local_count, NULL, shared_top_level, 1, NULL));
 
 	while (ast_postproc_codeblock_affects_state(&ast_parser->ast->exec_block, 1)) {}
 
-	free(shared_top_level);
-	free(top_level_locals);
-	free(ast_parser->shared_globals);
-	free(ast_parser->global_gc_stats);
-	free(ast_parser->top_level_global_gc_stats);
+	safe_free(ast_parser->safe_gc, shared_top_level);
+	safe_free(ast_parser->safe_gc, top_level_locals);
+	safe_free(ast_parser->safe_gc, ast_parser->shared_globals);
+	safe_free(ast_parser->safe_gc, ast_parser->global_gc_stats);
+	safe_free(ast_parser->safe_gc, ast_parser->top_level_global_gc_stats);
 	return 1;
 }

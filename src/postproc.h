@@ -3,6 +3,8 @@
 #ifndef POSTPROC_H
 #define POSTPROC_H
 
+#include "error.h"
+
 typedef struct ast_parser ast_parser_t;
 
 typedef enum postproc_gc_status {
