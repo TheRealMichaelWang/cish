@@ -53,7 +53,12 @@ static int std_ftos(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 static int std_stof(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	char* buffer = read_str_from_heap_alloc(in->heap_alloc);
 	PANIC_ON_FAIL(buffer, machine, ERROR_MEMORY);
-	out->float_int = strtod(buffer, NULL);
+	const char* ferror;
+	out->float_int = strtod(buffer, &ferror);
+
+	if (ferror && *ferror != ' ')
+		out->float_int = 0.0 / 0.0;
+
 	free(buffer);
 	return 1;
 }
