@@ -1214,51 +1214,35 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int * machine->stack[ip->b].float_int;
 			break;
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_LLL: {
-			double d = machine->stack[ip->b + machine->global_offset].float_int;
-			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
-			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a + machine->global_offset].float_int / d;
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a + machine->global_offset].float_int / machine->stack[ip->b + machine->global_offset].float_int;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_LLG: {
-			double d = machine->stack[ip->b + machine->global_offset].float_int;
-			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
-			machine->stack[ip->c].float_int = machine->stack[ip->a + machine->global_offset].float_int / d;
+			machine->stack[ip->c].float_int = machine->stack[ip->a + machine->global_offset].float_int / machine->stack[ip->b + machine->global_offset].float_int;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_LGL: {
-			double d = machine->stack[ip->b].float_int;
-			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
-			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a + machine->global_offset].float_int / d;
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a + machine->global_offset].float_int / machine->stack[ip->b].float_int;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_LGG: {
-			double d = machine->stack[ip->b].float_int;
-			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
-			machine->stack[ip->c].float_int = machine->stack[ip->a + machine->global_offset].float_int / d;
+			machine->stack[ip->c].float_int = machine->stack[ip->a + machine->global_offset].float_int / machine->stack[ip->b].float_int;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_GLL: {
-			double d = machine->stack[ip->b + machine->global_offset].float_int;
-			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
-			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a].float_int / d;
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a].float_int / machine->stack[ip->b + machine->global_offset].float_int;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_GLG: {
-			double d = machine->stack[ip->b + machine->global_offset].float_int;
-			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
-			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int / d;
+			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int / machine->stack[ip->b + machine->global_offset].float_int;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_GGL: {
-			double d = machine->stack[ip->b].float_int;
-			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
-			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a].float_int / d;
+			machine->stack[ip->c + machine->global_offset].float_int = machine->stack[ip->a].float_int / machine->stack[ip->b].float_int;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_DIVIDE_GGG: {
-			double d = machine->stack[ip->b].float_int;
-			MACHINE_PANIC_COND(d, ERROR_DIVIDE_BY_ZERO);
-			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int / d;
+			machine->stack[ip->c].float_int = machine->stack[ip->a].float_int / machine->stack[ip->b].float_int;
 			break;
 		}
 		case MACHINE_OP_CODE_FLOAT_MODULO_LLL:

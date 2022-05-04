@@ -1254,8 +1254,7 @@ static int parse_expression(ast_parser_t* ast_parser, ast_value_t* value, typech
 		}
 
 		if ((value->data.binary_op->operator == TOK_DIVIDE)
-			&& ((lhs.type.type == TYPE_PRIMITIVE_LONG && value->data.binary_op->rhs.data.primitive->data.long_int == 0)
-				|| (lhs.type.type == TYPE_PRIMITIVE_FLOAT && value->data.binary_op->rhs.data.primitive->data.float_int == 0 && lhs.data.primitive->data.float_int != 0)))
+			&& (lhs.type.type == TYPE_PRIMITIVE_LONG && value->data.binary_op->rhs.data.primitive->data.long_int == 0))
 			PANIC(ast_parser, ERROR_DIVIDE_BY_ZERO);
 
 		value->id = ast_parser->ast->value_count++;
