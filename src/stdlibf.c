@@ -5,6 +5,7 @@
 #include <math.h>
 #include <inttypes.h>
 #include <time.h>
+#include <ctype.h>
 #include "error.h"
 #include "ffi.h"
 #include "stdlibf.h"
@@ -53,10 +54,10 @@ static int std_ftos(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 static int std_stof(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	char* buffer = read_str_from_heap_alloc(in->heap_alloc);
 	PANIC_ON_FAIL(buffer, machine, ERROR_MEMORY);
-	const char* ferror;
+	char* ferror;
 	out->float_int = strtod(buffer, &ferror);
 
-	if (ferror && *ferror != ' ')
+	if (ferror && !isspace((unsigned char)*ferror))
 		out->float_int = 0.0 / 0.0;
 
 	free(buffer);
