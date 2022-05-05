@@ -720,7 +720,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 						prop->must_init = must_init;
 						READ_TOK;
 
-						if (LAST_TOK.type != TOK_SET || must_init)
+						if (LAST_TOK.type != TOK_SET)
 							goto end_parse_prop;
 					}
 
