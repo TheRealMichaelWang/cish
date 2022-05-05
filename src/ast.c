@@ -732,7 +732,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 					}
 
 					record_proto->default_values[record_proto->default_value_count].property = prop;
-					ESCAPE_ON_FAIL(parse_value(ast_parser, &record_proto->default_values[record_proto->default_value_count].value, &prop->type));
+					ESCAPE_ON_FAIL(parse_expression(ast_parser, &record_proto->default_values[record_proto->default_value_count].value, &prop->type, 0, 0));
 
 					record_proto->default_values[record_proto->default_value_count].prop_is_static = prop->is_static_loc;
 					if (prop->is_static_loc)
