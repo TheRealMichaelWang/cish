@@ -185,6 +185,7 @@ static ast_record_proto_t* ast_parser_decl_record(ast_parser_t* ast_parser, uint
 	new_rec->fully_defined = 0;
 	new_rec->index_offset = 0;
 	new_rec->child_record_count = 0;
+	new_rec->linked = 0;
 	ast_parser->ast->record_protos[ast_parser->ast->record_count++] = new_rec;
 	return new_rec;
 }
@@ -219,10 +220,13 @@ int ast_record_sub_prop_type(ast_parser_t* ast_parser, typecheck_type_t record_t
 		PANIC_ON_FAIL(typeargs_substitute(ast_parser->safe_gc, record_type.sub_types, out_type), ast_parser, ERROR_MEMORY);
 		return 1;
 	}
+	
 	PANIC(ast_parser, ERROR_UNDECLARED);
 }
 
 static ast_record_prop_t* ast_record_decl_prop(ast_parser_t* ast_parser, ast_record_proto_t* record, uint64_t id) {
+	if (record->fully_defined)
+		PANIC(ast_parser, ERROR_READONLY);
 	if (ast_record_find_prop(ast_parser, record, id))
 		PANIC(ast_parser, ERROR_REDECLARATION);
 	if (record->property_count == 255)
@@ -236,6 +240,7 @@ static ast_record_prop_t* ast_record_decl_prop(ast_parser_t* ast_parser, ast_rec
 	ast_record_prop_t* next_prop = &record->properties[record->property_count];
 	next_prop->hash_id = id;
 	next_prop->id = record->property_count++;
+	next_prop->is_static_loc = 0;
 	return next_prop;
 }
 
@@ -710,6 +715,7 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 						ESCAPE_ON_FAIL(parse_type(ast_parser, &prop_type, 1, 0));
 						MATCH_TOK(TOK_IDENTIFIER);
 						ESCAPE_ON_FAIL(prop = ast_record_decl_prop(ast_parser, record_proto, hash_s(LAST_TOK.str, LAST_TOK.length)));
+
 						prop->type = prop_type;
 						prop->must_init = must_init;
 						READ_TOK;
@@ -727,12 +733,28 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 
 					record_proto->default_values[record_proto->default_value_count].property = prop;
 					ESCAPE_ON_FAIL(parse_value(ast_parser, &record_proto->default_values[record_proto->default_value_count].value, &prop->type));
+
+					record_proto->default_values[record_proto->default_value_count].prop_is_static = prop->is_static_loc;
+					if (prop->is_static_loc)
+						record_proto->default_values[record_proto->default_value_count].property = prop; //a static property doesn't need special pointer magic
+					else
+						record_proto->default_values[record_proto->default_value_count].property = (void*)(uint64_t)(prop - record_proto->properties); //we need to do this because record_proto->properties may get realloced
 					record_proto->default_value_count++;
 
 				end_parse_prop:
 					MATCH_TOK(TOK_SEMICOLON);
 					READ_TOK;
 				} while (LAST_TOK.type != TOK_CLOSE_BRACE);
+
+				//messy pointer aritmetic - this "relinks" properties together because a property pointer may not be constant since the properties list gets realloced.
+				for (uint_fast16_t i = 0; i < record_proto->default_value_count; i++) {
+					if (!record_proto->default_values[i].prop_is_static) {
+						record_proto->default_values[i].property = &record_proto->properties[(uint64_t)record_proto->default_values[i].property];
+						record_proto->default_values[i].prop_is_static = 1;
+					}
+				}
+				for (uint_fast8_t i = 0; i < record_proto->property_count; i++)
+					record_proto->properties[i].is_static_loc = 1;
 				READ_TOK;
 			}
 			else
@@ -855,6 +877,8 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 			PANIC_ON_FAIL(type_alloc_buf.type == TYPE_SUPER_RECORD, ast_parser, ERROR_UNEXPECTED_TYPE);
 			value->value_type = AST_VALUE_ALLOC_RECORD;
 			ast_record_proto_t* current_proto = value->data.alloc_record.proto = ast_parser->ast->record_protos[type_alloc_buf.type_id];
+			ESCAPE_ON_FAIL(ast_postproc_link_record(ast_parser, current_proto, NULL));
+
 			int* overriden_defaults = safe_calloc(ast_parser->safe_gc, current_proto->property_count + current_proto->index_offset, sizeof(int));
 			PANIC_ON_FAIL(overriden_defaults, ast_parser, ERROR_MEMORY);
 			value->data.alloc_record.init_value_count = 0;
@@ -903,7 +927,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				}
 				for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
 					if (current_proto->properties[i].must_init)
-						PANIC_ON_FAIL(overriden_defaults[i], ast_parser, ERROR_READ_UNINIT);
+						PANIC_ON_FAIL(overriden_defaults[current_proto->properties[i].id], ast_parser, ERROR_READ_UNINIT);
 				}
 				if (current_proto->base_record)
 					current_type = *current_proto->base_record;

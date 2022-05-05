@@ -236,12 +236,14 @@ typedef struct ast_record_prop {
 	uint16_t id;
 
 	typecheck_type_t type;
-	int must_init;
+	int must_init, is_static_loc;
 } ast_record_prop_t;
 
 typedef struct ast_alloc_record_init_value {
 	ast_record_prop_t* property;
 	ast_value_t value;
+
+	int prop_is_static;
 } ast_alloc_record_init_value_t;
 
 typedef struct ast_record_proto {
@@ -264,7 +266,7 @@ typedef struct ast_record_proto {
 	uint8_t id, property_count, allocated_properties;
 	uint16_t index_offset, default_value_count, child_record_count;
 
-	int typeargs_defined, fully_defined, do_gc;
+	int typeargs_defined, fully_defined, do_gc, linked;
 } ast_record_proto_t;
 
 typedef struct ast_get_prop {

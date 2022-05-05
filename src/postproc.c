@@ -715,30 +715,35 @@ no_trace_postproc:
 #undef PROC_DO_GC
 #undef SANITIZE_SCOPE_ID
 
-static int ast_postproc_link_record(ast_t* ast, ast_record_proto_t* record) {
-	if (!record->fully_defined) {
+int ast_postproc_link_record(ast_parser_t* ast_parser, ast_record_proto_t* record, uint16_t* out) {
+	if (!record->linked) {
+		PANIC_ON_FAIL(record->fully_defined, ast_parser, ERROR_UNDECLARED);
+
 		if (record->base_record) {
-			record->index_offset = ast_postproc_link_record(ast, ast->record_protos[record->base_record->type_id]);
-			record->do_gc = ast->record_protos[record->base_record->type_id]->do_gc;
+			ESCAPE_ON_FAIL(ast_postproc_link_record(ast_parser, ast_parser->ast->record_protos[record->base_record->type_id], &record->index_offset));
+			record->do_gc = ast_parser->ast->record_protos[record->base_record->type_id]->do_gc;
 		}
+		else
+			record->index_offset = 0;
+		
 		for (uint_fast8_t i = 0; i < record->property_count; i++) {
 			if (IS_REF_TYPE(record->properties[i].type))
 				record->do_gc = 1;
 			record->properties[i].id += record->index_offset;
 		}
-		record->fully_defined = 1;
+		record->linked = 1;
 	}
-	return record->index_offset + record->property_count;
+	if(out)
+		*out = record->index_offset + record->property_count;
+	return 1;
 }
 
 int ast_postproc(ast_parser_t* ast_parser) {
 	//link record/struct definitions
-	for (uint_fast8_t i = 0; i < ast_parser->ast->record_count; i++) {
-		PANIC_ON_FAIL(ast_parser->ast->record_protos[i]->fully_defined, ast_parser, ERROR_UNDECLARED);
-		ast_parser->ast->record_protos[i]->fully_defined = 0;
-	}
 	for (uint_fast8_t i = 0; i < ast_parser->ast->record_count; i++)
-		ast_postproc_link_record(ast_parser->ast, ast_parser->ast->record_protos[i]);
+		PANIC_ON_FAIL(ast_parser->ast->record_protos[i]->fully_defined, ast_parser, ERROR_UNDECLARED);
+	for (uint_fast8_t i = 0; i < ast_parser->ast->record_count; i++)
+		ESCAPE_ON_FAIL(ast_postproc_link_record(ast_parser, ast_parser->ast->record_protos[i], NULL));
 
 	while (ast_postproc_codeblock_affects_state(&ast_parser->ast->exec_block, 0)) {}
 

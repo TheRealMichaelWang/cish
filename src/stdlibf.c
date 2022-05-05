@@ -58,7 +58,7 @@ static int std_stof(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	out->float_int = strtod(buffer, &ferror);
 
 	if (ferror && !isspace((unsigned char)*ferror))
-		out->float_int = 0.0 / 0.0;
+		out->float_int = nan("");
 
 	free(buffer);
 	return 1;
@@ -85,12 +85,12 @@ static int std_stoi(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 }
 
 static int std_ctoi(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
-	in->long_int = in->char_int;
+	out->long_int = in->char_int;
 	return 1;
 }
 
 static int std_itoc(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
-	in->char_int = in->long_int;
+	out->char_int = in->long_int;
 	return 1;
 }
 

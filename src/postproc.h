@@ -6,6 +6,7 @@
 #include "error.h"
 
 typedef struct ast_parser ast_parser_t;
+typedef struct ast_record_proto ast_record_proto_t;
 
 typedef enum postproc_gc_status {
 	POSTPROC_GC_LOCAL_ALLOC,
@@ -40,5 +41,6 @@ typedef enum postproc_parent_status {
 } postproc_parent_status_t;
 
 int ast_postproc(ast_parser_t* ast_parser);
+int ast_postproc_link_record(ast_parser_t* ast_parser, ast_record_proto_t* record, uint16_t* out);
 
 #endif // !POSTPROC_H

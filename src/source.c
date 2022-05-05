@@ -64,7 +64,7 @@ int main(int argc, char* argv[]) {
 				ABORT(("Failed to install SuperForth standard native libraries.\n"));
 			if (!machine_execute(&machine, machine_ins)) {
 				printf("Last IP: %" PRIu64 "\n", machine.last_err_ip);
-				ABORT(("Runtime error(%s).\n", get_err_msg(machine.last_err)));
+ 				ABORT(("Runtime error(%s).\n", get_err_msg(machine.last_err)));
 			}
 		}
 		else if (!strcmp(op_flag, "-c")) {

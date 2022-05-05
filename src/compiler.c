@@ -215,7 +215,7 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 	}
 }
 
-#define TYPEARG_INFO_REG(TYPE)  compiler->proc_generic_regs[proc->id][(TYPE).type_id]
+#define TYPEARG_INFO_REG(TYPE) compiler->proc_generic_regs[proc->id][(TYPE).type_id]
 
 static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block, ast_proc_t* proc, uint16_t continue_ip, uint16_t* break_jumps, uint8_t* break_jump_top);
 
