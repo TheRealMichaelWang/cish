@@ -1110,27 +1110,26 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		PANIC(ast_parser, ERROR_UNEXPECTED_TOK);
 	}
 	value->id = ast_parser->ast->value_count++;
-	if (LAST_TOK.type == TOK_IS_TYPE) {
-		READ_TOK;
-
-		ast_value_t cast_val = *value;
-		PANIC_ON_FAIL(cast_val.type.type == TYPE_SUPER_RECORD || cast_val.type.type == TYPE_TYPEARG, ast_parser, ERROR_UNEXPECTED_TYPE);
-		
-		value->value_type = AST_VALUE_TYPE_OP;
-		PANIC_ON_FAIL(value->data.type_op = safe_malloc(ast_parser->safe_gc, sizeof(ast_type_op_t)), ast_parser, ERROR_MEMORY);
-		value->data.type_op->operand = cast_val;
-
-		ESCAPE_ON_FAIL(parse_type(ast_parser, &value->data.type_op->match_type, 0, 0));
-		if (typecheck_has_type(value->data.type_op->match_type, TYPE_TYPEARG))
-			PANIC_ON_FAIL(CURRENT_FRAME.return_type, ast_parser, ERROR_UNEXPECTED_TYPE);
-		//PANIC_ON_FAIL(value->data.type_op->match_type.type == TYPE_SUPER_RECORD || value->data.type_op->match_type.type == TYPE_TYPEARG, ast_parser, ERROR_UNEXPECTED_TYPE);
-		
-		value->data.type_op->operation = TOK_IS_TYPE;
-		value->type.type = TYPE_PRIMITIVE_BOOL;
-		value->id = ast_parser->ast->value_count++;
-	}
-	while (LAST_TOK.type == TOK_OPEN_BRACKET || LAST_TOK.type == TOK_OPEN_PAREN || LAST_TOK.type == TOK_PERIOD || (LAST_TOK.type == TOK_LESS && value->type.type == TYPE_SUPER_PROC)) {
-		if (LAST_TOK.type == TOK_OPEN_BRACKET) {
+	while (LAST_TOK.type == TOK_OPEN_BRACKET || LAST_TOK.type == TOK_OPEN_PAREN || LAST_TOK.type == TOK_IS_TYPE || LAST_TOK.type == TOK_PERIOD || (LAST_TOK.type == TOK_LESS && value->type.type == TYPE_SUPER_PROC)) {
+		if (LAST_TOK.type == TOK_IS_TYPE) {
+  			READ_TOK;
+  
+  			ast_value_t cast_val = *value;
+  			PANIC_ON_FAIL(cast_val.type.type == TYPE_SUPER_RECORD || cast_val.type.type == TYPE_TYPEARG, ast_parser, ERROR_UNEXPECTED_TYPE);
+  		
+  			value->value_type = AST_VALUE_TYPE_OP;
+  			PANIC_ON_FAIL(value->data.type_op = safe_malloc(ast_parser->safe_gc, sizeof(ast_type_op_t)), ast_parser, ERROR_MEMORY);
+  			value->data.type_op->operand = cast_val;
+  
+  			ESCAPE_ON_FAIL(parse_type(ast_parser, &value->data.type_op->match_type, 0, 0));
+  			if (typecheck_has_type(value->data.type_op->match_type, TYPE_TYPEARG))
+  				PANIC_ON_FAIL(CURRENT_FRAME.return_type, ast_parser, ERROR_UNEXPECTED_TYPE);
+  			//PANIC_ON_FAIL(value->data.type_op->match_type.type == TYPE_SUPER_RECORD || value->data.type_op->match_type.type == TYPE_TYPEARG, ast_parser, ERROR_UNEXPECTED_TYPE);
+  		
+  			value->data.type_op->operation = TOK_IS_TYPE;
+  			value->type.type = TYPE_PRIMITIVE_BOOL;
+  		}
+		else if (LAST_TOK.type == TOK_OPEN_BRACKET) {
 			READ_TOK;
 			ast_value_t array_val, index_val;
 			array_val = *value;
