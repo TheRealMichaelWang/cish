@@ -941,7 +941,6 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 	case TOK_IDENTIFIER: {
 		ast_var_info_t* var_info = ast_parser_find_var(ast_parser, hash_s(LAST_TOK.str, LAST_TOK.length));
 		PANIC_ON_FAIL(var_info, ast_parser, ERROR_UNDECLARED);
-		TYPE_COPY(&value->type, var_info->type);
 
 		READ_TOK;
 		if (LAST_TOK.type == TOK_SET) {
@@ -953,10 +952,12 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 			value->data.set_var->var_info = var_info;
 			ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.set_var->set_value, &var_info->type, 0, 0));
 			var_info->has_mutated = 1;
+			TYPE_COPY(&value->type, value->data.set_var->set_value.type);
 		}
 		else {
 			value->value_type = AST_VALUE_VAR;
 			value->data.variable = var_info;
+			TYPE_COPY(&value->type, var_info->type);
 		}
 		break;
 	}
@@ -1148,14 +1149,15 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				value->data.set_index->array = array_val;
 				value->data.set_index->index = index_val;
 				ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.set_index->value, &array_val.type.sub_types[0], 0, 0));
+				TYPE_COPY(&value->type, value->data.set_index->value.type);
 			}
 			else {
 				value->value_type = AST_VALUE_GET_INDEX;
 				PANIC_ON_FAIL(value->data.get_index = safe_malloc(ast_parser->safe_gc, sizeof(ast_get_index_t)), ast_parser, ERROR_MEMORY);
 				value->data.get_index->array = array_val;
 				value->data.get_index->index = index_val;
+				TYPE_COPY(&value->type, array_val.type.sub_types[0]);
 			}
-			TYPE_COPY(&value->type, array_val.type.sub_types[0]);
 		}
 		else if (LAST_TOK.type == TOK_PERIOD) {
 			READ_TOK;
@@ -1173,7 +1175,8 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 
 			property = ast_record_find_prop(ast_parser, record_proto, id);
 			PANIC_ON_FAIL(property, ast_parser, ERROR_UNDECLARED);
-			ESCAPE_ON_FAIL(ast_record_sub_prop_type(ast_parser, record_val.type, id, &value->type));
+			typecheck_type_t prop_type;
+			ESCAPE_ON_FAIL(ast_record_sub_prop_type(ast_parser, record_val.type, id, &prop_type));
 
 			if (LAST_TOK.type == TOK_SET) {
 				value->value_type = AST_VALUE_SET_PROP;
@@ -1181,13 +1184,16 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				value->data.set_prop->record = record_val;
 				value->data.set_prop->property = property;
 				READ_TOK;
-				ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.set_prop->value, &value->type, 0, 0));
+				ESCAPE_ON_FAIL(parse_expression(ast_parser, &value->data.set_prop->value, &prop_type, 0, 0));
+				free_typecheck_type(ast_parser->safe_gc, &prop_type);
+				TYPE_COPY(&value->type, value->data.set_prop->value.type);
 			}
 			else {
 				value->value_type = AST_VALUE_GET_PROP;
 				PANIC_ON_FAIL(value->data.get_prop = safe_malloc(ast_parser->safe_gc, sizeof(ast_get_prop_t)), ast_parser, ERROR_MEMORY);
 				value->data.get_prop->record = record_val;
 				value->data.get_prop->property = property;
+				value->type = prop_type;
 			}
 		}
 		else if (LAST_TOK.type == TOK_OPEN_PAREN || (LAST_TOK.type == TOK_LESS && value->type.type == TYPE_SUPER_PROC)) {
