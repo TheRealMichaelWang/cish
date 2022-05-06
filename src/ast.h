@@ -236,7 +236,7 @@ typedef struct ast_record_prop {
 	uint16_t id;
 
 	typecheck_type_t type;
-	int must_init, is_static_loc;
+	int must_init;
 } ast_record_prop_t;
 
 typedef struct ast_alloc_record_init_value {

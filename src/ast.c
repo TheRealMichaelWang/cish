@@ -240,7 +240,6 @@ static ast_record_prop_t* ast_record_decl_prop(ast_parser_t* ast_parser, ast_rec
 	ast_record_prop_t* next_prop = &record->properties[record->property_count];
 	next_prop->hash_id = id;
 	next_prop->id = record->property_count++;
-	next_prop->is_static_loc = 0;
 	return next_prop;
 }
 
@@ -734,8 +733,8 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 					record_proto->default_values[record_proto->default_value_count].property = prop;
 					ESCAPE_ON_FAIL(parse_expression(ast_parser, &record_proto->default_values[record_proto->default_value_count].value, &prop->type, 0, 0));
 
-					record_proto->default_values[record_proto->default_value_count].prop_is_static = prop->is_static_loc;
-					if (prop->is_static_loc)
+					record_proto->default_values[record_proto->default_value_count].prop_is_static = !(prop >= record_proto->properties && prop < (record_proto->properties + record_proto->property_count));
+					if (record_proto->default_values[record_proto->default_value_count].prop_is_static)
 						record_proto->default_values[record_proto->default_value_count].property = prop; //a static property doesn't need special pointer magic
 					else
 						record_proto->default_values[record_proto->default_value_count].property = (void*)(uint64_t)(prop - record_proto->properties); //we need to do this because record_proto->properties may get realloced
@@ -753,8 +752,6 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 						record_proto->default_values[i].prop_is_static = 1;
 					}
 				}
-				for (uint_fast8_t i = 0; i < record_proto->property_count; i++)
-					record_proto->properties[i].is_static_loc = 1;
 				READ_TOK;
 			}
 			else
@@ -913,14 +910,19 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				READ_TOK;
 			}
 
-			typecheck_type_t current_type = value->type;
+			typecheck_type_t current_type;
+			TYPE_COPY(&current_type, value->type);
+			
 			for (; current_proto; current_proto = ast_parser->ast->record_protos[current_type.type_id]) {
 				for (uint_fast16_t i = 0; i < current_proto->default_value_count; i++) {
 					if (!overriden_defaults[current_proto->default_values[i].property->id]) {
 						CHECK_INIT_PROP_LENS;
-
 						value->data.alloc_record.init_values[value->data.alloc_record.init_value_count] = current_proto->default_values[i];
-						ESCAPE_ON_FAIL(ast_record_sub_prop_type(ast_parser, current_type, value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].property->hash_id, &value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value.type));
+
+						//ESCAPE_ON_FAIL(ast_record_sub_prop_type(ast_parser, current_type, value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].property->hash_id, &value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value.type));
+						TYPE_COPY(&value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value.type,  current_proto->default_values[i].value.type);
+						ESCAPE_ON_FAIL(typeargs_substitute(ast_parser->safe_gc, current_type.sub_types,  &value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value.type));
+						
 						overriden_defaults[current_proto->default_values[i].property->id] = 1;
 						value->data.alloc_record.init_value_count++;
 					}
@@ -929,8 +931,13 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 					if (current_proto->properties[i].must_init)
 						PANIC_ON_FAIL(overriden_defaults[current_proto->properties[i].id], ast_parser, ERROR_READ_UNINIT);
 				}
-				if (current_proto->base_record)
+				if (current_proto->base_record){
+					typecheck_type_t next;
+					TYPE_COPY(&next, *current_proto->base_record);
+					ESCAPE_ON_FAIL(typeargs_substitute(ast_parser->safe_gc, current_type.sub_types, &next));
 					current_type = *current_proto->base_record;
+				
+				}
 				else break;
 			}
 			safe_free(ast_parser->safe_gc, overriden_defaults);
