@@ -18,7 +18,9 @@ static int64_t longpow(int64_t base, int64_t exp) {
 }
 
 heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode_t trace_mode) {
-#define CHECK_HEAP_COUNT if (machine->heap_count == machine->alloced_heap_allocs) { \
+#define CHECK_HEAP_COUNT if(machine->heap_count == UINT16_MAX) \
+							PANIC(machine, ERROR_MEMORY); \
+						if (machine->heap_count == machine->alloced_heap_allocs) { \
 							heap_alloc_t** new_heap_allocs = realloc(machine->heap_allocs, (machine->alloced_heap_allocs += 100) * sizeof(heap_alloc_t*)); \
 							PANIC_ON_FAIL(new_heap_allocs, machine, ERROR_MEMORY); \
 							machine->heap_allocs = new_heap_allocs; \
