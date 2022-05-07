@@ -262,7 +262,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 
 		uint16_t sig_id = compiler->target_machine->defined_sig_count;
 		ESCAPE_ON_FAIL(compiler_define_typesig(compiler, proc, value.type));
-		EMIT_INS(INS2(COMPILER_OP_CODE_CONFIG_TYPESIG, compiler->eval_regs[value.id], GLOB_REG(sig_id)));
+		EMIT_INS(INS3(COMPILER_OP_CODE_CONFIG_TYPESIG, compiler->eval_regs[value.id], GLOB_REG(sig_id), GLOB_REG(typecheck_has_type(value.type, TYPE_TYPEARG))));
 
 		for (uint_fast16_t i = 0; i < value.data.alloc_record.init_value_count; i++) {
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.alloc_record.init_values[i].value, proc));
@@ -447,6 +447,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 				EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] + i + 1), compiler->eval_regs[value.data.proc_call->arguments[i].id]));
 		}
 
+		uint16_t type_sigs_to_pop = 0;
 		if (value.data.proc_call->procedure.type.type_id) {
 			uint16_t gen_arg_reg = value.data.proc_call->argument_count + 1 + compiler->proc_call_offsets[value.data.proc_call->id];
 			for (uint_fast8_t i = 0; i < value.data.proc_call->procedure.type.type_id; i++)
@@ -456,13 +457,20 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 					else {
 						uint16_t sig_id = compiler->target_machine->defined_sig_count;
 						ESCAPE_ON_FAIL(compiler_define_typesig(compiler, proc, value.data.proc_call->typeargs[i]));
-						EMIT_INS(INS2(COMPILER_OP_CODE_SET, LOC_REG(gen_arg_reg++), GLOB_REG(sig_id)));
+						if (typecheck_has_type(value.type, TYPE_TYPEARG)) {
+							EMIT_INS(INS3(COMPILER_OP_CODE_SET, LOC_REG(gen_arg_reg++), GLOB_REG(sig_id), GLOB_REG(1)));
+							type_sigs_to_pop++;
+						}
+						else
+							EMIT_INS(INS3(COMPILER_OP_CODE_SET, LOC_REG(gen_arg_reg++), GLOB_REG(sig_id), GLOB_REG(0)));
 					}
 				}
 		}
 
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.proc_call->procedure, proc));
 		EMIT_INS(INS2(COMPILER_OP_CODE_CALL, compiler->eval_regs[value.data.proc_call->procedure.id], GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
+		if (type_sigs_to_pop)
+			EMIT_INS(INS1(COMPILER_OP_CODE_POP_ATOM_TYPESIGS, GLOB_REG(type_sigs_to_pop)));
 		if (compiler->proc_call_offsets[value.data.proc_call->id])
 			EMIT_INS(INS1(COMPILER_OP_CODE_STACK_DEOFFSET, GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
 		break; 
@@ -634,6 +642,7 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 		MACHINE_OP_CODE_FOREIGN_LLL,
 		MACHINE_OP_CODE_MOVE_LL,
 		MACHINE_OP_CODE_SET_L,
+		MACHINE_OP_CODE_POP_ATOM_TYPESIGS,
 		MACHINE_OP_CODE_JUMP,
 		MACHINE_OP_CODE_JUMP_CHECK_L,
 		MACHINE_OP_CODE_CALL_L,
@@ -706,6 +715,7 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 		3, //foreign
 		2, //move
 		0, //set
+		0, //pop atom typesigs
 		0, //jump
 		1, //jump check
 		1, //call
@@ -794,6 +804,7 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 }
 
 static int compile_type_to_machine(machine_type_sig_t* out_sig, typecheck_type_t type, compiler_t* compiler, ast_proc_t* proc) {
+	out_sig->sub_type_count = 0;
 	if (type.type == TYPE_TYPEARG) {
 		out_sig->super_signature = TYPE_TYPEARG;
 		compiler_reg_t info_reg = TYPEARG_INFO_REG(type);
@@ -819,8 +830,6 @@ static int compile_type_to_machine(machine_type_sig_t* out_sig, typecheck_type_t
 		}
 		out_sig->sub_type_count = type.sub_type_count;
 	}
-	else
-		out_sig->sub_type_count = 0;
 
 	return 1;
 }

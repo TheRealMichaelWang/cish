@@ -18,7 +18,9 @@ static const char* opcode_names[] = {
 	"mov(lg)         ",
 	"mov(gl)         ",
 	"mov(ll)         ",
+
 	"set(l)          ",
+	"popatomtsig(l)  ",
 
 	"jmp             ",
 	"jmpcheck(l)     ",

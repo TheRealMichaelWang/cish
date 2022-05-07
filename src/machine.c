@@ -18,21 +18,25 @@ static int64_t longpow(int64_t base, int64_t exp) {
 }
 
 heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode_t trace_mode) {
-	if (machine->heap_count == machine->alloced_heap_allocs) {
-		heap_alloc_t** new_heap_allocs = realloc(machine->heap_allocs, (machine->alloced_heap_allocs += 100) * sizeof(heap_alloc_t*));
-		PANIC_ON_FAIL(new_heap_allocs, machine, ERROR_MEMORY);
-		machine->heap_allocs = new_heap_allocs;
-	}
+#define CHECK_HEAP_COUNT if (machine->heap_count == machine->alloced_heap_allocs) { \
+							heap_alloc_t** new_heap_allocs = realloc(machine->heap_allocs, (machine->alloced_heap_allocs += 100) * sizeof(heap_alloc_t*)); \
+							PANIC_ON_FAIL(new_heap_allocs, machine, ERROR_MEMORY); \
+							machine->heap_allocs = new_heap_allocs; \
+						}
 
 	heap_alloc_t* heap_alloc;
 	if (machine->freed_heap_count) {
 		heap_alloc = machine->freed_heap_allocs[--machine->freed_heap_count];
-		if(!heap_alloc->reg_with_table)
+		if (!heap_alloc->reg_with_table) {
+			CHECK_HEAP_COUNT;
 			machine->heap_allocs[machine->heap_count++] = heap_alloc;
+			heap_alloc->reg_with_table = 1;
+		}
 	}
 	else {
 		heap_alloc = malloc(sizeof(heap_alloc_t));
 		PANIC_ON_FAIL(heap_alloc, machine, ERROR_MEMORY);
+		CHECK_HEAP_COUNT;
 		machine->heap_allocs[machine->heap_count++] = heap_alloc;
 		heap_alloc->reg_with_table = 1;
 	}
@@ -42,11 +46,35 @@ heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode
 	heap_alloc->trace_mode = trace_mode;
 	heap_alloc->type_sig = NULL;
 	PANIC_ON_FAIL(heap_alloc, machine, ERROR_MEMORY);
-	PANIC_ON_FAIL(heap_alloc->registers = malloc(req_size * sizeof(machine_reg_t)), machine, ERROR_MEMORY);
-	PANIC_ON_FAIL(heap_alloc->init_stat = calloc(req_size, sizeof(int)), machine, ERROR_MEMORY);
-	if (trace_mode == GC_TRACE_MODE_SOME)
-		PANIC_ON_FAIL(heap_alloc->trace_stat = malloc(req_size * sizeof(int)), machine, ERROR_MEMORY);
+	if (req_size) {
+		PANIC_ON_FAIL(heap_alloc->registers = malloc(req_size * sizeof(machine_reg_t)), machine, ERROR_MEMORY);
+		PANIC_ON_FAIL(heap_alloc->init_stat = calloc(req_size, sizeof(int)), machine, ERROR_MEMORY);
+		if (trace_mode == GC_TRACE_MODE_SOME)
+			PANIC_ON_FAIL(heap_alloc->trace_stat = malloc(req_size * sizeof(int)), machine, ERROR_MEMORY);
+	}
 	return heap_alloc;
+#undef CHECK_HEAP_COUNT
+}
+
+static void free_defined_signature(machine_type_sig_t* type_sig) {
+	if (type_sig->super_signature != TYPE_TYPEARG && type_sig->sub_type_count) {
+		for (uint_fast8_t i = 0; i < type_sig->sub_type_count; i++)
+			free_defined_signature(&type_sig->sub_types[i]);
+		free(type_sig->sub_types);
+	}
+}
+
+static void free_heap_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
+	if (heap_alloc->limit) {
+		free(heap_alloc->registers);
+		free(heap_alloc->init_stat);
+		if (heap_alloc->trace_mode == GC_TRACE_MODE_SOME)
+			free(heap_alloc->trace_stat);
+	}
+	if (heap_alloc->type_sig && !(heap_alloc->type_sig >= machine->defined_signatures && heap_alloc->type_sig < (machine->defined_signatures + machine->defined_sig_count))) {
+		free_defined_signature(heap_alloc->type_sig);
+		free(heap_alloc->type_sig);
+	}
 }
 
 int free_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
@@ -61,15 +89,14 @@ int free_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
 				ESCAPE_ON_FAIL(free_alloc(machine, heap_alloc->registers[i].heap_alloc));
 		break;
 	case GC_TRACE_MODE_SOME:
-		for(uint_fast16_t i = 0; i < heap_alloc->limit; i++)
-			if(heap_alloc->init_stat[i] && heap_alloc->trace_stat[i])
-				ESCAPE_ON_FAIL(free_alloc(machine, heap_alloc->registers[i].heap_alloc));
-		free(heap_alloc->trace_stat);
+		if (heap_alloc->limit) {
+			for (uint_fast16_t i = 0; i < heap_alloc->limit; i++)
+				if (heap_alloc->init_stat[i] && heap_alloc->trace_stat[i])
+					ESCAPE_ON_FAIL(free_alloc(machine, heap_alloc->registers[i].heap_alloc));
+		}
 		break;
 	}
-
-	free(heap_alloc->registers);
-	free(heap_alloc->init_stat);
+	free_heap_alloc(machine, heap_alloc);
 
 	if (machine->freed_heap_count == machine->alloc_freed_heaps) {
 		heap_alloc_t** new_freed_heaps = realloc(machine->freed_heap_allocs, (machine->alloc_freed_heaps += 10) * sizeof(heap_alloc_t*));
@@ -151,6 +178,21 @@ super_sig_check_ok:
 	return 1;
 }
 
+//makes a copy of a type signature, given a prototype defined signature which may contain context dependent type parameters that may escape
+static int atomize_heap_type_sig(machine_t* machine, machine_type_sig_t prototype, machine_type_sig_t* output) {
+	if (prototype.super_signature == TYPE_TYPEARG)
+		return atomize_heap_type_sig(machine, machine->defined_signatures[machine->stack[prototype.sub_type_count + machine->global_offset].long_int], output);
+	else {
+		output->super_signature = prototype.super_signature;
+		if (output->sub_type_count = prototype.sub_type_count) {
+			PANIC_ON_FAIL(output->sub_types = malloc(prototype.sub_type_count * sizeof(machine_type_sig_t)), machine, ERROR_MEMORY);
+			for (uint_fast8_t i = 0; i < output->sub_type_count; i++)
+				ESCAPE_ON_FAIL(atomize_heap_type_sig(machine, prototype.sub_types[i], &output->sub_types[i]));
+		}
+		return 1;
+	}
+}
+
 int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit, uint16_t type_count) {
 	machine->frame_limit = frame_limit;
 
@@ -176,14 +218,6 @@ int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit, 
 	ESCAPE_ON_FAIL(init_ffi(&machine->ffi_table));
 	ESCAPE_ON_FAIL(dynamic_library_init(machine->dynamic_library_table));
 	return 1;
-}
-
-static void free_defined_signature(machine_type_sig_t* type_sig) {
-	if (type_sig->super_signature >= TYPE_SUPER_PROC && type_sig->sub_type_count) {
-		for (uint_fast8_t i = 0; i < type_sig->sub_type_count; i++)
-			free_defined_signature(&type_sig->sub_types[i]);
-		free(type_sig->sub_types);
-	}
 }
 
 void free_machine(machine_t* machine) {
@@ -219,11 +253,8 @@ machine_type_sig_t* new_type_sig(machine_t* machine) {
 #define MACHINE_PANIC(ERR) {machine->last_err_ip = ip - instructions; PANIC(machine, ERR); };
 int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 	machine_ins_t* ip = instructions;
-	for (;;) {
-		if (ip - instructions == 69) {//165) {
-			int sadd = 23;
-		}
 
+	for (;;) {
 		switch (ip->op_code) {
 		case MACHINE_OP_CODE_MOVE_LL:
 			machine->stack[ip->a + machine->global_offset] = machine->stack[ip->b + machine->global_offset];
@@ -238,8 +269,24 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			machine->stack[ip->a] = machine->stack[ip->b];
 			break;
 		case MACHINE_OP_CODE_SET_L:
-			machine->stack[ip->a + machine->global_offset].long_int = ip->b;
+			if (ip->c) {
+				machine->stack[ip->a + machine->global_offset].long_int = machine->defined_sig_count;
+				machine_type_sig_t* type_sig = new_type_sig(machine);
+				MACHINE_ESCAPE_COND(type_sig);
+				MACHINE_ESCAPE_COND(atomize_heap_type_sig(machine, machine->defined_signatures[ip->b], type_sig));
+			}
+			else
+				machine->stack[ip->a + machine->global_offset].long_int = ip->b;
 			break;
+		case MACHINE_OP_CODE_POP_ATOM_TYPESIGS: {
+			if (ip->a > machine->defined_sig_count)
+				MACHINE_PANIC(ERROR_STACK_OVERFLOW);
+			machine_type_sig_t* end = &machine->defined_signatures[machine->defined_sig_count - ip->a];
+			for (machine_type_sig_t* begin = &machine->defined_signatures[machine->defined_sig_count - 1]; begin >= end; --begin)
+				free_defined_signature(begin);
+			machine->defined_sig_count -= ip->a;
+			break;
+		}
 		case MACHINE_OP_CODE_JUMP:
 			ip = &instructions[ip->a];
 			continue;
@@ -502,9 +549,10 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 		case MACHINE_OP_CODE_DYNAMIC_FREE_LL:
 			if (!(machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int].super_signature >= TYPE_SUPER_ARRAY))
 				break;
-		case MACHINE_OP_CODE_FREE_L:
+		case MACHINE_OP_CODE_FREE_L: {
 			MACHINE_ESCAPE_COND(free_alloc(machine, machine->stack[ip->a + machine->global_offset].heap_alloc));
-			break;
+			break; 
+		}
 		case MACHINE_OP_CODE_FREE_G:
 			MACHINE_ESCAPE_COND(free_alloc(machine, machine->stack[ip->a].heap_alloc));
 			break;
@@ -564,11 +612,8 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 					else if ((*current_alloc)->pre_freed)
 						(*current_alloc)->reg_with_table = 0;
 					else {
-						free((*current_alloc)->registers);
-						free((*current_alloc)->init_stat);
-						if ((*current_alloc)->trace_mode == GC_TRACE_MODE_SOME)
-							free((*current_alloc)->trace_stat);
-						free((*current_alloc));
+						free_heap_alloc(machine, *current_alloc);
+						free(*current_alloc);
 					}
 				}
 				machine->heap_count = frame_start - machine->heap_allocs;
@@ -577,14 +622,10 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 					reset_stack[i]->gc_flag = 0;
 			}
 			else {
-				for (heap_alloc_t** current_alloc = frame_start; current_alloc != frame_end; current_alloc++)
-					if (!(*current_alloc)->pre_freed) {
-						free((*current_alloc)->registers);
-						free((*current_alloc)->init_stat);
-						if ((*current_alloc)->trace_mode == GC_TRACE_MODE_SOME)
-							free((*current_alloc)->trace_stat);
-						free((*current_alloc));
-					}
+				for (heap_alloc_t** current_alloc = frame_start; current_alloc != frame_end; current_alloc++) {
+					free_heap_alloc(machine, *current_alloc);
+					free(*current_alloc);
+				}
 				machine->heap_count = 0;
 			}
 			break;
@@ -1380,12 +1421,22 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 		case MACHINE_OP_CODE_TYPE_RELATE:
 			machine->type_table[ip->a] = ip->b;
 			break;
+		{
+			heap_alloc_t* heap_alloc;
 		case MACHINE_OP_CODE_CONFIG_TYPESIG_L:
-			machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig = &machine->defined_signatures[ip->b];
-			break;
+			heap_alloc = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			goto final_config_typesig;
 		case MACHINE_OP_CODE_CONFIG_TYPESIG_G:
-			machine->stack[ip->a].heap_alloc->type_sig = &machine->defined_signatures[ip->b];
-			break;
+			heap_alloc = machine->stack[ip->a].heap_alloc;
+		final_config_typesig:
+			if (ip->c) {
+				MACHINE_PANIC_COND(heap_alloc->type_sig = malloc(sizeof(machine_type_sig_t)), ERROR_MEMORY);
+				MACHINE_ESCAPE_COND(atomize_heap_type_sig(machine, machine->defined_signatures[ip->b], heap_alloc->type_sig));
+			}
+			else
+				heap_alloc->type_sig = &machine->defined_signatures[ip->b];
+			break; 
+		}
 		case MACHINE_OP_CODE_RUNTIME_TYPECHECK_LL:
 			machine->stack[ip->b + machine->global_offset].bool_flag = type_signature_match(machine, *machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig, machine->defined_signatures[ip->c]);
 			break;
