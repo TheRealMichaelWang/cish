@@ -79,6 +79,16 @@ static void free_heap_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
 	}
 }
 
+static int recycle_heap_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
+	if (machine->freed_heap_count == machine->alloc_freed_heaps) {
+		heap_alloc_t** new_freed_heaps = realloc(machine->freed_heap_allocs, (machine->alloc_freed_heaps += 10) * sizeof(heap_alloc_t*));
+		PANIC_ON_FAIL(new_freed_heaps, machine, ERROR_MEMORY);
+		machine->freed_heap_allocs = new_freed_heaps;
+	}
+	machine->freed_heap_allocs[machine->freed_heap_count++] = heap_alloc;
+	return 1;
+}
+
 int free_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
 	if (heap_alloc->pre_freed || heap_alloc->gc_flag)
 		return 1;
@@ -99,14 +109,7 @@ int free_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
 		break;
 	}
 	free_heap_alloc(machine, heap_alloc);
-
-	if (machine->freed_heap_count == machine->alloc_freed_heaps) {
-		heap_alloc_t** new_freed_heaps = realloc(machine->freed_heap_allocs, (machine->alloc_freed_heaps += 10) * sizeof(heap_alloc_t*));
-		PANIC_ON_FAIL(new_freed_heaps, machine, ERROR_MEMORY);
-		machine->freed_heap_allocs = new_freed_heaps;
-	}
-	machine->freed_heap_allocs[machine->freed_heap_count++] = heap_alloc;
-	return 1;
+	return recycle_heap_alloc(machine, heap_alloc);
 }
 
 static void machine_heap_supertrace(machine_t* machine, heap_alloc_t* heap_alloc) {
@@ -615,7 +618,9 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 						(*current_alloc)->reg_with_table = 0;
 					else {
 						free_heap_alloc(machine, *current_alloc);
-						free(*current_alloc);
+						(*current_alloc)->reg_with_table = 0;
+						ESCAPE_ON_FAIL(recycle_heap_alloc(machine, *current_alloc));
+						//free(*current_alloc);
 					}
 				}
 				machine->heap_count = frame_start - machine->heap_allocs;
