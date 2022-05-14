@@ -42,5 +42,4 @@ typedef enum postproc_parent_status {
 
 int ast_postproc(ast_parser_t* ast_parser);
 int ast_postproc_link_record(ast_parser_t* ast_parser, ast_record_proto_t* record, uint16_t* out);
-
 #endif // !POSTPROC_H

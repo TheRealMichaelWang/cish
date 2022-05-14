@@ -224,6 +224,33 @@ int ast_record_sub_prop_type(ast_parser_t* ast_parser, typecheck_type_t record_t
 	PANIC(ast_parser, ERROR_UNDECLARED);
 }
 
+int substitute_value_types(ast_parser_t* ast_parser, ast_value_t input_val, typecheck_type_t* input_typeargs, ast_value_t* output_val) {
+	*output_val = input_val;
+	TYPE_COPY(&output_val->type, input_val.type);
+	ESCAPE_ON_FAIL(typeargs_substitute(ast_parser->safe_gc, input_typeargs, &output_val->type));
+
+	switch (output_val->value_type)
+	{
+	case AST_VALUE_ALLOC_ARRAY:
+		output_val->data.alloc_array->elem_type = output_val->type.sub_types;
+		break;
+	case AST_VALUE_ARRAY_LITERAL:
+		output_val->data.array_literal.elem_type = output_val->type.sub_types;
+		PANIC_ON_FAIL(output_val->data.array_literal.elements = safe_malloc(ast_parser->safe_gc, input_val.data.array_literal.element_count * sizeof(ast_value_t)), ast_parser, ERROR_MEMORY);
+		for (uint_fast16_t i = 0; i < input_val.data.array_literal.element_count; i++)
+			ESCAPE_ON_FAIL(substitute_value_types(ast_parser, input_val.data.array_literal.elements[i], input_typeargs, &output_val->data.array_literal.elements[i]));
+		break;
+	case AST_VALUE_ALLOC_RECORD:
+		PANIC_ON_FAIL(output_val->data.alloc_record.init_values = safe_malloc(ast_parser->safe_gc, input_val.data.alloc_record.init_value_count * sizeof(ast_alloc_record_init_value_t)), ast_parser, ERROR_MEMORY);
+		for (uint_fast16_t i = 0; i < input_val.data.alloc_record.init_value_count; i++) {
+			output_val->data.alloc_record.init_values[i] = input_val.data.alloc_record.init_values[i];
+			ESCAPE_ON_FAIL(substitute_value_types(ast_parser, input_val.data.alloc_record.init_values[i].value, input_typeargs, &output_val->data.alloc_record.init_values[i].value));
+		}
+		break;
+	}
+	return 1;
+}
+
 static ast_record_prop_t* ast_record_decl_prop(ast_parser_t* ast_parser, ast_record_proto_t* record, uint64_t id) {
 	if (record->fully_defined)
 		PANIC(ast_parser, ERROR_READONLY);
@@ -919,10 +946,11 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 						CHECK_INIT_PROP_LENS;
 						value->data.alloc_record.init_values[value->data.alloc_record.init_value_count] = current_proto->default_values[i];
 
-						//ESCAPE_ON_FAIL(ast_record_sub_prop_type(ast_parser, current_type, value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].property->hash_id, &value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value.type));
-						TYPE_COPY(&value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value.type,  current_proto->default_values[i].value.type);
-						ESCAPE_ON_FAIL(typeargs_substitute(ast_parser->safe_gc, current_type.sub_types,  &value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value.type));
+						//TYPE_COPY(&value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value.type,  current_proto->default_values[i].value.type);
+						//ESCAPE_ON_FAIL(typeargs_substitute(ast_parser->safe_gc, current_type.sub_types,  &value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value.type));
 						
+						ESCAPE_ON_FAIL(substitute_value_types(ast_parser, current_proto->default_values[i].value, current_type.sub_types, &value->data.alloc_record.init_values[value->data.alloc_record.init_value_count].value));
+
 						overriden_defaults[current_proto->default_values[i].property->id] = 1;
 						value->data.alloc_record.init_value_count++;
 					}
@@ -936,7 +964,6 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 					TYPE_COPY(&next, *current_proto->base_record);
 					ESCAPE_ON_FAIL(typeargs_substitute(ast_parser->safe_gc, current_type.sub_types, &next));
 					current_type = *current_proto->base_record;
-				
 				}
 				else break;
 			}

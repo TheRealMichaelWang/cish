@@ -189,7 +189,7 @@ static int atomize_heap_type_sig(machine_t* machine, machine_type_sig_t prototyp
 		return atomize_heap_type_sig(machine, machine->defined_signatures[machine->stack[prototype.sub_type_count + machine->global_offset].long_int], output);
 	else {
 		output->super_signature = prototype.super_signature;
-		if (output->sub_type_count = prototype.sub_type_count) {
+		if ((output->sub_type_count = prototype.sub_type_count)) {
 			PANIC_ON_FAIL(output->sub_types = malloc(prototype.sub_type_count * sizeof(machine_type_sig_t)), machine, ERROR_MEMORY);
 			for (uint_fast8_t i = 0; i < output->sub_type_count; i++)
 				ESCAPE_ON_FAIL(atomize_heap_type_sig(machine, prototype.sub_types[i], &output->sub_types[i]));
@@ -212,7 +212,7 @@ int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit, 
 
 	ESCAPE_ON_FAIL(machine->stack = malloc(stack_size * sizeof(machine_reg_t)));
 	ESCAPE_ON_FAIL(machine->positions = malloc(machine->frame_limit * sizeof(machine_ins_t*)));
-	ESCAPE_ON_FAIL(machine->heap_allocs = malloc((machine->alloced_heap_allocs = 1000) * sizeof(heap_alloc_t*)));
+	ESCAPE_ON_FAIL(machine->heap_allocs = malloc((machine->alloced_heap_allocs = frame_limit) * sizeof(heap_alloc_t*)));
 	ESCAPE_ON_FAIL(machine->heap_traces = malloc((machine->alloced_trace_allocs = 128) * sizeof(heap_alloc_t*)));
 	ESCAPE_ON_FAIL(machine->heap_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
 	ESCAPE_ON_FAIL(machine->trace_frame_bounds = malloc(machine->frame_limit * sizeof(uint16_t)));
