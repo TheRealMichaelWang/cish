@@ -1,0 +1,50 @@
+abstract record node<elemType>
+
+final record empty_node<elemType> extends node<elemType>
+final record elem_node<elemType> extends node<elemType> {
+	mustinit node<elemType> next = new empty_node<elemType>;
+	mustinit elemType elem;
+}
+
+final record list<elemType> {
+	mustinit node<elemType> head = new empty_node<elemType>;
+	elem_node<elemType> append_tail;
+}
+
+global readonly auto append = proc<elemType>(list<elemType> l, elemType elem) return elem_node<elemType>{
+	if(l.head is empty_node<any>) {
+		return l.append_tail = l.head = new elem_node<elemType> {
+			elem = elem;
+		};
+	}
+	else {
+		return l.append_tail = (l.append_tail.next =
+			new elem_node<elemType> {
+				elem = elem;
+			});
+	}
+};
+
+global readonly auto forall = proc<elemType>(list<elemType> l, proc<nothing, elemType> repeatFunc) return nothing {
+	node<elemType> current = l.head;
+	while(current is elem_node<any>) {
+		auto elem_node = dynamic_cast<elem_node<elemType>>(current);
+		repeatFunc(elem_node.elem);
+		current = elem_node.next;
+	}
+	return; 
+};
+
+list<int> list = new list<int>;
+int i = 0;
+while(i < 10000) {
+	append<int>(list, i);
+	i = i + 1;
+}
+
+$include "io.txt";
+$include "string.txt";
+$forall<int>(list, proc(int i) return nothing {
+$	println(itos(i));
+$	return;
+$});
