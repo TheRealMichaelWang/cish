@@ -154,6 +154,7 @@ typedef struct ast_binary_op {
 } ast_binary_op_t;
 
 typedef struct ast_unary_op {
+	int is_postfix;
 	token_type_t operator;
 	ast_value_t operand;
 } ast_unary_op;

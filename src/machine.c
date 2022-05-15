@@ -630,8 +630,10 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			}
 			else {
 				for (heap_alloc_t** current_alloc = frame_start; current_alloc != frame_end; current_alloc++) {
-					free_heap_alloc(machine, *current_alloc);
-					free(*current_alloc);
+					if (!(*current_alloc)->pre_freed) {
+						free_heap_alloc(machine, *current_alloc);
+						free(*current_alloc);
+					}
 				}
 				machine->heap_count = 0;
 			}
@@ -1364,6 +1366,30 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions) {
 			break;
 		case MACHINE_OP_CODE_FLOAT_NEGATE_GG:
 			machine->stack[ip->a].float_int = -machine->stack[ip->b].float_int;
+			break;
+		case MACHINE_OP_CODE_LONG_INCREMENT_L:
+			++machine->stack[ip->a + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_INCREMENT_G:
+			++machine->stack[ip->a].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_DECREMENT_L:
+			--machine->stack[ip->a + machine->global_offset].long_int;
+			break;
+		case MACHINE_OP_CODE_LONG_DECREMENT_G:
+			--machine->stack[ip->a].long_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_INCREMENT_L:
+			++machine->stack[ip->a + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_INCREMENT_G:
+			++machine->stack[ip->a].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_DECREMENT_L:
+			--machine->stack[ip->a + machine->global_offset].float_int;
+			break;
+		case MACHINE_OP_CODE_FLOAT_DECREMENT_G:
+			--machine->stack[ip->a].float_int;
 			break;
 		case MACHINE_OP_CODE_ABORT:
 			if (ip->a == ERROR_NONE)

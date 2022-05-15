@@ -195,9 +195,19 @@ int scanner_scan_tok(scanner_t* scanner) {
 		case ';':
 			RETURN(TOK_SEMICOLON);
 		case '+':
-			RETURN(TOK_ADD)
+			if (scanner_peek_char(scanner) == '+') {
+				scanner_read_char(scanner);
+				RETURN(TOK_INCREMENT);
+			}
+			else
+				RETURN(TOK_ADD);
 		case '-':
-			RETURN(TOK_SUBTRACT)
+			if (scanner_peek_char(scanner) == '-') {
+				scanner_read_char(scanner);
+				RETURN(TOK_DECREMENT);
+			}
+			else
+				RETURN(TOK_SUBTRACT)
 		case '*':
 			RETURN(TOK_MULTIPLY)
 		case '/':

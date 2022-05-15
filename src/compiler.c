@@ -398,11 +398,24 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 	}
 	case AST_VALUE_UNARY_OP:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.unary_op->operand, proc));
+		int type_offset = value.type.type - TYPE_PRIMITIVE_LONG;
 		if (value.data.unary_op->operator == TOK_SUBTRACT)
-			EMIT_INS(INS2(COMPILER_OP_CODE_LONG_NEGATE + value.type.type - TYPE_PRIMITIVE_LONG, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]))
-		else
-			EMIT_INS(INS2(COMPILER_OP_CODE_NOT + value.data.unary_op->operator - TOK_NOT, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]));
-		
+			EMIT_INS(INS2(COMPILER_OP_CODE_LONG_NEGATE + type_offset, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]))
+		else if(value.data.unary_op->operator <= TOK_HASHTAG)
+			EMIT_INS(INS2(COMPILER_OP_CODE_NOT + value.data.unary_op->operator - TOK_NOT, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]))
+		else {
+			type_offset *= 2;
+			int op_offset = value.data.unary_op->operator == TOK_DECREMENT;
+			if (value.data.unary_op->is_postfix) {
+				EMIT_INS(INS1(COMPILER_OP_CODE_LONG_INCREMENT + type_offset + op_offset, compiler->eval_regs[value.data.unary_op->operand.id]));
+				EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]));
+			}
+			else {
+				EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]));
+				EMIT_INS(INS1(COMPILER_OP_CODE_LONG_INCREMENT + type_offset + op_offset, compiler->eval_regs[value.data.unary_op->operand.id]));
+			}
+		}
+
 		ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.unary_op->operand, proc));
 		break;
 	case AST_VALUE_TYPE_OP: {
@@ -514,12 +527,12 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 	}
 	else {
 		uint16_t escape_jump_count = 0;
-		ast_cond_t* count_cond = conditional;
-		while (count_cond) {
-			if (count_cond->condition)
+
+		for (ast_cond_t* count_cond = conditional; count_cond; count_cond = count_cond->next_if_false) {
+			if (count_cond->next_if_false)
 				escape_jump_count++;
-			count_cond = count_cond->next_if_false;
 		}
+
 		uint16_t* escape_jumps = safe_malloc(compiler->safe_gc, escape_jump_count * sizeof(uint16_t));
 		PANIC_ON_FAIL(escape_jumps, compiler, ERROR_MEMORY);
 		uint16_t current_escape_jump = 0;
@@ -530,7 +543,7 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 				EMIT_INS(INS1(COMPILER_OP_CODE_JUMP_CHECK, compiler->eval_regs[conditional->condition->id]));
 				ESCAPE_ON_FAIL(compile_value_free(compiler, *conditional->condition, proc));
 				ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, continue_ip, break_jumps, break_jump_top));
-				if (current_escape_jump != escape_jump_count) {
+				if (conditional->next_if_false) {
 					escape_jumps[current_escape_jump++] = compiler->ins_builder.instruction_count;
 					EMIT_INS(INS0(COMPILER_OP_CODE_JUMP));
 				}
@@ -541,7 +554,7 @@ static int compile_conditional(compiler_t* compiler, ast_cond_t* conditional, as
 				ESCAPE_ON_FAIL(compile_code_block(compiler, conditional->exec_block, proc, continue_ip, break_jumps, break_jump_top));
 			conditional = conditional->next_if_false;
 		}
-		for (uint_fast16_t i = 0; i < escape_jump_count; i++)
+		for (uint_fast16_t i = 0; i < current_escape_jump; i++)
 			compiler->ins_builder.instructions[escape_jumps[i]].regs[0] = GLOB_REG(compiler->ins_builder.instruction_count);
 		safe_free(compiler->safe_gc, escape_jumps);
 	}
@@ -698,6 +711,10 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 		MACHINE_OP_CODE_FLOAT_EXPONENTIATE_LLL,
 		MACHINE_OP_CODE_LONG_NEGATE_LL,
 		MACHINE_OP_CODE_FLOAT_NEGATE_LL,
+		MACHINE_OP_CODE_LONG_INCREMENT_L,
+		MACHINE_OP_CODE_LONG_DECREMENT_L,
+		MACHINE_OP_CODE_FLOAT_INCREMENT_L,
+		MACHINE_OP_CODE_FLOAT_DECREMENT_L,
 		MACHINE_OP_CODE_TYPE_RELATE,
 		MACHINE_OP_CODE_CONFIG_TYPESIG_L,
 		MACHINE_OP_CODE_RUNTIME_TYPECHECK_LL,
@@ -774,6 +791,10 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 
 		2, //long negate
 		2, //float negate
+		1, //long inc
+		1, //long dec
+		1, //float inc
+		1, //float dec
 
 		0, //relate
 		1, //config type signature
@@ -789,6 +810,10 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 	};
 	
 	for (uint_fast64_t i = 0; i < ins_count; i++) {
+		if (compiler_ins[i].op_code == COMPILER_OP_CODE_LONG_DECREMENT) {
+			int asd = 123;
+		}
+
 		uint8_t ins_offset = 0;
 		uint8_t reg_ops = reg_operands[compiler_ins[i].op_code];
 		for (uint_fast8_t j = 0; j < reg_ops; j++)
