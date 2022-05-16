@@ -407,12 +407,12 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 			type_offset *= 2;
 			int op_offset = value.data.unary_op->operator == TOK_DECREMENT;
 			if (value.data.unary_op->is_postfix) {
-				EMIT_INS(INS1(COMPILER_OP_CODE_LONG_INCREMENT + type_offset + op_offset, compiler->eval_regs[value.data.unary_op->operand.id]));
 				EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]));
+				EMIT_INS(INS1(COMPILER_OP_CODE_LONG_INCREMENT + type_offset + op_offset, compiler->eval_regs[value.data.unary_op->operand.id]));
 			}
 			else {
-				EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]));
 				EMIT_INS(INS1(COMPILER_OP_CODE_LONG_INCREMENT + type_offset + op_offset, compiler->eval_regs[value.data.unary_op->operand.id]));
+				EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]));
 			}
 		}
 
