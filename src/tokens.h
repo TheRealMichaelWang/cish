@@ -66,6 +66,7 @@ typedef enum token_type {
 
 	TOK_AND,
 	TOK_OR,
+
 	TOK_NOT,
 	TOK_HASHTAG,
 	TOK_INCREMENT,

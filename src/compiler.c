@@ -121,7 +121,15 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		break;
 	case AST_VALUE_UNARY_OP:
 		allocate_value_regs(compiler, value.data.unary_op->operand, current_reg, NULL);
-		break;
+		if ((value.data.unary_op->operator == TOK_INCREMENT || value.data.unary_op->operator == TOK_DECREMENT) && !value.data.unary_op->is_postfix) {
+			compiler->eval_regs[value.id] = compiler->eval_regs[value.data.unary_op->operand.id];
+			compiler->move_eval[value.id] = compiler->move_eval[value.data.unary_op->operand.id];
+		}
+		else {
+			compiler->eval_regs[value.id] = target_reg ? *target_reg : LOC_REG(current_reg++);
+			compiler->move_eval[value.id] = 0;
+		}
+		return current_reg;
 	case AST_VALUE_TYPE_OP:
 		allocate_value_regs(compiler, value.data.type_op->operand, current_reg, NULL);
 		break;
@@ -203,7 +211,7 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 			break;
 		}
 		case AST_STATEMENT_VALUE: {
-      compiler_reg_t local_scratchpad = LOC_REG(0);
+			compiler_reg_t local_scratchpad = LOC_REG(0);
 			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, &local_scratchpad);
 			break;
 		}
@@ -410,10 +418,8 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 				EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]));
 				EMIT_INS(INS1(COMPILER_OP_CODE_LONG_INCREMENT + type_offset + op_offset, compiler->eval_regs[value.data.unary_op->operand.id]));
 			}
-			else {
+			else
 				EMIT_INS(INS1(COMPILER_OP_CODE_LONG_INCREMENT + type_offset + op_offset, compiler->eval_regs[value.data.unary_op->operand.id]));
-				EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]));
-			}
 		}
 
 		ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.unary_op->operand, proc));
