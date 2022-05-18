@@ -203,18 +203,15 @@ static int ast_postproc_value_affects_state(int affects_state, ast_value_t* valu
 		CHECK_AFFECTS_STATE(affects_state, &value->data.binary_op->rhs);
 		break;
 	case AST_VALUE_UNARY_OP:
-		CHECK_AFFECTS_STATE(affects_state, &value->data.unary_op->operand);
 		if ((value->data.unary_op->operator == TOK_INCREMENT || value->data.unary_op->operator == TOK_DECREMENT)) {
 			ast_var_info_t* var_info;
 			if (value->data.unary_op->operand.value_type == AST_VALUE_SET_VAR)
 				var_info = value->data.unary_op->operand.data.set_var->var_info;
 			else
 				var_info = value->data.unary_op->operand.data.variable;
-			if (var_info->is_used && !value->affects_state) {
-				value->affects_state = 1;
-				changes_made = 1;
-			}
+			value->affects_state = var_info->is_used;
 		}
+		CHECK_AFFECTS_STATE(affects_state || value->affects_state, &value->data.unary_op->operand);
 		break;
 	case AST_VALUE_TYPE_OP:
 		CHECK_AFFECTS_STATE(affects_state, &value->data.type_op->operand);
@@ -263,7 +260,7 @@ static int ast_postproc_codeblock_affects_state(ast_code_block_t* code_block, in
 			break;
 		}
 		case AST_STATEMENT_VALUE:
-			CHECK_AFFECTS_STATE(ast_postproc_value_affects_state(current_statement->data.value.affects_state, &current_statement->data.value, second_pass));
+			CHECK_AFFECTS_STATE(ast_postproc_value_affects_state(0, &current_statement->data.value, second_pass));
 			break;
 		case AST_STATEMENT_RETURN_VALUE:
 			CHECK_AFFECTS_STATE(ast_postproc_value_affects_state(1, &current_statement->data.value, second_pass));
@@ -764,7 +761,7 @@ int ast_postproc(ast_parser_t* ast_parser) {
 	for (uint_fast8_t i = 0; i < ast_parser->ast->record_count; i++)
 		ESCAPE_ON_FAIL(ast_postproc_link_record(ast_parser, ast_parser->ast->record_protos[i], NULL));
 
-	mark_code_block_no_affects_state(&ast_parser->ast->exec_block);
+	//mark_code_block_no_affects_state(&ast_parser->ast->exec_block);
 	while (ast_postproc_codeblock_affects_state(&ast_parser->ast->exec_block, 0)) {}
 
 	//allocate memory used for analysis

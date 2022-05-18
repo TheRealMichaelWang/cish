@@ -619,6 +619,7 @@ static int parse_statment(ast_parser_t* ast_parser, ast_statement_t* statement, 
 		ast_statement_t* added_statement = ast_code_block_append(ast_parser, &statement->data.conditional->exec_block);
 		ESCAPE_ON_FAIL(added_statement);
 		*added_statement = next_statment;
+		ast_parser_close_frame(ast_parser);
 
 		statement->data.conditional->next_if_true = statement->data.conditional;
 		statement->data.conditional->next_if_false = NULL;
@@ -842,9 +843,11 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 	code_block->instruction_count = 0;
 	if (is_not_top_lvl) {
 		if (LAST_TOK.type != TOK_OPEN_BRACE) {
+		ast_statement_t state_buf;
+			ESCAPE_ON_FAIL(parse_statment(ast_parser, &state_buf, code_block, in_loop));
 			ast_statement_t* statement = ast_code_block_append(ast_parser, code_block);
 			ESCAPE_ON_FAIL(statement);
-			ESCAPE_ON_FAIL(parse_statment(ast_parser, statement, code_block, in_loop));
+			*statement = state_buf;
 			return 1;
 		}
 		else
