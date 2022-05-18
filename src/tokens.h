@@ -23,6 +23,7 @@ typedef enum token_type {
 	TOK_IF,
 	TOK_ELSE,
 	TOK_WHILE,
+	TOK_FOR,
 
 	TOK_NEW,
 	TOK_RETURN,

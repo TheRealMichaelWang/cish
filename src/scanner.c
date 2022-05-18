@@ -117,6 +117,8 @@ int scanner_scan_tok(scanner_t* scanner) {
 			RETURN(TOK_ELSE);
 		case 210732529790: //while
 			RETURN(TOK_WHILE);
+		case 193491852: //for
+			RETURN(TOK_FOR);
 		case 6953974653989:
 			RETURN(TOK_RETURN);
 		case 6385737701: //true
