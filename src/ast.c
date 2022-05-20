@@ -758,13 +758,26 @@ static int parse_statment(ast_parser_t* ast_parser, ast_statement_t* statement, 
 			PANIC_ON_FAIL(record_proto->default_values = safe_malloc(ast_parser->safe_gc, allocated_defaults * sizeof(ast_alloc_record_init_value_t)), ast_parser, ERROR_MEMORY);
 			do {
 				ast_record_prop_t* prop;
-				int must_init = 0;
-				if (LAST_TOK.type == TOK_MUSTINIT) {
-					READ_TOK;
-					must_init = 1;
-					goto decl_prop;
+				int defer_init = 0;
+				int is_readonly = 0;
+
+				for(;;)
+				{
+					if (LAST_TOK.type == TOK_READONLY) {
+						PANIC_ON_FAIL(!is_readonly, ast_parser, ERROR_UNEXPECTED_TOK);
+						is_readonly = 1;
+						READ_TOK;
+					}
+					else if (LAST_TOK.type == TOK_DEFERINIT) {
+						PANIC_ON_FAIL(!defer_init, ast_parser, ERROR_UNEXPECTED_TOK);
+						defer_init = 1;
+						READ_TOK;
+					}
+					else if (defer_init || is_readonly)
+						goto decl_prop;
+					else break;
 				}
-				else if (LAST_TOK.type == TOK_IDENTIFIER && record_proto->base_record) {
+				if (LAST_TOK.type == TOK_IDENTIFIER && record_proto->base_record) {
 					prop = ast_record_find_prop(ast_parser, ast_parser->ast->record_protos[record_proto->base_record->type_id], hash_s(LAST_TOK.str, LAST_TOK.length));
 					if (prop == NULL)
 						goto decl_prop;
@@ -778,7 +791,8 @@ static int parse_statment(ast_parser_t* ast_parser, ast_statement_t* statement, 
 					ESCAPE_ON_FAIL(prop = ast_record_decl_prop(ast_parser, record_proto, hash_s(LAST_TOK.str, LAST_TOK.length)));
 
 					prop->type = prop_type;
-					prop->must_init = must_init;
+					prop->defer_init = defer_init;
+					prop->is_readonly = is_readonly;
 					READ_TOK;
 
 					if (LAST_TOK.type != TOK_SET)
@@ -1018,7 +1032,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 					}
 				}
 				for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
-					if (current_proto->properties[i].must_init)
+					if (!current_proto->properties[i].defer_init)
 						PANIC_ON_FAIL(overriden_defaults[current_proto->properties[i].id], ast_parser, ERROR_READ_UNINIT);
 				}
 				if (current_proto->base_record){
@@ -1182,7 +1196,18 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 			.type = value->type,
 		};
 		ESCAPE_ON_FAIL(ast_parser_decl_var(ast_parser, 7572967076558961, value->data.procedure->thisproc));
-		ESCAPE_ON_FAIL(parse_code_block(ast_parser, &value->data.procedure->exec_block, 1, 0));
+
+		if (LAST_TOK.type == TOK_LAMBDA_RETURN) {
+			READ_TOK;
+			value->data.procedure->exec_block.instruction_count = 0;
+			PANIC_ON_FAIL(value->data.procedure->exec_block.instructions = safe_malloc(ast_parser->safe_gc, (value->data.procedure->exec_block.allocated_instructions = 1) * sizeof(ast_statement_t)), ast_parser, ERROR_MEMORY);
+			ast_statement_t* return_statement = ast_code_block_append(ast_parser, &value->data.procedure->exec_block);
+			ESCAPE_ON_FAIL(return_statement);
+			return_statement->type = AST_STATEMENT_RETURN_VALUE;
+			ESCAPE_ON_FAIL(parse_value(ast_parser, &return_statement->data.value, CURRENT_FRAME.return_type));
+		}
+		else
+			ESCAPE_ON_FAIL(parse_code_block(ast_parser, &value->data.procedure->exec_block, 1, 0))
 
 		value->data.procedure->scope_size = CURRENT_FRAME.max_scoped_locals;
 		value->data.procedure->id = ast_parser->ast->proc_count++;
@@ -1290,6 +1315,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 
 			if (LAST_TOK.type == TOK_SET) {
 				value->value_type = AST_VALUE_SET_PROP;
+				PANIC_ON_FAIL(!property->is_readonly, ast_parser, ERROR_READONLY);
 				PANIC_ON_FAIL(value->data.set_prop = safe_malloc(ast_parser->safe_gc, sizeof(ast_set_prop_t)), ast_parser, ERROR_MEMORY);
 				value->data.set_prop->record = record_val;
 				value->data.set_prop->property = property;
