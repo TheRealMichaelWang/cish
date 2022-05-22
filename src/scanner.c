@@ -117,6 +117,8 @@ int scanner_scan_tok(scanner_t* scanner) {
 			RETURN(TOK_ELSE);
 		case 210732529790: //while
 			RETURN(TOK_WHILE);
+		case 193491852: //for
+			RETURN(TOK_FOR);
 		case 6953974653989:
 			RETURN(TOK_RETURN);
 		case 6385737701: //true
@@ -137,8 +139,11 @@ int scanner_scan_tok(scanner_t* scanner) {
 			RETURN(TOK_ABSTRACT);
 		case 210712410159:
 			RETURN(TOK_FINAL);
-		case 7572685928825474:
-			RETURN(TOK_MUSTINIT);
+		case 249885278712973151: 
+			RETURN(TOK_DEFERINIT);
+		case 7572685928825474: //mustinit is no longer a keyword
+			PANIC(scanner, ERROR_INTERNAL);
+			//RETURN(TOK_MUSTINIT);
 		case 5863489:
 			RETURN(TOK_IS_TYPE);
 		case 15040638317685008948:
@@ -220,6 +225,10 @@ int scanner_scan_tok(scanner_t* scanner) {
 			if (scanner_peek_char(scanner) == '=') {
 				scanner_read_char(scanner);
 				RETURN(TOK_EQUALS)
+			}
+			else if (scanner_peek_char(scanner) == '>') {
+				scanner_read_char(scanner);
+				RETURN(TOK_LAMBDA_RETURN);
 			}
 			else
 				RETURN(TOK_SET)

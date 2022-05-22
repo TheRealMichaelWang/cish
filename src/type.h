@@ -46,6 +46,7 @@ static typecheck_type_t typecheck_char = { .type = TYPE_PRIMITIVE_CHAR };
 static typecheck_type_t typecheck_int = { .type = TYPE_PRIMITIVE_LONG };
 static typecheck_type_t typecheck_float = { .type = TYPE_PRIMITIVE_FLOAT };
 static typecheck_type_t typecheck_any = { .type = TYPE_ANY };
+static typecheck_type_t typecheck_nothing = { .type = TYPE_NOTHING };
 static typecheck_type_t typecheck_array = { .type = TYPE_SUPER_ARRAY, .sub_type_count = 1, .sub_types = &typecheck_any };
 
 void free_typecheck_type(safe_gc_t* safe_gc, typecheck_type_t* typecheck_type);
