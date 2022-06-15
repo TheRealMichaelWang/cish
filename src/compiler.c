@@ -62,7 +62,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 
 		for (uint_fast16_t i = 0; i < value.data.procedure->param_count; i++)
 			compiler->var_regs[value.data.procedure->params[i].id] = LOC_REG(current_arg_reg++);
-		
+
 		for (uint_fast8_t i = 0; i < value.type.type_id; i++)
 			if (value.data.procedure->generic_arg_traces[i] == POSTPROC_TRACE_DYNAMIC)
 				current_arg_reg++;
@@ -79,7 +79,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 			compiler->eval_regs[value.id] = compiler->var_regs[value.data.set_var->var_info->id];
 			allocate_value_regs(compiler, value.data.set_var->set_value, current_reg, &compiler->eval_regs[value.id]);
 		}
-		else if(value.data.set_var->set_value.affects_state)
+		else if (value.data.set_var->set_value.affects_state)
 			allocate_value_regs(compiler, value.data.set_var->set_value, current_reg, NULL);
 		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_var->set_value.id];
 		compiler->move_eval[value.id] = compiler->move_eval[value.data.set_var->set_value.id];
@@ -91,7 +91,7 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 				extra_regs = allocate_value_regs(compiler, value.data.set_index->index, extra_regs, NULL);
 			allocate_value_regs(compiler, value.data.set_index->value, extra_regs, NULL);
 		}
-		else if(value.data.set_index->value.affects_state)
+		else if (value.data.set_index->value.affects_state)
 			allocate_value_regs(compiler, value.data.set_index->value, current_reg, NULL);
 		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_index->value.id];
 		compiler->move_eval[value.id] = compiler->move_eval[value.data.set_index->value.id];
@@ -102,14 +102,14 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 			extra_regs = allocate_value_regs(compiler, value.data.set_prop->record, extra_regs, NULL);
 			allocate_value_regs(compiler, value.data.set_prop->value, extra_regs, NULL);
 		}
-		else if(value.data.set_prop->value.affects_state)
+		else if (value.data.set_prop->value.affects_state)
 			allocate_value_regs(compiler, value.data.set_prop->value, current_reg, NULL);
 		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_prop->value.id];
 		compiler->move_eval[value.id] = compiler->move_eval[value.data.set_prop->value.id];
 		return current_reg;
 	case AST_VALUE_GET_INDEX:
 		extra_regs = allocate_value_regs(compiler, value.data.get_index->array, extra_regs, NULL);
-		if(value.data.set_index->index.value_type != AST_VALUE_PRIMITIVE)
+		if (value.data.set_index->index.value_type != AST_VALUE_PRIMITIVE)
 			allocate_value_regs(compiler, value.data.get_index->index, extra_regs, NULL);
 		break;
 	case AST_VALUE_GET_PROP:
@@ -147,9 +147,9 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	}
 	case AST_VALUE_FOREIGN:
 		extra_regs = allocate_value_regs(compiler, value.data.foreign->op_id, extra_regs, NULL);
-		if(value.data.foreign->input)
+		if (value.data.foreign->input)
 			extra_regs = allocate_value_regs(compiler, *value.data.foreign->input, extra_regs, NULL);
-    break;
+		break;
 	}
 	if (target_reg) {
 		compiler->eval_regs[value.id] = *target_reg;
@@ -193,7 +193,7 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 						allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info->id]);
 						current_reg++;
 					}
-					else if(var_decl.set_value.affects_state)
+					else if (var_decl.set_value.affects_state)
 						allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL);
 				}
 			}
@@ -220,7 +220,7 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, &return_reg);
 			break;
 		}
-	}
+		}
 }
 
 #define TYPEARG_INFO_REG(TYPE) compiler->proc_generic_regs[proc->id][(TYPE).type_id]
@@ -311,12 +311,12 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		EMIT_INS(INS1(COMPILER_OP_CODE_LABEL, compiler->eval_regs[value.id]));
 		EMIT_INS(INS0(COMPILER_OP_CODE_JUMP));
 		compiler->ins_builder.instructions[start_ip].regs[1] = GLOB_REG(compiler->ins_builder.instruction_count);
-		if(value.data.procedure->do_gc)
+		if (value.data.procedure->do_gc)
 			EMIT_INS(INS0(COMPILER_OP_CODE_GC_NEW_FRAME));
-		compile_code_block(compiler, value.data.procedure->exec_block, value.data.procedure, 0 , NULL, 0);
-		EMIT_INS(INS1(COMPILER_OP_CODE_ABORT, GLOB_REG(ERROR_UNRETURNED_FUNCTION)));
+		compile_code_block(compiler, value.data.procedure->exec_block, value.data.procedure, 0, NULL, 0);
+		//EMIT_INS(INS1(COMPILER_OP_CODE_ABORT, GLOB_REG(ERROR_UNRETURNED_FUNCTION)));
 		compiler->ins_builder.instructions[start_ip + 1].regs[0] = GLOB_REG(compiler->ins_builder.instruction_count);
-		
+
 		if (value.type.type_id)
 			safe_free(compiler->safe_gc, compiler->proc_generic_regs[value.data.procedure->id]);
 		break;
@@ -346,7 +346,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 				EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC, compiler->eval_regs[value.data.set_index->array.id], compiler->eval_regs[value.data.set_index->index.id], compiler->eval_regs[value.data.set_index->value.id]));
 			ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.set_index->array, proc));
 		}
-		else if(value.data.set_index->value.affects_state){
+		else if (value.data.set_index->value.affects_state) {
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_index->value, proc));
 			ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.set_index->value, proc));
 		}
@@ -358,14 +358,14 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 			EMIT_INS(INS3(COMPILER_OP_CODE_STORE_ALLOC_I, compiler->eval_regs[value.data.set_prop->record.id], compiler->eval_regs[value.data.set_prop->value.id], GLOB_REG(value.data.set_prop->property->id)));
 			ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.set_prop->record, proc));
 		}
-		else if(value.data.set_prop->value.affects_state){
+		else if (value.data.set_prop->value.affects_state) {
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.set_prop->value, proc));
 			ESCAPE_ON_FAIL(compile_value_free(compiler, value.data.set_prop->value, proc));
 		}
 		break;
 	case AST_VALUE_GET_INDEX:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->array, proc));
-		if(value.data.get_index->index.value_type == AST_VALUE_PRIMITIVE)
+		if (value.data.get_index->index.value_type == AST_VALUE_PRIMITIVE)
 			EMIT_INS(INS3(COMPILER_OP_CODE_LOAD_ALLOC_I_BOUND, compiler->eval_regs[value.data.get_index->array.id], compiler->eval_regs[value.id], GLOB_REG(value.data.get_index->index.data.primitive->data.long_int)))
 		else {
 			ESCAPE_ON_FAIL(compile_value(compiler, value.data.get_index->index, proc));
@@ -384,8 +384,8 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		compiler_reg_t lhs = compiler->eval_regs[value.data.binary_op->lhs.id];
 		compiler_reg_t rhs = compiler->eval_regs[value.data.binary_op->rhs.id];
 
- 		if (value.data.binary_op->operator == TOK_EQUALS || value.data.binary_op->operator == TOK_NOT_EQUAL) {
-			if(value.data.binary_op->lhs.type.type >= TYPE_SUPER_PROC)
+		if (value.data.binary_op->operator == TOK_EQUALS || value.data.binary_op->operator == TOK_NOT_EQUAL) {
+			if (value.data.binary_op->lhs.type.type >= TYPE_SUPER_PROC)
 				EMIT_INS(INS3(COMPILER_OP_CODE_PTR_EQUAL, lhs, rhs, compiler->eval_regs[value.id]))
 			else
 				EMIT_INS(INS3(COMPILER_OP_CODE_BOOL_EQUAL + value.data.binary_op->lhs.type.type - TYPE_PRIMITIVE_BOOL, lhs, rhs, compiler->eval_regs[value.id]));
@@ -409,7 +409,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		int type_offset = value.type.type - TYPE_PRIMITIVE_LONG;
 		if (value.data.unary_op->operator == TOK_SUBTRACT)
 			EMIT_INS(INS2(COMPILER_OP_CODE_LONG_NEGATE + type_offset, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]))
-		else if(value.data.unary_op->operator <= TOK_HASHTAG)
+		else if (value.data.unary_op->operator <= TOK_HASHTAG)
 			EMIT_INS(INS2(COMPILER_OP_CODE_NOT + value.data.unary_op->operator - TOK_NOT, compiler->eval_regs[value.id], compiler->eval_regs[value.data.unary_op->operand.id]))
 		else {
 			type_offset *= 2;
@@ -457,7 +457,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 				EMIT_INS(INS3(COMPILER_OP_CODE_RUNTIME_TYPECHECK + (value.data.type_op->operation == TOK_DYNAMIC_CAST), compiler->eval_regs[value.data.type_op->operand.id], compiler->eval_regs[value.id], GLOB_REG(sig_id)))
 			}
 		}
-		break; 
+		break;
 	}
 	case AST_VALUE_PROC_CALL: {
 		for (uint_fast8_t i = 0; i < value.data.proc_call->argument_count; i++) {
@@ -465,6 +465,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 			if (compiler->move_eval[value.data.proc_call->arguments[i].id])
 				EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] + i + 1), compiler->eval_regs[value.data.proc_call->arguments[i].id]));
 		}
+		ESCAPE_ON_FAIL(compile_value(compiler, value.data.proc_call->procedure, proc));
 
 		uint16_t type_sigs_to_pop = 0;
 		if (value.data.proc_call->procedure.type.type_id) {
@@ -486,13 +487,12 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 				}
 		}
 
-		ESCAPE_ON_FAIL(compile_value(compiler, value.data.proc_call->procedure, proc));
 		EMIT_INS(INS2(COMPILER_OP_CODE_CALL, compiler->eval_regs[value.data.proc_call->procedure.id], GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
 		if (type_sigs_to_pop)
 			EMIT_INS(INS1(COMPILER_OP_CODE_POP_ATOM_TYPESIGS, GLOB_REG(type_sigs_to_pop)));
 		if (compiler->proc_call_offsets[value.data.proc_call->id])
 			EMIT_INS(INS1(COMPILER_OP_CODE_STACK_DEOFFSET, GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
-		break; 
+		break;
 	}
 	case AST_VALUE_FOREIGN:
 		ESCAPE_ON_FAIL(compile_value(compiler, value.data.foreign->op_id, proc));
@@ -506,7 +506,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 	}
 	if (value.trace_status == POSTPROC_TRACE_CHILDREN && (proc && proc->do_gc))//|| value.trace_status == POSTPROC_SUPERTRACE_CHILDREN)
 		EMIT_INS(INS2(COMPILER_OP_CODE_GC_TRACE, compiler->eval_regs[value.id], GLOB_REG(0)))
-	else if(value.trace_status == POSTPROC_SUPERTRACE_CHILDREN)
+	else if (value.trace_status == POSTPROC_SUPERTRACE_CHILDREN)
 		EMIT_INS(INS2(COMPILER_OP_CODE_GC_TRACE, compiler->eval_regs[value.id], GLOB_REG(1)))
 	else if (value.trace_status == POSTPROC_TRACE_DYNAMIC && (proc && proc->do_gc))
 		EMIT_INS(INS2(COMPILER_OP_CODE_DYNAMIC_TRACE, compiler->eval_regs[value.id], TYPEARG_INFO_REG(value.type)));
@@ -576,7 +576,7 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 				if (compiler->move_eval[current_statement->data.var_decl.set_value.id])
 					EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, compiler->var_regs[current_statement->data.var_decl.var_info->id], compiler->eval_regs[current_statement->data.var_decl.set_value.id]));
 			}
-			else if(current_statement->data.var_decl.set_value.affects_state)
+			else if (current_statement->data.var_decl.set_value.affects_state)
 				ESCAPE_ON_FAIL(compile_value(compiler, current_statement->data.var_decl.set_value, proc));
 			break;
 		case AST_STATEMENT_COND:
@@ -597,7 +597,7 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 				EMIT_INS(INS2(COMPILER_OP_CODE_DYNAMIC_TRACE, LOC_REG(0), TYPEARG_INFO_REG(current_statement->data.value.type)));
 		}
 		case AST_STATEMENT_RETURN:
-			if(proc->do_gc)
+			if (proc->do_gc)
 				EMIT_INS(INS0(COMPILER_OP_CODE_GC_CLEAN));
 			EMIT_INS(INS0(COMPILER_OP_CODE_RETURN));
 			break;
@@ -614,8 +614,11 @@ static int compile_code_block(compiler_t* compiler, ast_code_block_t code_block,
 			EMIT_INS(INS1(COMPILER_OP_CODE_ABORT, GLOB_REG(ERROR_ABORT)));
 			break;
 		case AST_STATEMENT_RECORD_PROTO:
-			if (current_statement->data.record_proto->base_record)
-				EMIT_INS(INS2(COMPILER_OP_CODE_TYPE_RELATE, GLOB_REG(current_statement->data.record_proto->id + TYPE_SUPER_RECORD), GLOB_REG(compiler->ast->record_protos[current_statement->data.record_proto->base_record->type_id]->id + TYPE_SUPER_RECORD)));
+			if (current_statement->data.record_proto->base_record) {
+				ast_record_proto_t* record = current_statement->data.record_proto;
+				compiler->target_machine->type_table[record->id] = compiler->target_machine->defined_sig_count + 1;
+				ESCAPE_ON_FAIL(compiler_define_typesig(compiler, NULL, *record->base_record));
+			}
 			break;
 		}
 	return 1;
@@ -634,12 +637,12 @@ int compile(compiler_t* compiler, safe_gc_t* safe_gc, machine_t* target_machine,
 	PANIC_ON_FAIL(compiler->proc_call_offsets = safe_malloc(safe_gc, ast->proc_call_count * sizeof(uint16_t)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(compiler->proc_generic_regs = safe_malloc(safe_gc, ast->proc_count * sizeof(compiler_reg_t*)), compiler, ERROR_MEMORY);
 
-	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX / 8, 1000, TYPE_SUPER_RECORD + ast->record_count), compiler, target_machine->last_err);
+	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX / 8, 1000, ast->record_count), compiler, ERROR_MEMORY);
 
 	allocate_code_block_regs(compiler, ast->exec_block, 0);
 
 	PANIC_ON_FAIL(init_ins_builder(&compiler->ins_builder, safe_gc), compiler, ERROR_MEMORY);
-	
+
 	EMIT_INS(INS1(COMPILER_OP_CODE_STACK_OFFSET, GLOB_REG(compiler->ast->constant_count + compiler->current_global)));
 	EMIT_INS(INS0(COMPILER_OP_CODE_GC_NEW_FRAME));
 	ESCAPE_ON_FAIL(compile_code_block(compiler, ast->exec_block, NULL, 0, NULL, 0));
@@ -721,7 +724,6 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 		MACHINE_OP_CODE_LONG_DECREMENT_L,
 		MACHINE_OP_CODE_FLOAT_INCREMENT_L,
 		MACHINE_OP_CODE_FLOAT_DECREMENT_L,
-		MACHINE_OP_CODE_TYPE_RELATE,
 		MACHINE_OP_CODE_CONFIG_TYPESIG_L,
 		MACHINE_OP_CODE_RUNTIME_TYPECHECK_LL,
 		MACHINE_OP_CODE_RUNTIME_TYPECAST_LL,
@@ -802,7 +804,6 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 		1, //float inc
 		1, //float dec
 
-		0, //relate
 		1, //config type signature
 		2, //runtime typecheck
 		2, //runtime typecast
@@ -838,9 +839,13 @@ static int compile_type_to_machine(machine_type_sig_t* out_sig, typecheck_type_t
 	out_sig->sub_type_count = 0;
 	if (type.type == TYPE_TYPEARG) {
 		out_sig->super_signature = TYPE_TYPEARG;
-		compiler_reg_t info_reg = TYPEARG_INFO_REG(type);
-		PANIC_ON_FAIL(info_reg.offset, compiler, ERROR_INTERNAL)
-		out_sig->sub_type_count = info_reg.reg;
+		if (proc) {
+			compiler_reg_t info_reg = TYPEARG_INFO_REG(type);
+			PANIC_ON_FAIL(info_reg.offset, compiler, ERROR_INTERNAL)
+				out_sig->sub_type_count = info_reg.reg;
+		}
+		else
+			out_sig->sub_type_count = type.type_id;
 		return 1;
 	}
 	else if (type.type == TYPE_ANY) {
@@ -857,7 +862,7 @@ static int compile_type_to_machine(machine_type_sig_t* out_sig, typecheck_type_t
 		if (type.sub_type_count) {
 			PANIC_ON_FAIL(out_sig->sub_types = safe_transfer_malloc(compiler->safe_gc, type.sub_type_count * sizeof(machine_type_sig_t)), compiler, ERROR_MEMORY);
 			for (uint_fast8_t i = 0; i < type.sub_type_count; i++)
-				ESCAPE_ON_FAIL(compile_type_to_machine(&out_sig->sub_types[i], type.sub_types[i],compiler, proc));
+				ESCAPE_ON_FAIL(compile_type_to_machine(&out_sig->sub_types[i], type.sub_types[i], compiler, proc));
 		}
 		out_sig->sub_type_count = type.sub_type_count;
 	}

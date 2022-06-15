@@ -46,7 +46,7 @@ typedef struct ast_array_literal {
 
 typedef struct ast_alloc_record {
 	ast_record_proto_t* proto;
-	
+
 	ast_alloc_record_init_value_t* init_values;
 
 	uint8_t init_value_count, allocated_init_values;
@@ -113,6 +113,8 @@ typedef struct ast_value {
 		ast_foreign_call_t* foreign;
 	} data;
 
+	int is_falsey, is_truey;
+
 	uint32_t id;
 
 	postproc_gc_status_t gc_status;
@@ -170,14 +172,14 @@ typedef struct ast_call_proc {
 
 	postproc_trace_status_t* typearg_traces;
 	typecheck_type_t* typeargs;
-	
+
 	ast_value_t arguments[TYPE_MAX_SUBTYPES - 1];
 	uint8_t argument_count;
 	uint32_t id;
 } ast_call_proc_t;
 
 typedef struct ast_foreign_call {
-	ast_value_t op_id, *input;
+	ast_value_t op_id, * input;
 } ast_foreign_call_t;
 
 typedef struct ast_statement {
@@ -257,7 +259,7 @@ typedef struct ast_record_proto {
 	typecheck_type_t* generic_req_types;
 	uint8_t generic_arguments;
 
-	ast_alloc_record_init_value_t*default_values;
+	ast_alloc_record_init_value_t* default_values;
 
 	enum ast_record_use_reqs {
 		AST_RECORD_USE_ALL,

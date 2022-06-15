@@ -88,7 +88,6 @@ typedef enum machine_op_code {
 	DECL1OP(FLOAT_INCREMENT),
 	DECL1OP(FLOAT_DECREMENT),
 
-	MACHINE_OP_CODE_TYPE_RELATE,
 	DECL1OP(CONFIG_TYPESIG),
 	DECL2OP(RUNTIME_TYPECHECK),
 	DECL2OP(RUNTIME_TYPECAST),
@@ -145,13 +144,18 @@ typedef struct machine {
 
 	heap_alloc_t** heap_traces;
 	uint16_t* trace_frame_bounds;
+	heap_alloc_t** reset_stack;
 
 	heap_alloc_t** freed_heap_allocs;
 
 	uint64_t last_err_ip;
 	error_t last_err;
 	
-	uint16_t global_offset, position_count, heap_frame, frame_limit, heap_count, alloced_heap_allocs, trace_count, alloced_trace_allocs, freed_heap_count, alloc_freed_heaps;
+	uint16_t global_offset, position_count, heap_frame, frame_limit, 
+		heap_count, alloced_heap_allocs, 
+		trace_count, alloced_trace_allocs, 
+		freed_heap_count, alloc_freed_heaps, 
+		reset_count, alloced_reset;
 
 	ffi_t ffi_table;
 	dynamic_library_table_t* dynamic_library_table;
