@@ -446,9 +446,9 @@ int print_back_trace(machine_t* machine, dbg_table_t* dbg_table, machine_ins_t* 
 	}
 
 	printf("%s\n\t", line);
-	for (int i = 0; i < src_loc_fin->col; i++)
+	for (int i = 1; i < src_loc_fin->col; i++)
 		putchar(' ');
-	puts("^\n");
+	puts("^");
 
 	free(line);
 	free(code_src);

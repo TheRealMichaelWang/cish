@@ -950,7 +950,6 @@ static int parse_code_block(ast_parser_t* ast_parser, ast_code_block_t* code_blo
 static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_type_t* type) {
 	value->is_falsey = value->is_truey = 0;
 	PANIC_ON_FAIL(debug_table_add_loc(ast_parser->ast->dbg_table, ast_parser->multi_scanner, &value->src_loc_id), ast_parser, ERROR_MEMORY);
-	uint32_t src_loc_id = value->src_loc_id;
 
 	switch (LAST_TOK.type) {
 	case TOK_TRUE:
@@ -990,7 +989,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 				value->data.array_literal.elements[i].value_type = AST_VALUE_PRIMITIVE;
 				value->data.array_literal.elements[i].type.type = TYPE_PRIMITIVE_CHAR;
 				value->data.array_literal.elements[i].is_falsey = value->data.array_literal.elements[i].is_truey = 0;
-				value->data.array_literal.elements[i].src_loc_id = src_loc_id;
+				value->data.array_literal.elements[i].src_loc_id = value->src_loc_id;
 				value->data.array_literal.elements[i].id = ast_parser->ast->value_count++;
 			}
 		safe_free(ast_parser->safe_gc, buffer);
@@ -1341,6 +1340,9 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 
 	int has_incremented = 0;
 	while (LAST_TOK.type == TOK_OPEN_BRACKET || LAST_TOK.type == TOK_OPEN_PAREN || LAST_TOK.type == TOK_IS_TYPE || LAST_TOK.type == TOK_INCREMENT || LAST_TOK.type == TOK_DECREMENT || LAST_TOK.type == TOK_PERIOD || (LAST_TOK.type == TOK_LESS && value->type.type == TYPE_SUPER_PROC)) {
+		uint32_t src_loc_id;
+		ESCAPE_ON_FAIL(debug_table_add_loc(ast_parser->ast->dbg_table, ast_parser->multi_scanner, &src_loc_id));
+
 		if (LAST_TOK.type == TOK_IS_TYPE) {
 			READ_TOK;
 
