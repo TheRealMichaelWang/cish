@@ -17,7 +17,8 @@ void free_safe_gc(safe_gc_t* safe_gc, int free_transfers) {
 	}
 	if (free_transfers) {
 		for (uint_fast64_t i = 0; i < safe_gc->transfer_entry_count; i++)
-			free(safe_gc->transfer_entries[i]);
+			if(safe_gc->transfer_entries[i])
+				free(safe_gc->transfer_entries[i]);
 	}
 	free(safe_gc->entries);
 	free(safe_gc->availible_entries);
@@ -37,11 +38,16 @@ static void** new_entry(safe_gc_t* safe_gc) {
 	}
 }
 
-static void** find_entry(safe_gc_t* safe_gc, void* data) {
+static void** find_entry(safe_gc_t* safe_gc, void* data, int no_transfer) {
 	ESCAPE_ON_FAIL(data);
 	for (uint_fast64_t i = 0; i < safe_gc->entry_count; i++)
 		if (safe_gc->entries[i] == data)
 			return &safe_gc->entries[i];
+	if (no_transfer)
+		return NULL;
+	for (uint_fast64_t i = 0; i < safe_gc->transfer_entry_count; i++)
+		if (safe_gc->transfer_entries[i] == data)
+			return &safe_gc->transfer_entries[i];
 	return NULL;
 }
 
@@ -103,7 +109,7 @@ void* safe_add_managed(safe_gc_t* safe_gc, void* alloc) {
 }
 
 void* safe_realloc(safe_gc_t* safe_gc, void* data, int new_size) {
-	void** entry = find_entry(safe_gc, data);
+	void** entry = find_entry(safe_gc, data, 0);
 	ESCAPE_ON_FAIL(entry);
 	ESCAPE_ON_FAIL(data = realloc(data, new_size));
 	*entry = data;
@@ -111,7 +117,7 @@ void* safe_realloc(safe_gc_t* safe_gc, void* data, int new_size) {
 }
 
 int safe_free(safe_gc_t* safe_gc, void* data) {
-	void** entry = find_entry(safe_gc, data);
+	void** entry = find_entry(safe_gc, data, 1);
 	ESCAPE_ON_FAIL(entry);
 	free(data);
 	*entry = NULL;

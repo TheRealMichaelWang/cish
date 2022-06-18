@@ -7,6 +7,7 @@
 #include "type.h"
 #include "tokens.h"
 #include "scanner.h"
+#include "debug.h"
 #include "postproc.h"
 
 typedef struct ast_value ast_value_t;
@@ -46,7 +47,7 @@ typedef struct ast_array_literal {
 
 typedef struct ast_alloc_record {
 	ast_record_proto_t* proto;
-	
+
 	ast_alloc_record_init_value_t* init_values;
 
 	uint8_t init_value_count, allocated_init_values;
@@ -116,6 +117,7 @@ typedef struct ast_value {
 	int is_falsey, is_truey;
 
 	uint32_t id;
+	uint32_t src_loc_id;
 
 	postproc_gc_status_t gc_status;
 	postproc_trace_status_t trace_status;
@@ -172,14 +174,14 @@ typedef struct ast_call_proc {
 
 	postproc_trace_status_t* typearg_traces;
 	typecheck_type_t* typeargs;
-	
+
 	ast_value_t arguments[TYPE_MAX_SUBTYPES - 1];
 	uint8_t argument_count;
 	uint32_t id;
 } ast_call_proc_t;
 
 typedef struct ast_foreign_call {
-	ast_value_t op_id, *input;
+	ast_value_t op_id, * input;
 } ast_foreign_call_t;
 
 typedef struct ast_statement {
@@ -202,6 +204,8 @@ typedef struct ast_statement {
 		ast_value_t value;
 		ast_record_proto_t* record_proto;
 	} data;
+
+	uint32_t src_loc_id;
 } ast_statement_t;
 
 typedef struct ast_code_block {
@@ -259,7 +263,7 @@ typedef struct ast_record_proto {
 	typecheck_type_t* generic_req_types;
 	uint8_t generic_arguments;
 
-	ast_alloc_record_init_value_t*default_values;
+	ast_alloc_record_init_value_t* default_values;
 
 	enum ast_record_use_reqs {
 		AST_RECORD_USE_ALL,
@@ -302,6 +306,8 @@ typedef struct ast {
 	ast_primitive_t** primitives;
 	uint16_t constant_count, allocated_constants, proc_count;
 
+	dbg_table_t* dbg_table;
+
 	uint32_t value_count, var_decl_count, proc_call_count;
 } ast_t;
 
@@ -334,6 +340,7 @@ typedef struct ast_parser {
 	int* shared_globals;
 
 	safe_gc_t* safe_gc;
+
 	error_t last_err;
 } ast_parser_t;
 
@@ -342,6 +349,6 @@ int ast_record_sub_prop_type(ast_parser_t* ast_parser, typecheck_type_t record_t
 int init_ast_parser(ast_parser_t* ast_parser, safe_gc_t* safe_gc, const char* source);
 void free_ast_parser(ast_parser_t* ast_parser);
 
-int init_ast(ast_t* ast, ast_parser_t* ast_parser);
+int init_ast(ast_t* ast, ast_parser_t* ast_parser, dbg_table_t* dbg_table);
 
 #endif // !AST_H

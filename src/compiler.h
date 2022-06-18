@@ -142,5 +142,7 @@ int ins_builder_append_ins(ins_builder_t* ins_builder, compiler_ins_t ins);
 
 int compile(compiler_t* compiler, safe_gc_t* safe_gc, machine_t* target_machine, ast_t* ast);
 
+void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* machine_ins, uint64_t ins_count);
+
 int compiler_define_typesig(compiler_t* compiler, ast_proc_t* proc, typecheck_type_t type);
 #endif // !COMPILER_H

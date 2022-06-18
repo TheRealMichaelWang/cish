@@ -158,19 +158,9 @@ int scanner_scan_tok(scanner_t* scanner) {
 		}
 	}
 	else if (isalnum(scanner->last_char)) {
-		int type_flag = 0;
 		do {
 			scanner_read_char(scanner);
 			scanner->last_tok.length++;
-			
-			if (scanner->last_char == '.')
-				type_flag = 1;
-			else if (scanner->last_char == 'f' || scanner->last_char == 'h') {
-				PANIC_ON_FAIL(!type_flag, scanner, ERROR_UNEXPECTED_TOK);
-				scanner_read_char(scanner);
-				scanner->last_tok.length++;
-				break;
-			}
 		} while (isalnum(scanner->last_char) || scanner->last_char == '.');
 		scanner->last_tok.type = TOK_NUMERICAL;
 	}

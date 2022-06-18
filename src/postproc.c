@@ -121,8 +121,8 @@ static void mark_code_block_no_affects_state(ast_code_block_t* code_block) {
 		case AST_STATEMENT_DECL_VAR:
 			mark_value_no_affect_state(&current_statement->data.var_decl.set_value);
 			break;
-		case AST_STATEMENT_COND:{
-			ast_cond_t* current_cond = current_statement->data.conditional; 
+		case AST_STATEMENT_COND: {
+			ast_cond_t* current_cond = current_statement->data.conditional;
 			while (current_cond)
 			{
 				if (current_cond->condition)
@@ -185,7 +185,7 @@ static int ast_postproc_value_affects_state(int affects_state, ast_value_t* valu
 		CHECK_AFFECTS_STATE(value->affects_state, &value->data.set_index->value);
 		break;
 	case AST_VALUE_SET_PROP:
-		if(second_pass)
+		if (second_pass)
 			value->affects_state = value->affects_state || value->data.set_prop->record.gc_status == POSTPROC_GC_EXTERN_ALLOC || value->data.set_prop->record.gc_status == POSTPROC_GC_UNKOWN_ALLOC;
 		value->affects_state = value->affects_state || comes_from_used_var(value->data.set_prop->record);
 		CHECK_AFFECTS_STATE(value->affects_state, &value->data.set_prop->record);
@@ -193,7 +193,7 @@ static int ast_postproc_value_affects_state(int affects_state, ast_value_t* valu
 		break;
 	case AST_VALUE_GET_INDEX:
 		CHECK_AFFECTS_STATE(affects_state, &value->data.get_index->array)
-		CHECK_AFFECTS_STATE(affects_state, &value->data.get_index->index);
+			CHECK_AFFECTS_STATE(affects_state, &value->data.get_index->index);
 		break;
 	case AST_VALUE_GET_PROP:
 		CHECK_AFFECTS_STATE(affects_state, &value->data.get_prop->record);
@@ -219,7 +219,7 @@ static int ast_postproc_value_affects_state(int affects_state, ast_value_t* valu
 	case AST_VALUE_FOREIGN:
 		value->affects_state = 1;
 		CHECK_AFFECTS_STATE(1, &value->data.foreign->op_id);
-		if(value->data.foreign->input)
+		if (value->data.foreign->input)
 			CHECK_AFFECTS_STATE(1, value->data.foreign->input);
 		break;
 	case AST_VALUE_PROC_CALL:
@@ -252,7 +252,7 @@ static int ast_postproc_codeblock_affects_state(ast_code_block_t* code_block, in
 		case AST_STATEMENT_COND: {
 			ast_cond_t* current_cond = current_statement->data.conditional;
 			while (current_cond) {
-				if(current_cond->condition)
+				if (current_cond->condition)
 					CHECK_AFFECTS_STATE(ast_postproc_value_affects_state(1, current_cond->condition, second_pass));
 				CHECK_AFFECTS_STATE(ast_postproc_codeblock_affects_state(&current_cond->exec_block, second_pass));
 				current_cond = current_cond->next_if_false;
@@ -382,7 +382,7 @@ static void share_var_from_value(ast_parser_t* ast_parser, ast_value_t value, in
 			shared_locals[SANITIZE_SCOPE_ID(*value.data.set_var->var_info)] = 1;
 		break;
 	case AST_VALUE_TYPE_OP:
-		if(value.data.type_op->operation == TOK_DYNAMIC_CAST)
+		if (value.data.type_op->operation == TOK_DYNAMIC_CAST)
 			share_var_from_value(ast_parser, value.data.type_op->operand, shared_globals, shared_locals, local_scope_size);
 		break;
 	case AST_VALUE_SET_INDEX:
@@ -494,7 +494,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 			else
 				value->data.procedure->generic_arg_traces[i] = GET_TYPE_TRACE(value->type.sub_types[i]);
 		}
-		
+
 		for (uint_fast8_t i = 0; i < value->data.procedure->param_count; i++) {
 			if (value->data.procedure->params[i].type.type == TYPE_TYPEARG)
 				new_local_stats[value->data.procedure->params[i].scope_id] = POSTPROC_GC_EXTERN_DYNAMIC;
@@ -570,8 +570,8 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		else {
 			value->data.set_var->var_info->has_mutated = 1;
 			value->gc_status = local_gc_stats[SANITIZE_SCOPE_ID(*value->data.set_var->var_info)];
-			
-			if(value->gc_status == POSTPROC_GC_SUPEREXT_ALLOC)
+
+			if (value->gc_status == POSTPROC_GC_SUPEREXT_ALLOC)
 				ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_var->set_value, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_SUPEREXT, parent_proc, 0))
 			else
 				ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_var->set_value, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_LOCAL, parent_proc, 0));
@@ -671,9 +671,9 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, arg, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc, 0));
 
-			if((arg->type.type == TYPE_SUPER_RECORD && ast_parser->ast->record_protos[arg->type.type_id]->do_gc) || 
-				(arg->type.type == TYPE_SUPER_ARRAY && 
-					(IS_REF_TYPE(arg->type.sub_types[0]) || arg->type.sub_types[0].type == TYPE_TYPEARG) )) {
+			if ((arg->type.type == TYPE_SUPER_RECORD && ast_parser->ast->record_protos[arg->type.type_id]->do_gc) ||
+				(arg->type.type == TYPE_SUPER_ARRAY &&
+					(IS_REF_TYPE(arg->type.sub_types[0]) || arg->type.sub_types[0].type == TYPE_TYPEARG))) {
 
 				if ((arg->gc_status == POSTPROC_GC_SUPEREXT_ALLOC || arg->gc_status == POSTPROC_GC_UNKOWN_ALLOC) && parent_proc) {
 					arg->trace_status = POSTPROC_SUPERTRACE_CHILDREN;
@@ -755,7 +755,7 @@ int ast_postproc_link_record(ast_parser_t* ast_parser, ast_record_proto_t* recor
 		}
 		else
 			record->index_offset = 0;
-		
+
 		for (uint_fast8_t i = 0; i < record->property_count; i++) {
 			if (IS_REF_TYPE(record->properties[i].type) || record->properties[i].type.type == TYPE_TYPEARG)
 				record->do_gc = 1;
@@ -763,7 +763,7 @@ int ast_postproc_link_record(ast_parser_t* ast_parser, ast_record_proto_t* recor
 		}
 		record->linked = 1;
 	}
-	if(out)
+	if (out)
 		*out = record->index_offset + record->property_count;
 	return 1;
 }

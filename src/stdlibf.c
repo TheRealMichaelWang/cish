@@ -10,6 +10,14 @@
 #include "ffi.h"
 #include "stdlibf.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#elif _POSIX_C_SOURCE >= 199309L
+#include <time.h>   // for nanosleep
+#else
+#include <unistd.h> // for usleep
+#endif
+
 static char* read_str_from_heap_alloc(heap_alloc_t* heap_alloc) {
 	char* buffer = malloc(heap_alloc->limit + 1);
 	ESCAPE_ON_FAIL(buffer);
@@ -128,6 +136,38 @@ static int std_time(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	return 1;
 }
 
+static int std_sleep(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
+#define milliseconds in->long_int
+#ifdef _WIN32
+	Sleep(milliseconds);
+#elif _POSIX_C_SOURCE >= 199309L
+	struct timespec ts;
+	ts.tv_sec = milliseconds / 1000;
+	ts.tv_nsec = (milliseconds % 1000) * 1000000;
+	nanosleep(&ts, NULL);
+#else
+	if (milliseconds >= 1000)
+		sleep(milliseconds / 1000);
+	usleep((milliseconds % 1000) * 1000);
+#endif
+#undef milliseconds
+	return 1;
+}
+
+static int std_realloc(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
+	heap_alloc_t* alloc = out->heap_alloc;
+
+	if (alloc->trace_mode == GC_TRACE_MODE_SOME)
+		PANIC(machine, ERROR_INTERNAL); //cannot realloc non array object
+
+	PANIC_ON_FAIL(alloc->registers = realloc(alloc->registers, (alloc->limit + in->long_int) * sizeof(machine_reg_t)), machine, ERROR_MEMORY);
+	PANIC_ON_FAIL(alloc->init_stat = realloc(alloc->init_stat, (alloc->limit + in->long_int) * sizeof(int)), machine, ERROR_MEMORY);
+	memset(&alloc->init_stat[alloc->limit], 0, in->long_int * sizeof(int));
+	alloc->limit += in->long_int;
+
+	return 1;
+}
+
 static int std_import(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	char* import_name = read_str_from_heap_alloc(in->heap_alloc);
 	PANIC_ON_FAIL(import_name, machine, ERROR_MEMORY);
@@ -148,24 +188,27 @@ static int std_calloc(machine_t* machine, machine_reg_t* in, machine_reg_t* out)
 }
 
 int install_stdlib(machine_t* machine) {
-	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_itof));
-	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_floor));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_itof)); //0
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_floor)); //1
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_ceil));
-	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_round));
-	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_ftos));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_round)); 
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_ftos)); //4
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_stof));
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_itos));
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_stoi));
-	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_out));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_out)); //8
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_in));
-	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_random));
-	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_sin));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_random)); //10
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_sin)); //11
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_cos));
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_tan));
-	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_itoc));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_itoc)); //14
 	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_ctoi));
-	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_time));
-	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_import));
-	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_calloc));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_time)); //16
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_sleep));
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_realloc)); //18
+
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_import)); //19
+	ESCAPE_ON_FAIL(ffi_include_func(&machine->ffi_table, std_calloc)); //20
 	return 1;
 }
