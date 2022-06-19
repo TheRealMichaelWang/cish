@@ -12,13 +12,13 @@ A minimal, performant, strongly-typed, and multi-paradigmn programming language 
     * Type arguments aren't constrained to be reference/allocation types like Java - they can also be primitives.
     * Type parameters also support type requirements, somewhat like interfaces.
   * Supports sum-types
-    * Clean error handling, unlike go.
+    * Clean error handling, unlike go. Requires succesful results to be unwrapped, providing a concise layer of error handling.
 * Support for first class functions.
   * First class functions are inbuilt in the syntax and overall design as well - there isn't a million ways you can define a function. 
 * Structured programming, with some OOP features like inheritance. 
   * The linking process is done automatically - there's no need for C-like forward declarations.
   * While casting is done automatically from derived types to their super type, downcasting is not allowed. 
-* Interoperability with other C languages, and **C#**.
+* Interoperability with other C and **C#**.
   * See [this related project](https://github.com/TheRealMichaelWang/superforthcsharp) for details.
 
 ## Important Links
