@@ -1,26 +1,25 @@
 include "std.sf";
 
-abstract record leaf<elemType>
+abstract record leaf<elemType>;
 
-final record empty_leaf<elemType> extends leaf<elemType> $this is way better than a potentially unsafe "null"
+final record empty_leaf<elemType> extends leaf<elemType>; $this is way better than a potentially unsafe "null"
 
 final record node<elemType> extends leaf<elemType> {
-	mustinit leaf<elemType> left = new empty_leaf<elemType>;
-	mustinit leaf<elemType> right = new empty_leaf<elemType>;
-	mustinit elemType elem;
+	leaf<elemType> left = new empty_leaf<elemType>;
+	leaf<elemType> right = new empty_leaf<elemType>;
+	readonly elemType elem;
 }
 
-final record tree<elemType> {
-	mustinit leaf<elemType> head = new empty_leaf<elemType>;
-	mustinit proc<int, elemType, elemType> compare;
+final record tree<elemType> { asdasd
+	leaf<elemType> head = new empty_leaf<elemType>;
+	readonly proc<int, elemType, elemType> compare;
 }
 
 global readonly auto insert = proc<elemType>(tree<elemType> t, elemType elem) return node<elemType> {
-	if(t.head is empty_leaf<any>) {
+	if(t.head is empty_leaf<any>)
 		return t.head = new node<elemType> {
 			elem = elem;
 		};
-	}
 	else {
 		node<elemType> current = dynamic_cast<node<elemType>>(t.head);
 		while(true) {
@@ -56,17 +55,14 @@ global readonly auto find = proc<elemType>(tree<elemType> t, elemType elem) retu
 	while(current is node<elemType>) {
 		node<elemType> current_node = dynamic_cast<node<elemType>>(current);
 		int comp_res = t.compare(elem, current_node.elem);
-		if(comp_res > 0) { $elem > node.elem
+		if(comp_res > 0) $elem > node.elem
 			current = current_node.right;
-		}
-		else if(comp_res < 0) { $elem < node.elem
+		else if(comp_res < 0) $elem < node.elem
 			current = current_node.left;
-		}
-		else {
+		else
 			return new success<node<elemType>> {
 				result = current_node;
 			};
-		}
 	}
 	$if the program made it to this point, no value has been found
 	return new elem_not_found<elemType>;
