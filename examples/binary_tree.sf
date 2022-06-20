@@ -1,4 +1,4 @@
-include "std.sf";
+include "stdlib/std.sf";
 
 abstract record leaf<elemType>;
 
@@ -10,7 +10,7 @@ final record node<elemType> extends leaf<elemType> {
 	readonly elemType elem;
 }
 
-final record tree<elemType> { asdasd
+final record tree<elemType> {
 	leaf<elemType> head = new empty_leaf<elemType>;
 	readonly proc<int, elemType, elemType> compare;
 }
@@ -50,7 +50,7 @@ global readonly auto insert = proc<elemType>(tree<elemType> t, elemType elem) re
 final record elem_not_found<elemType> extends error<node<elemType>> {
 	msg = "Element not found";
 }
-global readonly auto find = proc<elemType>(tree<elemType> t, elemType elem) return failible<node<elemType>> {
+global readonly auto find = proc<elemType>(tree<elemType> t, elemType elem) return fallible<node<elemType>> {
 	leaf<elemType> current = t.head;
 	while(current is node<elemType>) {
 		node<elemType> current_node = dynamic_cast<node<elemType>>(current);

@@ -1,21 +1,19 @@
-include "std.sf";
+include "stdlib/std.sf";
+include "stdlib/io.sf";
+include "stdlib/random.sf";
 include "binary_tree.sf";
-include "io.sf";
-
-include "random.txt";
-include "string.txt";
 
 global readonly auto print_tree = proc<elemType>(tree<elemType> e, proc<nothing, elemType> printElem) return nothing {
 	readonly auto print_leaf = proc<elemType>(leaf<elemType> l, proc<nothing, elemType> printElem, int depth) return nothing {
 		for(int i = 0; i < depth; i++)
-			putChar('\n');
+			putChar('\t');
 
 		if(l is empty_leaf<any>)
 			println("empty");
 		else {
 			node<elemType> node = dynamic_cast<node<elemType>>(l);
 			printElem(node.elem);
-			put_char('\n');
+			putChar('\n');
 			thisproc<elemType>(node.left, printElem, depth + 1);
 			thisproc<elemType>(node.right, printElem, depth + 1);
 		}
