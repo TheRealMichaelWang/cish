@@ -8,7 +8,7 @@
 typedef struct machine machine_t;
 typedef union machine_register machine_reg_t;
 typedef int (*foreign_func)(machine_t* machine, machine_reg_t* input, machine_reg_t* output);
-typedef int (*superforth_dll_entry)(machine_t* machine);
+typedef int (*cish_dll_entry)(machine_t* machine);
 
 typedef struct foreign_func_table {
     foreign_func* func_table;
@@ -23,7 +23,7 @@ int ffi_invoke(ffi_t* ffi_table, machine_t* machine, machine_reg_t* id_reg, mach
 
 typedef struct dynamic_library {
     char* name;
-    superforth_dll_entry entry_point;
+    cish_dll_entry entry_point;
     void* handle;
 } dynamic_library_t;
 

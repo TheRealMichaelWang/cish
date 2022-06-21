@@ -62,7 +62,7 @@ int main(int argc, char* argv[]) {
 
 		if (!strcmp(op_flag, "-cr")) {
 			if (!install_stdlib(&machine))
-				ABORT(("Failed to install SuperForth standard native libraries.\n"));
+				ABORT(("Failed to install Cish standard native libraries.\n"));
 			if (!machine_execute(&machine, machine_ins)) {
 				print_back_trace(&machine, &dbg_table, machine_ins);
 				printf("Last IP: %" PRIu64 "\n", machine.last_err_ip);
@@ -92,7 +92,7 @@ int main(int argc, char* argv[]) {
 			ABORT(("Unable to load binaries from file.\n"));
 		if (!strcmp(op_flag, "-r")) {
 			if (!install_stdlib(&machine))
-				ABORT(("Failed to install SuperForth standard native libraries.\n"));
+				ABORT(("Failed to install Cish standard native libraries.\n"));
 			if (!machine_execute(&machine, instructions)) {
 				printf("Last IP: %" PRIu64 "\n", machine.last_err_ip);
 				ABORT(("Runtime error(%s).\n", get_err_msg(machine.last_err)))
@@ -104,10 +104,10 @@ int main(int argc, char* argv[]) {
 		free(instructions);
 	}
 	else if (!strcmp(op_flag, "-info")) {
-		printf("SUPERFORTH\n"
+		printf("CISH\n"
 				"Writen and developed by Michael Wang, 2020-2022.\n"
-				"General Documentation: https://github.com/TheRealMichaelWang/superforth/wiki \n"
-				"CLI Help: https://github.com/TheRealMichaelWang/superforth/wiki/Command-Line-Usage \n"
+				"General Documentation: https://github.com/TheRealMichaelWang/cish/wiki \n"
+				"CLI Help: https://github.com/TheRealMichaelWang/cish/wiki/Command-Line-Usage \n"
 				"Targeted Build Platform: "
 #ifdef _WIN32
 			"WINDOWS"
