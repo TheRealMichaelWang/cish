@@ -373,7 +373,20 @@ static int parse_subtypes(ast_parser_t* ast_parser, typecheck_type_t* super_type
 }
 
 static int parse_type(ast_parser_t* ast_parser, typecheck_type_t* type, int allow_auto, int allow_nothing) {
-	if (LAST_TOK.type >= TOK_TYPECHECK_BOOL && LAST_TOK.type <= TOK_TYPECHECK_ARRAY) {
+	if (LAST_TOK.type == TOK_DECLTYPE) {
+		READ_TOK;
+		MATCH_TOK(TOK_OPEN_PAREN);
+		READ_TOK;
+		MATCH_TOK(TOK_IDENTIFIER);
+		ast_var_info_t* var_info = ast_parser_find_var(ast_parser, hash_s(LAST_TOK.str, LAST_TOK.length));
+		PANIC_ON_FAIL(var_info, ast_parser, ERROR_UNDECLARED);
+		TYPE_COPY(type, var_info->type);
+		READ_TOK;
+		MATCH_TOK(TOK_CLOSE_PAREN);
+		READ_TOK;
+		return 1;
+	}
+	else if (LAST_TOK.type >= TOK_TYPECHECK_BOOL && LAST_TOK.type <= TOK_TYPECHECK_ARRAY) {
 		type->type = TYPE_PRIMITIVE_BOOL + (LAST_TOK.type - TOK_TYPECHECK_BOOL);
 		type->type_id = 0;
 	}
@@ -549,20 +562,147 @@ static ast_primitive_t* parse_prim_value(ast_parser_t* ast_parser) {
 	return ast_add_prim_value(ast_parser, primitive);
 }
 
-static int parse_var_decl(ast_parser_t* ast_parser, ast_decl_var_t* ast_decl_var) {
+static int parse_proc_decl(ast_parser_t* ast_parser, ast_value_t* value, uint32_t src_loc_id) {
+	value->value_type = AST_VALUE_PROC;
+	value->is_falsey = value->is_truey = 0;
+	value->id = ast_parser->ast->value_count++;
+	value->src_loc_id = src_loc_id;
+
+	ESCAPE_ON_FAIL(ast_parser_new_frame(ast_parser, NULL, 0));
+
+	typecheck_type_t generic_type_reqs[TYPE_MAX_SUBTYPES];
+	if (LAST_TOK.type == TOK_LESS)
+		ESCAPE_ON_FAIL(parse_type_params(ast_parser, generic_type_reqs, &value->type.type_id, 1, -1))
+	else
+		value->type.type_id = 0;
+
+	typecheck_type_t argument_unmodded_types[TYPE_MAX_SUBTYPES];
+
+	PANIC_ON_FAIL(value->data.procedure = safe_malloc(ast_parser->safe_gc, sizeof(ast_proc_t)), ast_parser, ERROR_MEMORY);
+	PANIC_ON_FAIL(value->data.procedure->params = safe_malloc(ast_parser->safe_gc, (TYPE_MAX_SUBTYPES - (1 + value->type.type_id)) * sizeof(ast_var_info_t)), ast_parser, ERROR_MEMORY);
+	value->data.procedure->param_count = 0;
+	MATCH_TOK(TOK_OPEN_PAREN);
+	READ_TOK;
+	while (LAST_TOK.type != TOK_CLOSE_PAREN)
+	{
+		if (value->data.procedure->param_count == TYPE_MAX_SUBTYPES - (1 + value->type.type_id))
+			PANIC(ast_parser, ERROR_INTERNAL);
+		value->data.procedure->params[value->data.procedure->param_count] = (ast_var_info_t){
+			.is_global = 0,
+			.is_readonly = 1,
+		};
+
+		ESCAPE_ON_FAIL(parse_type(ast_parser, &argument_unmodded_types[value->data.procedure->param_count], 0, 0));
+		TYPE_COPY(&value->data.procedure->params[value->data.procedure->param_count].type, argument_unmodded_types[value->data.procedure->param_count]);
+
+		MATCH_TOK(TOK_IDENTIFIER);
+		ESCAPE_ON_FAIL(ast_parser_decl_var(ast_parser, hash_s(LAST_TOK.str, LAST_TOK.length), &value->data.procedure->params[value->data.procedure->param_count]));
+		value->data.procedure->param_count++;
+		READ_TOK;
+		if (LAST_TOK.type != TOK_COMMA)
+			MATCH_TOK(TOK_CLOSE_PAREN)
+		else
+			READ_TOK;
+	}
+	value->type.type = TYPE_SUPER_PROC;
+	PANIC_ON_FAIL(value->type.sub_types = safe_malloc(ast_parser->safe_gc, (value->type.sub_type_count = value->data.procedure->param_count + 1 + value->type.type_id) * sizeof(typecheck_type_t)), ast_parser, ERROR_MEMORY);
+
+	memcpy(value->type.sub_types, generic_type_reqs, value->type.type_id * sizeof(typecheck_type_t));
+	memcpy(&value->type.sub_types[value->type.type_id + 1], argument_unmodded_types, value->data.procedure->param_count * sizeof(typecheck_type_t));
+
+	READ_TOK;
+
+	if (LAST_TOK.type == TOK_RETURN) {
+		READ_TOK;
+		ESCAPE_ON_FAIL(parse_type(ast_parser, &value->type.sub_types[value->type.type_id], 1, 1));
+	}
+	else
+		value->type.sub_types[value->type.type_id].type = TYPE_AUTO;
+
+	CURRENT_FRAME.return_type = value->data.procedure->return_type = &value->type.sub_types[value->type.type_id];
+
+	PANIC_ON_FAIL(value->data.procedure->thisproc = safe_malloc(ast_parser->safe_gc, sizeof(ast_var_info_t)), ast_parser, ERROR_MEMORY);
+	*value->data.procedure->thisproc = (ast_var_info_t){
+		.is_global = 0,
+		.is_readonly = 1,
+		.type = value->type,
+	};
+	ESCAPE_ON_FAIL(ast_parser_decl_var(ast_parser, 7572967076558961, value->data.procedure->thisproc));
+
+	if (LAST_TOK.type == TOK_LAMBDA_RETURN) {
+		READ_TOK;
+		value->data.procedure->exec_block.instruction_count = 0;
+		PANIC_ON_FAIL(value->data.procedure->exec_block.instructions = safe_malloc(ast_parser->safe_gc, (value->data.procedure->exec_block.allocated_instructions = 1) * sizeof(ast_statement_t)), ast_parser, ERROR_MEMORY);
+		ast_statement_t* return_statement = ast_code_block_append(ast_parser, &value->data.procedure->exec_block);
+		ESCAPE_ON_FAIL(return_statement);
+		return_statement->type = AST_STATEMENT_RETURN_VALUE;
+		ESCAPE_ON_FAIL(parse_expression(ast_parser, &return_statement->data.value, CURRENT_FRAME.return_type, CURRENT_FRAME.return_type->type != TYPE_AUTO, 0));
+		uint32_t src_loc_id = return_statement->src_loc_id = return_statement->data.value.src_loc_id;
+		if (return_statement->data.value.type.type == TYPE_NOTHING) {
+			return_statement->type = AST_STATEMENT_VALUE;
+			ESCAPE_ON_FAIL(return_statement = ast_code_block_append(ast_parser, &value->data.procedure->exec_block));
+			return_statement->src_loc_id = src_loc_id;
+			return_statement->type = AST_STATEMENT_RETURN;
+		}
+	}
+	else
+		ESCAPE_ON_FAIL(parse_code_block(ast_parser, &value->data.procedure->exec_block, 1, 0));
+
+	value->data.procedure->scope_size = CURRENT_FRAME.max_scoped_locals;
+	value->data.procedure->id = ast_parser->ast->proc_count++;
+	if (value->data.procedure->return_type->type == TYPE_AUTO)
+		value->data.procedure->return_type->type = TYPE_NOTHING;
+
+	if (!code_paths_return(value->data.procedure->exec_block, 0, NULL)) {
+		if (value->data.procedure->return_type->type == TYPE_NOTHING) { //add implicit return
+			ast_statement_t* return_statement = ast_code_block_append(ast_parser, &value->data.procedure->exec_block);
+			return_statement->type = AST_STATEMENT_RETURN;
+			return_statement->src_loc_id = value->data.procedure->exec_block.instructions[value->data.procedure->exec_block.instruction_count - 2].src_loc_id;
+		}
+		else
+			PANIC(ast_parser, ERROR_UNRETURNED_FUNCTION);
+	}
+
+	ESCAPE_ON_FAIL(ast_parser_close_frame(ast_parser));
+	return 1;
+}
+
+static int parse_var_decl(ast_parser_t* ast_parser, ast_decl_var_t* ast_decl_var, uint32_t statement_src_loc_id) {
 	PANIC_ON_FAIL(ast_decl_var->var_info = safe_malloc(ast_parser->safe_gc, sizeof(ast_var_info_t)), ast_parser, ERROR_MEMORY);
 	ast_decl_var->var_info->is_global = 0;
 	ast_decl_var->var_info->is_readonly = 0;
-	while (LAST_TOK.type == TOK_GLOBAL || LAST_TOK.type == TOK_READONLY) {
-		if (LAST_TOK.type == TOK_GLOBAL) {
-			PANIC_ON_FAIL(!CURRENT_FRAME.return_type, ast_parser, ERROR_INTERNAL);
+
+	if (LAST_TOK.type == TOK_TYPECHECK_PROC) {
+		if (!parse_type(ast_parser, &ast_decl_var->var_info->type, 0, 0)) {
+			PANIC_ON_FAIL(ast_parser->last_err == ERROR_UNEXPECTED_TOK, ast_parser, ast_parser->last_err);
+			ast_parser->last_err = ERROR_NONE;
+
+			MATCH_TOK(TOK_IDENTIFIER);
+			uint64_t id = hash_s(LAST_TOK.str, LAST_TOK.length);
 			ast_decl_var->var_info->is_global = 1;
-		}
-		else if (LAST_TOK.type == TOK_READONLY)
 			ast_decl_var->var_info->is_readonly = 1;
-		READ_TOK;
+			READ_TOK;
+
+			ESCAPE_ON_FAIL(parse_proc_decl(ast_parser, &ast_decl_var->set_value, statement_src_loc_id));
+			TYPE_COPY(&ast_decl_var->var_info->type, ast_decl_var->set_value.type);
+
+			ESCAPE_ON_FAIL(ast_parser_decl_var(ast_parser, id, ast_decl_var->var_info));
+			return 1;
+		}
 	}
-	ESCAPE_ON_FAIL(parse_type(ast_parser, &ast_decl_var->var_info->type, 1, 0));
+	else {
+		while (LAST_TOK.type == TOK_GLOBAL || LAST_TOK.type == TOK_READONLY) {
+			if (LAST_TOK.type == TOK_GLOBAL) {
+				PANIC_ON_FAIL(!CURRENT_FRAME.return_type, ast_parser, ERROR_INTERNAL);
+				ast_decl_var->var_info->is_global = 1;
+			}
+			else if (LAST_TOK.type == TOK_READONLY)
+				ast_decl_var->var_info->is_readonly = 1;
+			READ_TOK;
+		}
+		ESCAPE_ON_FAIL(parse_type(ast_parser, &ast_decl_var->var_info->type, 1, 0));
+	}
+
 	MATCH_TOK(TOK_IDENTIFIER);
 
 	uint64_t id = hash_s(LAST_TOK.str, LAST_TOK.length);
@@ -571,6 +711,9 @@ static int parse_var_decl(ast_parser_t* ast_parser, ast_decl_var_t* ast_decl_var
 	MATCH_TOK(TOK_SET);
 	READ_TOK;
 	ESCAPE_ON_FAIL(parse_expression(ast_parser, &ast_decl_var->set_value, &ast_decl_var->var_info->type, 0, 0));
+	
+	MATCH_TOK(TOK_SEMICOLON);
+	READ_TOK;
 	return 1;
 }
 
@@ -621,6 +764,7 @@ static int parse_statment(ast_parser_t* ast_parser, ast_statement_t* statement, 
 	
 	switch (LAST_TOK.type)
 	{
+	case TOK_DECLTYPE:
 	case TOK_READONLY:
 	case TOK_GLOBAL:
 	case TOK_AUTO:
@@ -632,8 +776,8 @@ static int parse_statment(ast_parser_t* ast_parser, ast_statement_t* statement, 
 	case TOK_TYPECHECK_PROC:
 	ast_var_decl:
 		statement->type = AST_STATEMENT_DECL_VAR;
-		ESCAPE_ON_FAIL(parse_var_decl(ast_parser, &statement->data.var_decl));
-		break;
+		ESCAPE_ON_FAIL(parse_var_decl(ast_parser, &statement->data.var_decl, statement->src_loc_id));
+		goto no_check_semicolon; //semicolon check already conducted in parse_var_decl
 	case TOK_IF:
 		statement->type = AST_STATEMENT_COND;
 		PANIC_ON_FAIL(statement->data.conditional = safe_malloc(ast_parser->safe_gc, sizeof(ast_cond_t)), ast_parser, ERROR_MEMORY);
@@ -1211,103 +1355,7 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 	}
 	case TOK_TYPECHECK_PROC: {
 		READ_TOK;
-		value->value_type = AST_VALUE_PROC;
-		ESCAPE_ON_FAIL(ast_parser_new_frame(ast_parser, NULL, 0));
-
-		typecheck_type_t generic_type_reqs[TYPE_MAX_SUBTYPES];
-		if (LAST_TOK.type == TOK_LESS)
-			ESCAPE_ON_FAIL(parse_type_params(ast_parser, generic_type_reqs, &value->type.type_id, 1, -1))
-		else
-			value->type.type_id = 0;
-
-		typecheck_type_t argument_unmodded_types[TYPE_MAX_SUBTYPES];
-
-		PANIC_ON_FAIL(value->data.procedure = safe_malloc(ast_parser->safe_gc, sizeof(ast_proc_t)), ast_parser, ERROR_MEMORY);
-		PANIC_ON_FAIL(value->data.procedure->params = safe_malloc(ast_parser->safe_gc, (TYPE_MAX_SUBTYPES - (1 + value->type.type_id)) * sizeof(ast_var_info_t)), ast_parser, ERROR_MEMORY);
-		value->data.procedure->param_count = 0;
-		MATCH_TOK(TOK_OPEN_PAREN);
-		READ_TOK;
-		while (LAST_TOK.type != TOK_CLOSE_PAREN)
-		{
-			if (value->data.procedure->param_count == TYPE_MAX_SUBTYPES - (1 + value->type.type_id))
-				PANIC(ast_parser, ERROR_INTERNAL);
-			value->data.procedure->params[value->data.procedure->param_count] = (ast_var_info_t){
-				.is_global = 0,
-				.is_readonly = 1,
-			};
-
-			ESCAPE_ON_FAIL(parse_type(ast_parser, &argument_unmodded_types[value->data.procedure->param_count], 0, 0));
-			TYPE_COPY(&value->data.procedure->params[value->data.procedure->param_count].type, argument_unmodded_types[value->data.procedure->param_count]);
-
-			MATCH_TOK(TOK_IDENTIFIER);
-			ESCAPE_ON_FAIL(ast_parser_decl_var(ast_parser, hash_s(LAST_TOK.str, LAST_TOK.length), &value->data.procedure->params[value->data.procedure->param_count]));
-			value->data.procedure->param_count++;
-			READ_TOK;
-			if (LAST_TOK.type != TOK_COMMA)
-				MATCH_TOK(TOK_CLOSE_PAREN)
-			else
-				READ_TOK;
-		}
-		value->type.type = TYPE_SUPER_PROC;
-		PANIC_ON_FAIL(value->type.sub_types = safe_malloc(ast_parser->safe_gc, (value->type.sub_type_count = value->data.procedure->param_count + 1 + value->type.type_id) * sizeof(typecheck_type_t)), ast_parser, ERROR_MEMORY);
-
-		memcpy(value->type.sub_types, generic_type_reqs, value->type.type_id * sizeof(typecheck_type_t));
-		memcpy(&value->type.sub_types[value->type.type_id + 1], argument_unmodded_types, value->data.procedure->param_count * sizeof(typecheck_type_t));
-
-		READ_TOK;
-
-		if (LAST_TOK.type == TOK_RETURN) {
-			READ_TOK;
-			ESCAPE_ON_FAIL(parse_type(ast_parser, &value->type.sub_types[value->type.type_id], 1, 1));
-		}
-		else
-			value->type.sub_types[value->type.type_id].type = TYPE_AUTO;
-
-		CURRENT_FRAME.return_type = value->data.procedure->return_type = &value->type.sub_types[value->type.type_id];
-
-		PANIC_ON_FAIL(value->data.procedure->thisproc = safe_malloc(ast_parser->safe_gc, sizeof(ast_var_info_t)), ast_parser, ERROR_MEMORY);
-		*value->data.procedure->thisproc = (ast_var_info_t){
-			.is_global = 0,
-			.is_readonly = 1,
-			.type = value->type,
-		};
-		ESCAPE_ON_FAIL(ast_parser_decl_var(ast_parser, 7572967076558961, value->data.procedure->thisproc));
-
-		if (LAST_TOK.type == TOK_LAMBDA_RETURN) {
-			READ_TOK;
-			value->data.procedure->exec_block.instruction_count = 0;
-			PANIC_ON_FAIL(value->data.procedure->exec_block.instructions = safe_malloc(ast_parser->safe_gc, (value->data.procedure->exec_block.allocated_instructions = 1) * sizeof(ast_statement_t)), ast_parser, ERROR_MEMORY);
-			ast_statement_t* return_statement = ast_code_block_append(ast_parser, &value->data.procedure->exec_block);
-			ESCAPE_ON_FAIL(return_statement);
-			return_statement->type = AST_STATEMENT_RETURN_VALUE;
-			ESCAPE_ON_FAIL(parse_expression(ast_parser, &return_statement->data.value, CURRENT_FRAME.return_type, CURRENT_FRAME.return_type->type != TYPE_AUTO, 0));
-			uint32_t src_loc_id = return_statement->src_loc_id = return_statement->data.value.src_loc_id;
-			if (return_statement->data.value.type.type == TYPE_NOTHING) {
-				return_statement->type = AST_STATEMENT_VALUE;
-				ESCAPE_ON_FAIL(return_statement = ast_code_block_append(ast_parser, &value->data.procedure->exec_block));
-				return_statement->src_loc_id = src_loc_id;
-				return_statement->type = AST_STATEMENT_RETURN;
-			}
-		}
-		else
-			ESCAPE_ON_FAIL(parse_code_block(ast_parser, &value->data.procedure->exec_block, 1, 0));
-
-		value->data.procedure->scope_size = CURRENT_FRAME.max_scoped_locals;
-		value->data.procedure->id = ast_parser->ast->proc_count++;
-		if (value->data.procedure->return_type->type == TYPE_AUTO)
-			value->data.procedure->return_type->type = TYPE_NOTHING;
-
-		if (!code_paths_return(value->data.procedure->exec_block, 0, NULL)) {
-			if (value->data.procedure->return_type->type == TYPE_NOTHING) { //add implicit return
-				ast_statement_t* return_statement = ast_code_block_append(ast_parser, &value->data.procedure->exec_block);
-				return_statement->type = AST_STATEMENT_RETURN;
-				return_statement->src_loc_id = value->data.procedure->exec_block.instructions[value->data.procedure->exec_block.instruction_count - 2].src_loc_id;
-			}
-			else
-				PANIC(ast_parser, ERROR_UNRETURNED_FUNCTION);
-		}
-
-		ESCAPE_ON_FAIL(ast_parser_close_frame(ast_parser));
+		ESCAPE_ON_FAIL(parse_proc_decl(ast_parser, value, value->src_loc_id));
 		break;
 	}
 	case TOK_FOREIGN: {

@@ -42,6 +42,7 @@ typedef enum token_type {
 	TOK_PROTOINIT,
 	TOK_EXTEND,
 	TOK_DYNAMIC_CAST,
+	TOK_DECLTYPE,
 
 	TOK_FALSE,
 	TOK_TRUE,
