@@ -1,2 +1,0 @@
-include "stdlib/buffer.sf";
-
