@@ -26,4 +26,4 @@ A minimal, performant, strongly-typed, and multi-paradigmn programming language 
   * [Installation](https://github.com/TheRealMichaelWang/superforth/wiki/Installation)
   * [CLI Usage](https://github.com/TheRealMichaelWang/superforth/wiki/Command-Line-Usage)
 * [Examples](https://github.com/TheRealMichaelWang/superforth/tree/main/examples)
-* [Release](https://github.com/TheRealMichaelWang/superforth/releases/tag/0.1)
+* [Release](https://github.com/TheRealMichaelWang/superforth/releases/tag/1.1)
