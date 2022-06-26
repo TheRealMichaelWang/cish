@@ -1,4 +1,4 @@
-include "stdlib/buffer.csh";
+include "stdlib/buffer.sf";
 
 global readonly auto swapElems = proc<T>(array<T> buf, int i, int j) {
 	T temp = buf[i];
