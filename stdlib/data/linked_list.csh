@@ -1,4 +1,4 @@
-include "stdlib/std.sf";
+include "stdlib/std.csh";
 
 abstract record listBucket<T>;
 
