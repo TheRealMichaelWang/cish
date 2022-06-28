@@ -1,4 +1,4 @@
-include "stdlib/buffer.sf";
+include "stdlib/buffer.csh";
 
 record list<T> {
 	array<T> elems = new T[15];

@@ -1,4 +1,4 @@
-include "stdlib/std.sf";
+include "stdlib/std.csh";
 
 record domainError<domainT, rangeT> extends error<rangeT> {
 	readonly domainT domain;
