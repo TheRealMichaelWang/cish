@@ -39,22 +39,20 @@ int scanner_scan_char(scanner_t* scanner) {
 		scanner_read_char(scanner);
 		switch (scanner->last_char)
 		{
-		case 'b':
-			RETURN('\b');
-		case 'e':
-			RETURN('\e');
-		case 'n':
-			RETURN('\n');
-		case 'r':
-			RETURN('\r');
-		case 't':
-			RETURN('\t');
-		case '\\':
-			RETURN('\\');
+		case 'a': RETURN('\a');
+		case 'b': RETURN('\b');
+		case 'e': RETURN('\e');
+		case 'f': RETURN('\f');
+		case 'n': RETURN('\n');
+		case 'r': RETURN('\r');
+		case 't': RETURN('\t');
+		case 'v': RETURN('\v');
+		case '\\': 
+		case '\'':
 		case '\"':
-			RETURN('\"');
-		case '0':
-			RETURN(0);
+		case '?':
+			RETURN(scanner->last_char);
+		case '0': RETURN(0);
 		default:
 			PANIC(scanner, ERROR_UNEXPECTED_TOK);
 		}
@@ -160,9 +158,19 @@ int scanner_scan_tok(scanner_t* scanner) {
 		}
 	}
 	else if (isalnum(scanner->last_char)) {
+		int type_flag = 0;
 		do {
 			scanner_read_char(scanner);
 			scanner->last_tok.length++;
+
+			if (scanner->last_char == '.')
+				type_flag = 1;
+			else if (scanner->last_char == 'f' || scanner->last_char == 'h') {
+				PANIC_ON_FAIL(!type_flag, scanner, ERROR_UNEXPECTED_TOK);
+				scanner_read_char(scanner);
+				scanner->last_tok.length++;
+				break;
+			}
 		} while (isalnum(scanner->last_char) || scanner->last_char == '.');
 		scanner->last_tok.type = TOK_NUMERICAL;
 	}
@@ -183,7 +191,7 @@ int scanner_scan_tok(scanner_t* scanner) {
 		scanner->last_tok.type = TOK_CHAR;
 		scanner->last_tok.str++;
 		uint32_t old_pos = scanner->position;
-		if(!scanner_scan_char(scanner) || !scanner_peek_char(scanner))
+		if (!scanner_scan_char(scanner) || !scanner_peek_char(scanner))
 			PANIC(scanner, ERROR_UNEXPECTED_TOK);
 		scanner->last_tok.length = scanner->position - old_pos;
 		if (!scanner_read_char(scanner) || scanner->last_char != '\'')

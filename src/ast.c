@@ -679,7 +679,7 @@ static int parse_var_decl(ast_parser_t* ast_parser, ast_decl_var_t* ast_decl_var
 
 			MATCH_TOK(TOK_IDENTIFIER);
 			uint64_t id = hash_s(LAST_TOK.str, LAST_TOK.length);
-			ast_decl_var->var_info->is_global = 1;
+			ast_decl_var->var_info->is_global = (CURRENT_FRAME.return_type == NULL);
 			ast_decl_var->var_info->is_readonly = 1;
 			READ_TOK;
 
