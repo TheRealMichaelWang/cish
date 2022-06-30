@@ -8,6 +8,7 @@ int init_safe_gc(safe_gc_t* safe_gc) {
 	safe_gc->entry_count = 0;
 	safe_gc->avaible_entry_count = 0;
 	safe_gc->transfer_entry_count = 0;
+	return 1;
 }
 
 void free_safe_gc(safe_gc_t* safe_gc, int free_transfers) {
