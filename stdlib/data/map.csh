@@ -17,8 +17,8 @@ record map<K, V> {
 	proc<int, K> hasher;
 }
 
-global readonly auto mapEmplace = proc<K, V>(map<K, V> m, K key, V value) {
-	readonly auto emplace = proc<K, V>(map<K, V> m, keyValuePair<K, V> pair) {
+proc mapEmplace<K, V>(map<K, V> m, K key, V value) {
+	proc emplace<K, V>(map<K, V> m, keyValuePair<K, V> pair) {
 		for(int i = pair.keyHash % #m.buckets; i < #m.buckets; i++)
 			if(m.buckets[i] is emptyMapBucket<any, any>)
 				return m.buckets[i] = pair;
@@ -34,22 +34,21 @@ global readonly auto mapEmplace = proc<K, V>(map<K, V> m, K key, V value) {
 			if(oldBuckets[i] is keyValuePair<K, V>)
 				thisproc<K, V>(m, dynamic_cast<keyValuePair<K, V>>(oldBuckets[i]));
 		return thisproc<K, V>(m, pair);
-	};
+	}
 
 	emplace<K, V>(m, new keyValuePair<K, V> {
 		key = key;
 		value = value;
 		keyHash = m.hasher(key);
 	});
-	return;
-};
+}
 
 final record keyNotFound<K, V> extends error<V> {
 	readonly K key;
 	msg = "Key not found.";
 }
 
-global readonly auto mapFind = proc<K, V>(map<K, V> m, K key) return fallible<V> {
+proc mapFind<K, V>(map<K, V> m, K key) return fallible<V> {
 	int keyHash = m.hasher(key);
 	for(int i = keyHash % #m.buckets; i < #m.buckets; i++)
 		if(m.buckets[i] is keyValuePair<K, V>) {
@@ -63,4 +62,4 @@ global readonly auto mapFind = proc<K, V>(map<K, V> m, K key) return fallible<V>
 	return new keyNotFound<K, V> {
 		key = key;
 	};
-};
+}

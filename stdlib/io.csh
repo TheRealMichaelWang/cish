@@ -1,41 +1,29 @@
+include "stdlib/buffer.csh";
+
 $prints a string onto the console
-global readonly auto print = proc(array<char> str) return nothing {
-	int i = 0;
-	while(i < #str) {
+proc print(array<char> str)
+	for(int i = 0; i < #str; i++)
 		foreign[8](str[i]);
-		i = i + 1;
-	}
-	return;
-};
 
 $prints a string onto the console, with a newline at the end
-global readonly auto println = proc(array<char> str) return nothing {
+proc println(array<char> str) {
 	print(str);
 	foreign[8]('\n');
-	return;
-};
+}
 
 $puts a char
-global readonly auto putChar = proc(char c) return nothing{
+proc putChar(char c)
 	foreign[8](c);
-	return;
-};
 
 $reads a line of input
-global readonly auto input = proc() return array<char> {
-	array<char> buffer = new char[4096];
+proc input() {
+	auto buffer = new char[4096];
+
 	int i = 0;
-	char last_scanned = '\0';
-	while(last_scanned != '\n') {
-		last_scanned = buffer[i] = foreign[9];
-		i = i + 1;
-	}
-	i = i - 1;
-	array<char> output = new char[i];
-	int j = 0;
-	while(j < i) {
-		output[j] = buffer[j];
-		j = j + 1;
-	}
+	for(char last_scanned = '\0'; last_scanned != '\n'; last_scanned = foreign[9])
+		buffer[i++] = last_scanned;
+
+	array<char> output = new char[--i];
+	memcpy<char>(output, buffer, 0, 0, i);
 	return output;
-};
+}

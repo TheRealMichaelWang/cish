@@ -1,7 +1,5 @@
-global readonly auto randirange = proc(int start, int stop) return int {
-	return (foreign[10] % (stop - start)) + stop;
-};
+proc randirange(int start, int stop) =>
+	(foreign[10] % (stop - start)) + stop;
 
-global readonly auto randbool = proc() return bool {
-	return foreign[10] % 2 == 0;
-};
+proc randbool() =>
+	(foreign[10] % 2) == 0;

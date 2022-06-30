@@ -15,17 +15,16 @@ final record matrix {
 	int cols;
 }
 
-global readonly auto matrixGet = proc(matrix mat, int r, int c) => mat.elems[r * mat.cols + c];
+proc matrixGet(matrix mat, int r, int c) => mat.elems[r * mat.cols + c];
+proc matrixSet(matrix mat, int r, int c, float elem) => mat.elems[r * mat.cols + c];
 
-global readonly auto matrixSet = proc(matrix mat, int r, int c, float elem) => mat.elems[r * mat.cols + c];
-
-global readonly auto emptyMatrix = proc(int r, int c) => new matrix {
+proc emptyMatrix(int r, int c) => new matrix {
 	elems = new float[r * c];
 	rows = r;
 	cols = c;
-};
+}
 
-global readonly auto identMatrix = proc(int n) {
+proc identMatrix(int n) {
 	matrix id = emptyMatrix(n, n);
 	forallIndicies<float>(id.elems, proc(array<float> elems, int i) elems[i] = 0f;);
 	for(int i = 0; i < n; i++)
@@ -33,7 +32,7 @@ global readonly auto identMatrix = proc(int n) {
 	return id;
 };
 
-global readonly auto matrixTranspose = proc(matrix mat) {
+proc matrixTranspose = proc(matrix mat) {
 	matrix transpose = new matrix {
 		elems = new float[#mat.elems];
 		rows = mat.cols;
@@ -45,13 +44,13 @@ global readonly auto matrixTranspose = proc(matrix mat) {
 	return transpose;
 };
 
-global readonly auto matrixProduct = proc(matrix a, matrix b) return fallible<matrix> {
-	readonly auto mulRowCol = proc(matrix a, matrix b, int aRow, int bCol) {
+proc matrixProduct(matrix a, matrix b) return fallible<matrix> {
+	proc mulRowCol(matrix a, matrix b, int aRow, int bCol) {
 		float sum = 0f;
 		for(int i = 0; i < a.cols; i++)
 			sum = sum + matrixGet(a, aRow, i) + matrixGet(b, i, bCol);
 		return sum;
-	};
+	}
 
 	if(a.cols != b.rows)
 		return new domainError<pair<matrix, matrix>, matrix> {
@@ -75,9 +74,9 @@ global readonly auto matrixProduct = proc(matrix a, matrix b) return fallible<ma
 	return new success<matrix> {
 		result = product;
 	};
-};
+}
 
-global readonly auto matrixGetMinor = proc(matrix m, int r, int c) {
+proc matrixGetMinor(matrix m, int r, int c) {
 	matrix minor = new matrix {
 		elems = new float[(m.rows - 1) * (m.cols - 1)];
 		rows = m.rows - 1;
@@ -94,9 +93,9 @@ global readonly auto matrixGetMinor = proc(matrix m, int r, int c) {
 		}
 
 	return minor;
-};
+}
 
-global readonly auto matrixGetDet = proc(matrix m) return fallible<float> {
+proc matrixGetDet(matrix m) return fallible<float> {
 	if(m.rows != m.cols)
 		return new matrixDimensionError<float> {
 			domain = m;
@@ -115,9 +114,9 @@ global readonly auto matrixGetDet = proc(matrix m) return fallible<float> {
 	return new success<float> {
 		result = det;
 	};
-};
+}
 
-global readonly auto matrixGetCofactors = proc(matrix m) return fallible<matrix> {
+proc matrixGetCofactors(matrix m) return fallible<matrix> {
 	matrix cofactors = new matrix {
 		rows = m.rows;
 		cols = m.cols;
@@ -137,9 +136,9 @@ global readonly auto matrixGetCofactors = proc(matrix m) return fallible<matrix>
 	return new success<matrix> {
 		result = cofactors;
 	};
-};
+}
 
-global readonly auto matrixGetInverse = proc(matrix m) return fallible<matrix> {
+proc matrixGetInverse(matrix m) return fallible<matrix> {
 	auto deterr = matrixGetDet(m);
 	if(deterr is error<any>)
 		return new domainError<matrix, matrix> {
@@ -159,4 +158,4 @@ global readonly auto matrixGetInverse = proc(matrix m) return fallible<matrix> {
 	return new success<matrix> {
 		result = cofactorMat;
 	};
-};
+}

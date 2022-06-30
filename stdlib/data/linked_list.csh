@@ -14,7 +14,7 @@ final record linkedList<T> {
 	int count = 0;
 }
 
-global readonly auto pushFront = proc<T>(linkedList<T> l, T elem) {
+proc pushFront<T>(linkedList<T> l, T elem) {
 	l.count = l.count + 1;
 	return l.head = new elemListBucket<T> {
 		elem = elem;
@@ -22,7 +22,7 @@ global readonly auto pushFront = proc<T>(linkedList<T> l, T elem) {
 	};
 };
 
-global readonly auto popFront = proc<T>(linkedList<T> l) return fallible<T> {
+proc popFront<T>(linkedList<T> l) return fallible<T> {
 	if(l.head is emptyBucket<any>)
 		return new invalidOperation<T> {
 			msg = "Cannot pop from empty list.";
@@ -37,12 +37,11 @@ global readonly auto popFront = proc<T>(linkedList<T> l) return fallible<T> {
 	}
 };
 
-global readonly auto linkedListForAll = proc<T>(linkedList<T> l, proc<nothing, T> todo) {
+proc linkedListForAll<T>(linkedList<T> l, proc<nothing, T> todo)
 	for(listBucket<T> current = l.head; current is elemListBucket<T>; current = dynamic_cast<elemListBucket<T>>(current).next)
 		todo(dynamic_cast<elemListBucket<T>>(current).elem);
-};
 
-global readonly auto linkedListToArray = proc<T>(linkedList<T> l) {
+proc linkedListToArray<T>(linkedList<T> l) {
 	array<T> buffer = new T[l.count];
 	listBucket<T> current = l.head;
 	for(int i = 0; i < #buffer; i++) {
