@@ -1,0 +1,88 @@
+abstract record Type;
+	abstract record NullType;
+	abstract record Primitive extends Type;
+		final record BoolType extends Primitive;
+		final record NumberType extends Primitive;
+		final record CharType extends Primitive;
+	abstract record RefType extends Type;
+		final record ArrayType<TelemType extends Type> extends RefType;
+
+abstract record AstValue<TType extends Type>;
+
+abstract record AstBinaryOp<ToutType extends Type, TopType extends Type> extends AstValue<ToutType> {
+	AstValue<TopType> rhs;
+	AstValue<TopType> lhs;
+}
+
+abstract record AstArithmeticOp extends AstBinaryOp<NumberType, NumberType>;
+	final record AstAdd extends AstArithmeticOp;
+	final record AstSubtract extends AstArithmeticOp;
+	final record AstMultiply extends AstArithmeticOp;
+	final record AstDivide extends AstArithmeticOp;
+
+abstract record AstCompareOp<TcompType extends Type> extends AstBinaryOp<BoolType, TcompType>;
+	final record AstEquals<TcompType extends Type> extends AstCompareOp<TcompType>;
+	final record AstNotEquals<TcompType extends Type> extends AstCompareOp<TcompType>;
+	final record AstMore extends AstCompareOp<NumberType>;
+	final record AstLess extends AstCompareOp<NumberType>;
+	final record AstMoreEqual extends AstCompareOp<NumberType>;
+	final record AstLessEqual extends AstCompareOp<NumberType>;
+
+abstract record AstShortEval extends AstBinaryOp<BoolType, BoolType>;
+	final record AstAnd extends AstShortEval;
+	final record AstOr extends AstShortEval;
+
+final record AstGetIndex<TelemType extends Type> extends AstValue<TelemType> {
+	AstValue<ArrayType<TelemType>> arrayValue;
+	AstValue<Index> indexValue;
+}
+
+final record AstSetIndex<TelemType extends Type> extends AstValue<TelemType> {
+	AstValue<ArrayType<TelemType>> arrayValue;
+	AstValue<Index> indexValue;
+	AstValue<TelemType> setValue;
+}
+
+abstract record AstUnaryOp<TopType extends Type> extends AstValue<TopType> {
+	AstValue<TopType> operand;
+}
+
+final record AstNegate extends AstUnaryOp<NumberType>;
+final record AstUntil extends AstUnaryOp<BoolType>;
+
+final record AstNumerical extends AstValue<NumberType> {
+	readonly float num;
+}
+
+final record ArrayLiteral<TelemType extends Type> extends AstValue<ArrayType<TelemType>>  {
+	array<AstValue<TelemType>> elements;
+}
+
+final record AstAllocArray<TelemType extends Type> extends AstValue<ArrayType<TelemType>> {
+	AstValue<NumberType> requestedLength;
+}
+
+final record AstStringLiteral extends ArrayLiteral<CharType>;
+
+abstract record AstStatement;
+	abstract record AstReturn<TreturnType extends Type> extends AstStatement;
+		final record AstReturnNoVal extends AstReturn<NullType>;
+		final record AstReturnValue<TvalueType extends Type> extends AstReturn<Type> {
+			AstValue<TvalueType> toReturn;
+	}
+
+	abstract record AstConditional extends AstStatement	
+		final record AstIfElse extends AstConditional {
+			AstValue<BoolType> condition;
+			array<AstStatement> onTrue;
+			array<AstStatement> onFalse;
+		}
+
+		final record AstRepeat extends AstConditional {
+			AstValue<BoolType> condition;
+			array<AstStatement> toExec;
+		}
+
+		final record AstForeach<TIterateType extends Type> extends AstConditional {
+			AstValue<ArrayType<TIterateType>> toIterate;
+		}
