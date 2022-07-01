@@ -1,0 +1,35 @@
+include "stdlib/std.csh";
+include "stdlib/io.csh";
+include "stdlib/random.csh";
+include "examples/binary_tree.csh";
+
+proc print_tree<elemType>(tree<elemType> e, proc<nothing, elemType> printElem) {
+	proc print_leaf<elemType>(leaf<elemType> l, proc<nothing, elemType> printElem, int depth) {
+		for(int i = 0; i < depth; i++)
+			putChar('\t');
+
+		if(l is empty_leaf<any>)
+			println("empty");
+		else {
+			node<elemType> node = dynamic_cast<node<elemType>>(l);
+			printElem(node.elem);
+			putChar('\n');
+			thisproc<elemType>(node.left, printElem, depth + 1);
+			thisproc<elemType>(node.right, printElem, depth + 1);
+		}
+	}
+	print_leaf<elemType>(e.head, printElem, 0);
+}
+
+auto tree = new tree<int> {
+	compare = proc(int a, int b) return int {
+		return a - b;
+	};
+};
+
+for(int i = 0; i < 100; i++)
+	insert<int>(tree, randirange(0, 100));
+
+print_tree<int>(tree, proc(int i) 
+	print(itos(i));
+);

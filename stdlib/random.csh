@@ -1,5 +1,5 @@
 proc randirange(int start, int stop) =>
-	(foreign[10] % (stop - start)) + stop;
+	(foreign[10] % (stop - start)) + stop
 
 proc randbool() =>
-	(foreign[10] % 2) == 0;
+	(foreign[10] % 2) == 0

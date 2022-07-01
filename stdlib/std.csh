@@ -46,11 +46,11 @@ proc stoi(array<char> buffer) return int
 	return foreign[7](buffer);
 
 $converts a float to a string
-proc ftos = proc(float n) return array<char>
+proc ftos (float n) return array<char>
 	return foreign[4](n);
 
 $converts a string to a float
-proc stof = proc(array<char> buffer) return float
+proc stof (array<char> buffer) return float
 	return foreign[5](buffer);
 
 $converts a char to an int 
