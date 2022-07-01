@@ -13,10 +13,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: make
-      run: make
-    - name: make
-      run: make
+    - name: premake
+    - run: make
+    - run: echo No errors, moving on
+      if: succeeded() || failed()
+      name: make
+    - run: make
+      if: always()
     - name: make check
       run: make check
     - name: make distcheck
