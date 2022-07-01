@@ -1,3 +1,0 @@
-global readonly int myvar = 10;
-int locvar = myvar;
-myvar = 10;
