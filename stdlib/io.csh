@@ -27,5 +27,3 @@ proc input() {
 	memcpy<char>(output, buffer, 0, 0, i);
 	return output;
 }
-proc beep()
-	foreign[8](\a);
