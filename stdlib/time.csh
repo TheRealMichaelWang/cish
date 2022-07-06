@@ -1,3 +1,3 @@
 proc unixtime()
 	int unix = foreign[16]();
-  return unix;
+	return unix;
