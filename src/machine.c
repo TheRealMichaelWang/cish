@@ -267,7 +267,6 @@ static int type_signature_match(machine_t* machine, machine_type_sig_t match_sig
 int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit, uint16_t type_count) {
 	machine->frame_limit = frame_limit;
 
-	machine->last_err = ERROR_NONE;
 	machine->global_offset = 0;
 	machine->position_count = 0;
 	machine->heap_frame = 0;
@@ -325,10 +324,20 @@ machine_type_sig_t* new_type_sig(machine_t* machine) {
 #define MACHINE_PANIC_COND(COND, ERR) {if(!(COND)) { machine->last_err_ip = ip - instructions; PANIC(machine, ERR); }}
 #define MACHINE_ESCAPE_COND(COND) {if(!(COND)) { machine->last_err_ip = ip - instructions; return 0; }}
 #define MACHINE_PANIC(ERR) {machine->last_err_ip = ip - instructions; PANIC(machine, ERR); };
-int machine_execute(machine_t* machine, machine_ins_t* instructions) {
-	machine_ins_t* ip = instructions;
+int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins_t* continue_instructions) {
+	machine_ins_t* ip = continue_instructions;
+	machine->last_err = ERROR_NONE;
+#ifdef CISH_PAUSABLE
+	machine->halt_flag = 0;
+#endif // CISH_PAUSABLE
 
 	for (;;) {
+#ifdef CISH_PAUSABLE
+		if (machine->halt_flag) {
+			machine->last_err_ip = ip;
+			return 1;
+		}
+#endif // CISH_PAUSABLE
 		switch (ip->op_code) {
 		case MACHINE_OP_CODE_MOVE_LL:
 			machine->stack[ip->a + machine->global_offset] = machine->stack[ip->b + machine->global_offset];

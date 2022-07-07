@@ -164,12 +164,17 @@ typedef struct machine {
 	
 	machine_type_sig_t* defined_signatures;
 	uint16_t defined_sig_count, alloced_sig_defs;
+
+#ifdef CISH_PAUSABLE
+	int halt_flag;
+#endif // CISH_PAUSABLE
+
 } machine_t;
 
 int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit, uint16_t type_count);
 void free_machine(machine_t* machine);
 
-int machine_execute(machine_t* machine, machine_ins_t* instructions);
+int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins_t* continue_instructions);
 
 heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode_t trace_mode);
 machine_type_sig_t* new_type_sig(machine_t* machine);
