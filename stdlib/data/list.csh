@@ -20,7 +20,7 @@ proc listInsert<T>(list<T> l, int i, T elem) {
 	l.count = l.count + 1;
 }
 
-proc listRemoveAt<T>(list<T> l, int i) => memswap<T>(l.elems, i, i + 1, (l.count = l.count - 1) - i);
+proc listRemoveAt<T>(list<T> l, int i) => memswap<T>(l.elems, i, i + 1, (l.count = l.count - 1) - i)
 
 proc listToArray<T>(list<T> l) {
 	array<T> buf = new T[l.count];
@@ -28,8 +28,8 @@ proc listToArray<T>(list<T> l) {
 	return buf;
 }
 
-proc listGet<T>(list<T> l, int i) => l.elems[i];
-proc listSet<T>(list<T> l, int i, T elem) => l.elems[i] = elem;
+proc listGet<T>(list<T> l, int i) => l.elems[i]
+proc listSet<T>(list<T> l, int i, T elem) => l.elems[i] = elem
 
 record searchableList<T> extends list<T> {
 	readonly proc<bool, T, T> equals;
@@ -43,7 +43,7 @@ proc listIndexOf<T>(searchableList<T> l, T elem) {
 }
 
 proc listRemove<T>(searchableList<T> l, T elem) {
-	int i = listIndexOf(l, elem);
+	int i = listIndexOf<T>(l, elem);
 	if(i < 0)
 		return false;
 	listRemoveAt<T>(l, i);

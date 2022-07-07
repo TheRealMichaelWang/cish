@@ -60,3 +60,10 @@ proc ctoi(char c) return int
 $converts an int to a char
 proc itoc(int i) return char
 	return foreign[14](i);
+
+proc dj2b(array<char> id) {
+	int hash_num = 5381;
+	for(int i = 0; i < #id; i++)
+		hash_num = (hash_num * 33) + foreign[15](id[i]);
+	return hash_num;
+}
