@@ -1,2 +1,2 @@
 proc beep()
-	foreign[8](\a);
+  foreign[8]('\a');
