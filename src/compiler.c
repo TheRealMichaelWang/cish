@@ -476,7 +476,7 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 			for (uint_fast8_t i = 0; i < value.data.proc_call->procedure.type.type_id; i++)
 				if (value.data.proc_call->procedure.type.sub_types[i].type == TYPE_ANY) {
 					if (value.data.proc_call->typeargs[i].type == TYPE_TYPEARG)
-						EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, LOC_REG(gen_arg_reg++), TYPEARG_INFO_REG(value.data.set_prop->value.type)))
+						EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, LOC_REG(gen_arg_reg++), TYPEARG_INFO_REG(value.data.proc_call->typeargs[i])))
 					else {
 						uint16_t sig_id = compiler->target_machine->defined_sig_count;
 						ESCAPE_ON_FAIL(compiler_define_typesig(compiler, proc, value.data.proc_call->typeargs[i]));

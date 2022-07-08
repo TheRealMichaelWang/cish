@@ -63,7 +63,7 @@ int main(int argc, char* argv[]) {
 		if (!strcmp(op_flag, "-cr")) {
 			if (!install_stdlib(&machine))
 				ABORT(("Failed to install Cish standard native libraries.\n"));
-			if (!machine_execute(&machine, machine_ins)) {
+			if (!machine_execute(&machine, machine_ins, machine_ins)) {
 				print_back_trace(&machine, &dbg_table, machine_ins);
 				printf("Last IP: %" PRIu64 "\n", machine.last_err_ip);
 				free_debug_table(&dbg_table);
@@ -93,7 +93,7 @@ int main(int argc, char* argv[]) {
 		if (!strcmp(op_flag, "-r")) {
 			if (!install_stdlib(&machine))
 				ABORT(("Failed to install Cish standard native libraries.\n"));
-			if (!machine_execute(&machine, instructions)) {
+			if (!machine_execute(&machine, instructions, instructions)) {
 				printf("Last IP: %" PRIu64 "\n", machine.last_err_ip);
 				ABORT(("Runtime error(%s).\n", get_err_msg(machine.last_err)))
 			}

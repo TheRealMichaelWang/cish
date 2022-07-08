@@ -1,5 +1,5 @@
-include "stdlib/buffer.sf";
-include "stdlib/std.sf";
+include "stdlib/buffer.csh";
+include "stdlib/std.csh";
 
 abstract record mapBucket<K, V>;
 
@@ -29,7 +29,7 @@ proc mapEmplace<K, V>(map<K, V> m, K key, V value) {
 			}
 
 		auto oldBuckets = m.buckets;
-		m.buckets = memset<mapBucket<K, V>>(new mapBucket<K, V>[#oldBuckets + 5], 0, #oldBuckets + 5, new emptyMapBucket<K, V>);
+		m.buckets = memset<mapBucket<K, V>>(new mapBucket<K, V>[#oldBuckets + 15], 0, #oldBuckets + 15, new emptyMapBucket<K, V>);
 		for(int i = 0; i < #oldBuckets; i++)
 			if(oldBuckets[i] is keyValuePair<K, V>)
 				thisproc<K, V>(m, dynamic_cast<keyValuePair<K, V>>(oldBuckets[i]));
