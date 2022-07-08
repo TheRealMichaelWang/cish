@@ -1112,11 +1112,10 @@ static int parse_value(ast_parser_t* ast_parser, ast_value_t* value, typecheck_t
 		value->data.array_literal.element_count = 0;
 		scanner_t str_scanner;
 		init_scanner(&str_scanner, LAST_TOK.str, LAST_TOK.length);
-		scanner_scan_char(&str_scanner);
-		while (str_scanner.last_char) {
-			buffer[value->data.array_literal.element_count++] = str_scanner.last_char;
+		while (value->data.array_literal.element_count != LAST_TOK.length) {
 			scanner_scan_char(&str_scanner);
-		}
+			buffer[value->data.array_literal.element_count++] = str_scanner.last_char;
+		} 
 		value->value_type = AST_VALUE_ARRAY_LITERAL;
 		value->type.type = TYPE_SUPER_ARRAY;
 
