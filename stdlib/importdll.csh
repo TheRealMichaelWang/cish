@@ -1,4 +1,4 @@
 proc includedll(array<char> lib) {
-  auto liboffset = foreign[17]('lib');
+  auto liboffset = foreign[19](lib);
   return liboffset;
 }
