@@ -63,11 +63,11 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		for (uint_fast16_t i = 0; i < value.data.procedure->param_count; i++)
 			compiler->var_regs[value.data.procedure->params[i].id] = LOC_REG(current_arg_reg++);
 
-		for (uint_fast8_t i = 0; i < value.type.type_id; i++)
-			if (value.data.procedure->generic_arg_traces[i] == POSTPROC_TRACE_DYNAMIC)
-				current_arg_reg++;
+		//for (uint_fast8_t i = 0; i < value.type.type_id; i++)
+		//	if (value.data.procedure->generic_arg_traces[i] == POSTPROC_TRACE_DYNAMIC)
+		//		current_arg_reg++;
 
-		allocate_code_block_regs(compiler, value.data.procedure->exec_block, current_arg_reg);
+		allocate_code_block_regs(compiler, value.data.procedure->exec_block, current_arg_reg + value.type.type_id);
 		return current_reg;
 	}
 	case AST_VALUE_VAR:
@@ -305,10 +305,10 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 			PANIC_ON_FAIL(compiler->proc_generic_regs[value.data.procedure->id] = safe_malloc(compiler->safe_gc, value.type.type_id * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
 			uint16_t gen_reg_begin = value.data.procedure->param_count + 1;
 			for (uint_fast8_t i = 0; i < value.type.type_id; i++)
-				if (value.data.procedure->generic_arg_traces[i] == POSTPROC_TRACE_DYNAMIC)
-					compiler->proc_generic_regs[value.data.procedure->id][i] = LOC_REG(gen_reg_begin++);
-				else
-					compiler->proc_generic_regs[value.data.procedure->id][i].offset = 0;
+				//if (value.data.procedure->generic_arg_traces[i] == POSTPROC_TRACE_DYNAMIC)
+					compiler->proc_generic_regs[value.data.procedure->id][i] = LOC_REG(gen_reg_begin + i);
+				//else
+					//compiler->proc_generic_regs[value.data.procedure->id][i].offset = 0;
 		}
 
 		EMIT_INS(INS1(COMPILER_OP_CODE_LABEL, compiler->eval_regs[value.id]));
@@ -317,7 +317,6 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		if (value.data.procedure->do_gc)
 			EMIT_INS(INS0(COMPILER_OP_CODE_GC_NEW_FRAME));
 		compile_code_block(compiler, value.data.procedure->exec_block, value.data.procedure, 0, NULL, 0);
-		//EMIT_INS(INS1(COMPILER_OP_CODE_ABORT, GLOB_REG(ERROR_UNRETURNED_FUNCTION)));
 		compiler->ins_builder.instructions[start_ip + 1].regs[0] = GLOB_REG(compiler->ins_builder.instruction_count);
 
 		if (value.type.type_id)
@@ -473,21 +472,22 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 		uint16_t type_sigs_to_pop = 0;
 		if (value.data.proc_call->procedure.type.type_id) {
 			uint16_t gen_arg_reg = value.data.proc_call->argument_count + 1 + compiler->proc_call_offsets[value.data.proc_call->id];
-			for (uint_fast8_t i = 0; i < value.data.proc_call->procedure.type.type_id; i++)
-				if (value.data.proc_call->procedure.type.sub_types[i].type == TYPE_ANY) {
-					if (value.data.proc_call->typeargs[i].type == TYPE_TYPEARG)
-						EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, LOC_REG(gen_arg_reg++), TYPEARG_INFO_REG(value.data.proc_call->typeargs[i])))
-					else {
-						uint16_t sig_id = compiler->target_machine->defined_sig_count;
-						ESCAPE_ON_FAIL(compiler_define_typesig(compiler, proc, value.data.proc_call->typeargs[i]));
-						if (typecheck_has_type(value.type, TYPE_TYPEARG)) {
-							EMIT_INS(INS3(COMPILER_OP_CODE_SET, LOC_REG(gen_arg_reg++), GLOB_REG(sig_id), GLOB_REG(1)));
-							type_sigs_to_pop++;
-						}
-						else
-							EMIT_INS(INS3(COMPILER_OP_CODE_SET, LOC_REG(gen_arg_reg++), GLOB_REG(sig_id), GLOB_REG(0)));
+			for (uint_fast8_t i = 0; i < value.data.proc_call->procedure.type.type_id; i++) {
+				//if (value.data.proc_call->procedure.type.sub_types[i].type == TYPE_ANY) {
+				if (value.data.proc_call->typeargs[i].type == TYPE_TYPEARG)
+					EMIT_INS(INS2(COMPILER_OP_CODE_MOVE, LOC_REG(gen_arg_reg++), TYPEARG_INFO_REG(value.data.proc_call->typeargs[i])))
+				else {
+					uint16_t sig_id = compiler->target_machine->defined_sig_count;
+					ESCAPE_ON_FAIL(compiler_define_typesig(compiler, proc, value.data.proc_call->typeargs[i]));
+					if (typecheck_has_type(value.type, TYPE_TYPEARG)) {
+						EMIT_INS(INS3(COMPILER_OP_CODE_SET, LOC_REG(gen_arg_reg++), GLOB_REG(sig_id), GLOB_REG(1)));
+						type_sigs_to_pop++;
 					}
+					else
+						EMIT_INS(INS3(COMPILER_OP_CODE_SET, LOC_REG(gen_arg_reg++), GLOB_REG(sig_id), GLOB_REG(0)));
 				}
+				//}
+			}
 		}
 
 		EMIT_INS(INS2(COMPILER_OP_CODE_CALL, compiler->eval_regs[value.data.proc_call->procedure.id], GLOB_REG(compiler->proc_call_offsets[value.data.proc_call->id])));
@@ -849,8 +849,8 @@ static int compile_type_to_machine(machine_type_sig_t* out_sig, typecheck_type_t
 		out_sig->super_signature = TYPE_TYPEARG;
 		if (proc) {
 			compiler_reg_t info_reg = TYPEARG_INFO_REG(type);
-			PANIC_ON_FAIL(info_reg.offset, compiler, ERROR_INTERNAL)
-				out_sig->sub_type_count = info_reg.reg;
+			//PANIC_ON_FAIL(info_reg.offset, compiler, ERROR_INTERNAL)
+			out_sig->sub_type_count = info_reg.reg;
 		}
 		else
 			out_sig->sub_type_count = type.type_id;
