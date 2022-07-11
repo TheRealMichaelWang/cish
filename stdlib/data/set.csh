@@ -29,17 +29,19 @@ proc setAdd<T>(set<T> s, T elem) {
 				thisproc<T>(s, dynamic_cast<elemSetBucket>(oldBuckets[i]).hash);
 		return thisproc<T>(s, hash);
 	}
-	insert<T>(s, s.hasher(elem));
+	return insert<T>(s, s.hasher(elem));
 }
 
 proc setRemove<T>(set<T> s, T elem) {
 	int hash = s.hasher(elem);
 	for(int i = hash % #s.buckets; i < #s.buckets; i++)
-		if(s.buckets[i] is elemSetBucket)
-		if(dynamic_cast<elemSetBucket>(s.buckets[i]).hash == hash) {
-			s.buckets[i] = new emptySetBucket;
-			return true;
+		if(s.buckets[i] is elemSetBucket) {
+			if(dynamic_cast<elemSetBucket>(s.buckets[i]).hash == hash) {
+				s.buckets[i] = new emptySetBucket;
+				return true;
+			}
 		}
+		else return false;
 	return false;
 }
 

@@ -25,6 +25,10 @@ final record triple<firstT, secondT, thirdT> {
 
 global readonly float nan = 0f/0f;
 
+proc assert(bool cond)
+	if(!cond)
+		abort; $an assertion failed
+
 proc forall<T>(array<T> a, proc<nothing, T> todo)
 	for(int i = 0; i < #a; i++)
 		todo(a[i]);

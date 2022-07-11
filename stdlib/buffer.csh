@@ -36,6 +36,14 @@ proc memcmp<T>(array<T> a, array<T> b, proc<int, T, T> compare, T zero) {
 	return 0;
 }
 
+proc memchk<T>(array<T> a, proc<bool, T> check) {
+	for(int i = 0; i < #a; i++)
+		if(!check(a[i]))
+			return false;
+	return true;
+}
+
+
 proc memcat<T>(array<T> a, array<T> b) {
 	auto newBuf = new T[#a + #b];
 	memcpy<T>(newBuf, a, 0, 0, #a);

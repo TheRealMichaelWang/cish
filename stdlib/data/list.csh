@@ -7,14 +7,16 @@ record list<T> {
 
 proc listAdd<T>(list<T> l, T elem) {
 	if(l.count == #l.elems)
-		l.elems = realloc<T>(l.elems, l.count + 5);
+		l.elems = realloc<T>(l.elems, 5);
+	if(l.count >= #l.elems)
+		abort; $wtf?
 	l.elems[l.count] = elem;
 	l.count = l.count + 1;
 }
 
 proc listInsert<T>(list<T> l, int i, T elem) {
 	if(l.count == #l.elems)
-		l.elems = realloc<T>(l.elems, l.count + 5);
+		l.elems = realloc<T>(l.elems, 5);
 	memswap<T>(l.elems, i + 1, i, l.count - i);
 	l.elems[i] = elem;
 	l.count = l.count + 1;
