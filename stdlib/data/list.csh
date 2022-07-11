@@ -8,8 +8,6 @@ record list<T> {
 proc listAdd<T>(list<T> l, T elem) {
 	if(l.count == #l.elems)
 		l.elems = realloc<T>(l.elems, 5);
-	if(l.count >= #l.elems)
-		abort; $wtf?
 	l.elems[l.count] = elem;
 	l.count = l.count + 1;
 }
