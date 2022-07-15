@@ -42,12 +42,15 @@ heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode
 		machine->heap_allocs[machine->heap_count++] = heap_alloc;
 		heap_alloc->reg_with_table = 1;
 	}
+
 	heap_alloc->pre_freed = 0;
 	heap_alloc->limit = req_size;
 	heap_alloc->gc_flag = 0;
 	heap_alloc->trace_mode = trace_mode;
-	heap_alloc->type_sig = NULL;
+	heap_alloc->type_guards = NULL;
+
 	PANIC_ON_FAIL(heap_alloc, machine, ERROR_MEMORY);
+	
 	if (req_size) {
 		PANIC_ON_FAIL(heap_alloc->registers = malloc(req_size * sizeof(machine_reg_t)), machine, ERROR_MEMORY);
 		PANIC_ON_FAIL(heap_alloc->init_stat = calloc(req_size, sizeof(int)), machine, ERROR_MEMORY);
@@ -73,10 +76,12 @@ static void free_heap_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
 		if (heap_alloc->trace_mode == GC_TRACE_MODE_SOME)
 			free(heap_alloc->trace_stat);
 	}
-	if (heap_alloc->type_sig && !(heap_alloc->type_sig >= machine->defined_signatures && heap_alloc->type_sig < (machine->defined_signatures + machine->defined_sig_count))) {
+	if (!(heap_alloc->type_sig >= machine->defined_signatures && heap_alloc->type_sig < (machine->defined_signatures + machine->defined_sig_count))) {
 		free_defined_signature(heap_alloc->type_sig);
 		free(heap_alloc->type_sig);
 	}
+	if (heap_alloc->type_guards)
+		free(heap_alloc->type_guards);
 }
 
 static int recycle_heap_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
@@ -312,13 +317,41 @@ void free_machine(machine_t* machine) {
 	free(machine->reset_stack);
 }
 
-machine_type_sig_t* new_type_sig(machine_t* machine) {
+static machine_type_sig_t* new_type_sig(machine_t* machine) {
 	if (machine->defined_sig_count == machine->alloced_sig_defs) {
 		machine_type_sig_t* new_sigs = realloc(machine->defined_signatures, (machine->alloced_sig_defs += 10) * sizeof(machine_type_sig_t));
 		PANIC_ON_FAIL(new_sigs, machine, ERROR_MEMORY);
 		machine->defined_signatures = new_sigs;
 	}
 	return &machine->defined_signatures[machine->defined_sig_count++];
+}
+
+static int type_sigs_eq(machine_type_sig_t a, machine_type_sig_t b) {
+	if (a.super_signature != b.super_signature)
+		return 0;
+
+	if (a.super_signature != TYPE_TYPEARG && a.sub_type_count) {
+		if (a.sub_type_count != b.sub_type_count)
+			return 0;
+
+		for (uint_fast8_t i = 0; i < a.sub_type_count; i++)
+			if (!type_sigs_eq(a.sub_types[i], b.sub_types[i]))
+				return 0;
+	}
+	return 1;
+}
+
+machine_type_sig_t* machine_get_typesig(machine_t* machine, machine_type_sig_t* t) {
+	for(uint_fast16_t i = 0; i < machine->defined_sig_count; i++)
+		if (type_sigs_eq(machine->defined_signatures[i], *t)) {
+			free_defined_signature(t);
+			return &machine->defined_signatures[i];
+		}
+
+	machine_type_sig_t* new_sig = new_type_sig(machine);
+	PANIC_ON_FAIL(new_sig, machine, ERROR_MEMORY);
+	*new_sig = *t;
+	return new_sig;
 }
 
 #define MACHINE_PANIC_COND(COND, ERR) {if(!(COND)) { machine->last_err_ip = ip - instructions; PANIC(machine, ERR); }}
@@ -329,12 +362,14 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins
 	machine->last_err = ERROR_NONE;
 #ifdef CISH_PAUSABLE
 	machine->halt_flag = 0;
+	machine->halted = 0;
 #endif // CISH_PAUSABLE
 
 	for (;;) {
 #ifdef CISH_PAUSABLE
 		if (machine->halt_flag) {
 			machine->last_err_ip = ip;
+			machine->halted = 1;
 			return 1;
 		}
 #endif // CISH_PAUSABLE
@@ -1501,6 +1536,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins
 				heap_alloc->type_sig = &machine->defined_signatures[ip->b];
 			break; 
 		}
+
 		case MACHINE_OP_CODE_RUNTIME_TYPECHECK_LL:
 			machine->stack[ip->b + machine->global_offset].bool_flag = type_signature_match(machine, *machine->stack[ip->a + machine->global_offset].heap_alloc->type_sig, machine->defined_signatures[ip->c]);
 			break;
@@ -1613,8 +1649,82 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins
 		case MACHINE_OP_CODE_DYNAMIC_TYPECAST_RD_G:
 			MACHINE_PANIC_COND(type_signature_match(machine, *machine->stack[ip->a].heap_alloc->type_sig, machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int]), ERROR_UNEXPECTED_TYPE);
 			break;
+
+		//typeguard related opcodes
+		{
+			heap_alloc_t* array_register;
+		case MACHINE_OP_CODE_CONFIG_TYPEGUARD_L:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			goto config_typeguard;
+		case MACHINE_OP_CODE_CONFIG_TYPEGUARD_G:
+			array_register = machine->stack[ip->a].heap_alloc;
+		config_typeguard:
+			MACHINE_PANIC_COND(array_register->type_guards = malloc(array_register->limit * sizeof(uint8_t)), ERROR_MEMORY);
+			for (uint_fast16_t i = 0; i < array_register->limit; i++)
+				array_register->type_guards[i] = UINT8_MAX;
+			break;
+		}
+		{
+			heap_alloc_t* array_register;
+		case MACHINE_OP_CODE_CONFIG_PROPERTY_TYPEGUARD_L:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			goto config_property_typeguard;
+		case MACHINE_OP_CODE_CONFIG_PROPERTY_TYPEGUARD_G:
+			array_register = machine->stack[ip->a].heap_alloc;
+		config_property_typeguard:
+			array_register->type_guards[ip->b] = ip->c;
+			break;
+		}
+		{
+			heap_alloc_t* array_register;
+			heap_alloc_t* assign_value;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_ARRAY_LL:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			assign_value = machine->stack[ip->b + machine->global_offset].heap_alloc;
+			goto typeguard_protect_array;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_ARRAY_LG:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			assign_value = machine->stack[ip->b].heap_alloc;
+			goto typeguard_protect_array;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_ARRAY_GL:
+			array_register = machine->stack[ip->a].heap_alloc;
+			assign_value = machine->stack[ip->b + machine->global_offset].heap_alloc;
+			goto typeguard_protect_array;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_ARRAY_GG:
+			array_register = machine->stack[ip->a].heap_alloc;
+			assign_value = machine->stack[ip->b].heap_alloc;
+		typeguard_protect_array:
+			MACHINE_PANIC_COND(type_signature_match(machine, *assign_value->type_sig, *array_register->type_sig), ERROR_UNEXPECTED_TYPE);
+			break;
+		}
+		{
+			heap_alloc_t* array_register;
+			heap_alloc_t* assign_value;
+			uint8_t match_sub_type;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_PROPERTY_LL:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			assign_value = machine->stack[ip->b + machine->global_offset].heap_alloc;
+			goto typeguard_protect_property;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_PROPERTY_LG:
+			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			assign_value = machine->stack[ip->b].heap_alloc;
+			goto typeguard_protect_property;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_PROPERTY_GL:
+			array_register = machine->stack[ip->a].heap_alloc;
+			assign_value = machine->stack[ip->b + machine->global_offset].heap_alloc;
+			goto typeguard_protect_property;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_PROPERTY_GG:
+			array_register = machine->stack[ip->a].heap_alloc;
+			assign_value = machine->stack[ip->b].heap_alloc;
+		typeguard_protect_property:
+			match_sub_type = array_register->type_guards[ip->c];
+			if (match_sub_type == UINT8_MAX)
+				MACHINE_PANIC(ERROR_INTERNAL);
+			MACHINE_PANIC_COND(type_signature_match(machine, *assign_value->type_sig, array_register->type_sig->sub_types[match_sub_type]), ERROR_UNEXPECTED_TYPE);
+			break;
 		}
 
+		}
 		ip++;
 	}
 	return 1;

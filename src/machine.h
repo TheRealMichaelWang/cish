@@ -9,12 +9,6 @@
 
 typedef union machine_register machine_reg_t;
 
-typedef enum gc_trace_mode {
-	GC_TRACE_MODE_NONE,
-	GC_TRACE_MODE_ALL,
-	GC_TRACE_MODE_SOME
-} gc_trace_mode_t;
-
 #define DECL3OP(OPCODE) MACHINE_OP_CODE_##OPCODE##_LLL,MACHINE_OP_CODE_##OPCODE##_LLG,MACHINE_OP_CODE_##OPCODE##_LGL,MACHINE_OP_CODE_##OPCODE##_LGG,MACHINE_OP_CODE_##OPCODE##_GLL,MACHINE_OP_CODE_##OPCODE##_GLG,MACHINE_OP_CODE_##OPCODE##_GGL, MACHINE_OP_CODE_##OPCODE##_GGG
 
 #define DECL2OP(OPCODE) MACHINE_OP_CODE_##OPCODE##_LL, MACHINE_OP_CODE_##OPCODE##_LG, MACHINE_OP_CODE_##OPCODE##_GL, MACHINE_OP_CODE_##OPCODE##_GG
@@ -97,6 +91,11 @@ typedef enum machine_op_code {
 	DECL1OP(DYNAMIC_TYPECAST_DD),
 	DECL1OP(DYNAMIC_TYPECAST_DR),
 	DECL1OP(DYNAMIC_TYPECAST_RD),
+
+	DECL1OP(CONFIG_TYPEGUARD),
+	DECL1OP(CONFIG_PROPERTY_TYPEGUARD),
+	DECL2OP(TYPEGUARD_PROTECT_ARRAY),
+	DECL2OP(TYPEGUARD_PROTECT_PROPERTY)
 } machine_op_code_t;
 #undef DECL1OP
 #undef DECL2OP
@@ -114,6 +113,12 @@ typedef struct machine_type_signature {
 	uint8_t sub_type_count;
 } machine_type_sig_t;
 
+typedef enum gc_trace_mode {
+	GC_TRACE_MODE_NONE,
+	GC_TRACE_MODE_ALL,
+	GC_TRACE_MODE_SOME
+} gc_trace_mode_t;
+
 typedef struct machine_heap_alloc {
 	machine_reg_t* registers;
 	int* init_stat, *trace_stat;
@@ -123,6 +128,7 @@ typedef struct machine_heap_alloc {
 	gc_trace_mode_t trace_mode;
 
 	machine_type_sig_t* type_sig;
+	uint8_t* type_guards;
 } heap_alloc_t;
 
 typedef union machine_register {
@@ -166,7 +172,7 @@ typedef struct machine {
 	uint16_t defined_sig_count, alloced_sig_defs;
 
 #ifdef CISH_PAUSABLE
-	int halt_flag;
+	int halt_flag, halted;
 #endif // CISH_PAUSABLE
 
 } machine_t;
@@ -177,5 +183,5 @@ void free_machine(machine_t* machine);
 int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins_t* continue_instructions);
 
 heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode_t trace_mode);
-machine_type_sig_t* new_type_sig(machine_t* machine);
+machine_type_sig_t* machine_get_typesig(machine_t* machine, machine_type_sig_t* t);
 #endif // !OPCODE_H

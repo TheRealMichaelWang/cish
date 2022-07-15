@@ -435,6 +435,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		PANIC_ON_FAIL(current_typeargs, ast_parser, ERROR_MEMORY);
 		memcpy(current_typeargs, value->type.sub_types, value->type.sub_type_count * sizeof(typecheck_type_t));
 
+		value->data.alloc_record.do_typeguard = 0;
 		ast_record_proto_t* current_proto = value->data.alloc_record.proto;
 		for (;;) {
 			for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
@@ -449,6 +450,9 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 				else
 					value->data.alloc_record.typearg_traces[current_proto->properties[i].id] = IS_REF_TYPE(actual_type);
 			}
+
+			if (current_proto->do_typeguard)
+				value->data.alloc_record.do_typeguard = 1;
 
 			if (current_proto->base_record) {
 				static typecheck_type_t new_typeargs[TYPE_MAX_SUBTYPES];
@@ -756,9 +760,13 @@ int ast_postproc_link_record(ast_parser_t* ast_parser, ast_record_proto_t* recor
 		else
 			record->index_offset = 0;
 
+		record->do_typeguard = 0;
 		for (uint_fast8_t i = 0; i < record->property_count; i++) {
 			if (IS_REF_TYPE(record->properties[i].type) || record->properties[i].type.type == TYPE_TYPEARG)
 				record->do_gc = 1;
+			if ((record->properties[i].do_typeguard = (record->properties[i].type.type == TYPE_TYPEARG && !record->properties[i].is_readonly)))
+				record->do_typeguard = 1;
+
 			record->properties[i].id += record->index_offset;
 		}
 		record->linked = 1;

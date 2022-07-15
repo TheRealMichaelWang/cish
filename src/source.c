@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
 			ABORT(("Compilation failiure(%s).\n", get_err_msg(compiler.last_err)));
 		}
 
-		machine_ins_t* machine_ins = malloc(compiler.ins_builder.instruction_count * sizeof(machine_ins_t));
+		machine_ins_t* machine_ins = safe_transfer_malloc(&safe_gc, compiler.ins_builder.instruction_count * sizeof(machine_ins_t));
 		if (!machine_ins) {
 			free_safe_gc(&safe_gc, 1);
 			ABORT(("Compilation failiure(memory).\n"));
@@ -87,9 +87,15 @@ int main(int argc, char* argv[]) {
 		machine_t machine;
 		uint16_t instruction_count;
 		EXPECT_FLAG("-s");
-		machine_ins_t* instructions = file_load_ins(READ_ARG, &machine, &instruction_count, NULL, NULL);
-		if (!instructions)
+		safe_gc_t safe_gc;
+		if (!init_safe_gc(&safe_gc))
+			ABORT(("Unable to initialize safe gc."));
+		machine_ins_t* instructions = file_load_ins(READ_ARG, &safe_gc, &machine, &instruction_count, NULL, NULL);
+		if (!instructions) {
+			free_safe_gc(&safe_gc, 1);
 			ABORT(("Unable to load binaries from file.\n"));
+		}
+		free_safe_gc(&safe_gc, 0);
 		if (!strcmp(op_flag, "-r")) {
 			if (!install_stdlib(&machine))
 				ABORT(("Failed to install Cish standard native libraries.\n"));

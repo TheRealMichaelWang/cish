@@ -339,7 +339,6 @@ static const char* opcode_names[] = {
 	"fdec(l)         ",
 	"fdec(g)         ",
 
-	"relate type     ",
 	"configtypesig(l)",
 	"configtypesig(g)",
 	"rt-typecheck(ll)",
@@ -362,6 +361,19 @@ static const char* opcode_names[] = {
 	"dtypecast(drg)  ",
 	"dtypecast(rdl)  ",
 	"dtypecast(rdg)  ",
+
+	"conftypegaurd(l)",
+	"conftypegaurd(g)",
+	"confpropguard(l)",
+	"confpropguard(g)",
+	"typeprotelms(ll)",
+	"typeprotelms(lg)",
+	"typeprotelms(gl)",
+	"typeprotelms(gg)",
+	"typeprotprps(ll)",
+	"typeprotprps(lg)",
+	"typeprotprps(gl)",
+	"typeprotprps(gg)",
 };
 
 static const char* error_names[] = {

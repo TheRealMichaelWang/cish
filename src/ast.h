@@ -52,6 +52,8 @@ typedef struct ast_alloc_record {
 
 	uint8_t init_value_count, allocated_init_values;
 	postproc_trace_status_t* typearg_traces;
+
+	int do_typeguard;
 } ast_alloc_record_t;
 
 typedef struct ast_primitive {
@@ -244,7 +246,7 @@ typedef struct ast_record_prop {
 
 	typecheck_type_t type;
 
-	int defer_init, is_readonly;
+	int defer_init, is_readonly, do_typeguard;
 } ast_record_prop_t;
 
 typedef struct ast_alloc_record_init_value {
@@ -274,7 +276,7 @@ typedef struct ast_record_proto {
 	uint8_t id, property_count, allocated_properties;
 	uint16_t index_offset, default_value_count, child_record_count;
 
-	int typeargs_defined, fully_defined, do_gc, linked;
+	int typeargs_defined, fully_defined, do_gc, do_typeguard, linked;
 } ast_record_proto_t;
 
 typedef struct ast_get_prop {

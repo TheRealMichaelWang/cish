@@ -18,15 +18,15 @@ static int read_ins(machine_ins_t* output, FILE* infile) {
 	return 1;
 }
 
-static int read_type_sig(machine_type_sig_t* out_sig, FILE* infile) {
+static int read_type_sig(machine_type_sig_t* out_sig, FILE* infile, safe_gc_t* safe_gc) {
 	ESCAPE_ON_FAIL(fread(&out_sig->super_signature, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fread(&out_sig->sub_type_count, sizeof(uint16_t), 1, infile));
 
-	ESCAPE_ON_FAIL(out_sig->sub_types = malloc(out_sig->sub_type_count * sizeof(machine_type_sig_t)));
+	ESCAPE_ON_FAIL(out_sig->sub_types = safe_transfer_malloc(safe_gc, out_sig->sub_type_count * sizeof(machine_type_sig_t)));
 
 	if (out_sig->super_signature != TYPE_TYPEARG) {
 		for (uint_fast8_t i = 0; i < out_sig->sub_type_count; i++)
-			ESCAPE_ON_FAIL(read_type_sig(&out_sig->sub_types[i], infile));
+			ESCAPE_ON_FAIL(read_type_sig(&out_sig->sub_types[i], infile, safe_gc));
 	}
 	return 1;
 }
@@ -50,7 +50,7 @@ static int write_type_sig(machine_type_sig_t type_sig, FILE* infile) {
 	return 1;
 }
 
-machine_ins_t* file_load_ins(const char* path, machine_t* machine, uint16_t* instruction_count, uint16_t* constant_count, uint16_t* signature_count) {
+machine_ins_t* file_load_ins(const char* path, safe_gc_t* safe_gc, machine_t* machine, uint16_t* instruction_count, uint16_t* constant_count, uint16_t* signature_count) {
 	FILE* infile = fopen(path, "rb");
 	ESCAPE_ON_FAIL(infile);
 
@@ -65,7 +65,7 @@ machine_ins_t* file_load_ins(const char* path, machine_t* machine, uint16_t* ins
 	ESCAPE_ON_FAIL(fread(instruction_count, sizeof(uint16_t), 1, infile));
 
 	ESCAPE_ON_FAIL(init_machine(machine, UINT16_MAX / 8, 1000, type_table_count));
-	machine_ins_t* instructions = malloc(*instruction_count * sizeof(machine_ins_t));
+	machine_ins_t* instructions = safe_transfer_malloc(safe_gc, *instruction_count * sizeof(machine_ins_t));
 	ESCAPE_ON_FAIL(instructions);
 
 	if (constant_count)
@@ -77,9 +77,9 @@ machine_ins_t* file_load_ins(const char* path, machine_t* machine, uint16_t* ins
 		ESCAPE_ON_FAIL(fread(&machine->stack[i], sizeof(uint64_t), 1, infile));
 
 	for (uint_fast8_t i = 0; i < defined_sigs; i++) {
-		machine_type_sig_t* loaded_sig = new_type_sig(machine);
-		ESCAPE_ON_FAIL(loaded_sig);
-		ESCAPE_ON_FAIL(read_type_sig(loaded_sig, infile));
+		machine_type_sig_t loaded_sig;
+		ESCAPE_ON_FAIL(read_type_sig(&loaded_sig, infile, safe_gc));
+		ESCAPE_ON_FAIL(machine_get_typesig(machine, &loaded_sig));
 	}
 	
 	ESCAPE_ON_FAIL(fread(machine->type_table, sizeof(uint16_t), type_table_count, infile));
