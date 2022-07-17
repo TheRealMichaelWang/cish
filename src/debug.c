@@ -362,10 +362,6 @@ static const char* opcode_names[] = {
 	"dtypecast(rdl)  ",
 	"dtypecast(rdg)  ",
 
-	"conftypegaurd(l)",
-	"conftypegaurd(g)",
-	"confpropguard(l)",
-	"confpropguard(g)",
 	"typeprotelms(ll)",
 	"typeprotelms(lg)",
 	"typeprotelms(gl)",
@@ -374,6 +370,10 @@ static const char* opcode_names[] = {
 	"typeprotprps(lg)",
 	"typeprotprps(gl)",
 	"typeprotprps(gg)",
+	"subprotprps(ll)",
+	"subprotprps(lg)",
+	"subprotprps(gl)",
+	"subprotprps(gg)",
 };
 
 static const char* error_names[] = {

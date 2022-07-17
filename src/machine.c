@@ -47,7 +47,6 @@ heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode
 	heap_alloc->limit = req_size;
 	heap_alloc->gc_flag = 0;
 	heap_alloc->trace_mode = trace_mode;
-	heap_alloc->type_guards = NULL;
 
 	PANIC_ON_FAIL(heap_alloc, machine, ERROR_MEMORY);
 	
@@ -80,8 +79,6 @@ static void free_heap_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
 		free_defined_signature(heap_alloc->type_sig);
 		free(heap_alloc->type_sig);
 	}
-	if (heap_alloc->type_guards)
-		free(heap_alloc->type_guards);
 }
 
 static int recycle_heap_alloc(machine_t* machine, heap_alloc_t* heap_alloc) {
@@ -210,11 +207,11 @@ static int machine_gc_clean(machine_t* machine) {
 
 //makes a copy of a type signature, given a prototype defined signature which may contain context dependent type parameters that may escape
 static int atomize_heap_type_sig(machine_t* machine, machine_type_sig_t prototype, machine_type_sig_t* output, int atom_typeargs) {
-	if (prototype.super_signature == 3 && atom_typeargs)
+	if (prototype.super_signature == TYPE_TYPEARG && atom_typeargs)
 		return atomize_heap_type_sig(machine, machine->defined_signatures[machine->stack[prototype.sub_type_count + machine->global_offset].long_int], output, 1);
 	else {
 		output->super_signature = prototype.super_signature;
-		if ((output->sub_type_count = prototype.sub_type_count) && prototype.super_signature != 3) {
+		if ((output->sub_type_count = prototype.sub_type_count) && prototype.super_signature != TYPE_TYPEARG) {
 			PANIC_ON_FAIL(output->sub_types = malloc(prototype.sub_type_count * sizeof(machine_type_sig_t)), machine, ERROR_MEMORY);
 			for (uint_fast8_t i = 0; i < output->sub_type_count; i++)
 				ESCAPE_ON_FAIL(atomize_heap_type_sig(machine, prototype.sub_types[i], &output->sub_types[i], atom_typeargs));
@@ -224,7 +221,7 @@ static int atomize_heap_type_sig(machine_t* machine, machine_type_sig_t prototyp
 }
 
 static int get_super_type(machine_t* machine, machine_type_sig_t* child_typeargs, machine_type_sig_t* output) {
-	if (output->super_signature == 3)
+	if (output->super_signature == TYPE_TYPEARG)
 		ESCAPE_ON_FAIL(atomize_heap_type_sig(machine, child_typeargs[output->sub_type_count], output, 1))
 	else {
 		for (uint_fast8_t i = 0; i < output->sub_type_count; i++)
@@ -234,31 +231,52 @@ static int get_super_type(machine_t* machine, machine_type_sig_t* child_typeargs
 }
 
 static int is_super_type(machine_t* machine, uint16_t child_sig, uint16_t super_sig) {
-	while (machine->type_table[child_sig - 10])
+	if (super_sig < TYPE_SUPER_RECORD || child_sig < TYPE_SUPER_RECORD)
+		return 0;
+	while (machine->type_table[child_sig - TYPE_SUPER_RECORD])
 	{
-		child_sig = machine->defined_signatures[machine->type_table[child_sig - 10] - 1].super_signature;
+		child_sig = machine->defined_signatures[machine->type_table[child_sig - TYPE_SUPER_RECORD] - 1].super_signature;
 		if (child_sig == super_sig)
 			return 1;
 	}
 	return 0;
 }
 
+static int downcast_type_signature(machine_t* machine, machine_type_sig_t* sig, uint16_t req_record) {
+	if (sig->super_signature < TYPE_SUPER_RECORD)
+		return 0;
+
+	while (sig->super_signature != req_record)
+	{
+		machine_type_sig_t super_type;
+		ESCAPE_ON_FAIL(atomize_heap_type_sig(machine, machine->defined_signatures[machine->type_table[sig->super_signature - TYPE_SUPER_RECORD] - 1], &super_type, 0));
+		ESCAPE_ON_FAIL(get_super_type(machine, sig->sub_types, &super_type));
+		free_defined_signature(sig);
+		*sig = super_type;
+	}
+	return 1;
+}
+
 static int type_signature_match(machine_t* machine, machine_type_sig_t match_signature, machine_type_sig_t parent_signature) {
-	if (parent_signature.super_signature == 2)
+	if (parent_signature.super_signature == TYPE_ANY)
 		return 1;
 
-	if (match_signature.super_signature == 3)
+	if (match_signature.super_signature == TYPE_TYPEARG)
 		match_signature = machine->defined_signatures[machine->stack[match_signature.sub_type_count + machine->global_offset].long_int];
-	if (parent_signature.super_signature == 3)
+	if (parent_signature.super_signature == TYPE_TYPEARG)
 		parent_signature = machine->defined_signatures[machine->stack[parent_signature.sub_type_count + machine->global_offset].long_int];
 
 	if (match_signature.super_signature != parent_signature.super_signature) {
 		if (is_super_type(machine, match_signature.super_signature, parent_signature.super_signature)) {
-			machine_type_sig_t super_type;
-			ESCAPE_ON_FAIL(atomize_heap_type_sig(machine, machine->defined_signatures[machine->type_table[match_signature.super_signature - 10] - 1], &super_type, 0));
+			/*machine_type_sig_t super_type;
+			ESCAPE_ON_FAIL(atomize_heap_type_sig(machine, machine->defined_signatures[machine->type_table[match_signature.super_signature - TYPE_SUPER_RECORD] - 1], &super_type, 0));
 			ESCAPE_ON_FAIL(get_super_type(machine, match_signature.sub_types, &super_type));
 			int res = type_signature_match(machine, super_type, parent_signature);
-			free_defined_signature(&super_type);
+			free_defined_signature(&super_type);*/
+			ESCAPE_ON_FAIL(atomize_heap_type_sig(machine, match_signature, &match_signature, 0));
+			ESCAPE_ON_FAIL(downcast_type_signature(machine, &match_signature, parent_signature.super_signature));
+			int res = type_signature_match(machine, match_signature, parent_signature);
+			free_defined_signature(&match_signature);
 			return res;
 		}
 		return 0;
@@ -329,11 +347,9 @@ static machine_type_sig_t* new_type_sig(machine_t* machine) {
 static int type_sigs_eq(machine_type_sig_t a, machine_type_sig_t b) {
 	if (a.super_signature != b.super_signature)
 		return 0;
+	ESCAPE_ON_FAIL(a.sub_type_count == b.sub_type_count);
 
 	if (a.super_signature != TYPE_TYPEARG && a.sub_type_count) {
-		if (a.sub_type_count != b.sub_type_count)
-			return 0;
-
 		for (uint_fast8_t i = 0; i < a.sub_type_count; i++)
 			if (!type_sigs_eq(a.sub_types[i], b.sub_types[i]))
 				return 0;
@@ -341,12 +357,14 @@ static int type_sigs_eq(machine_type_sig_t a, machine_type_sig_t b) {
 	return 1;
 }
 
-machine_type_sig_t* machine_get_typesig(machine_t* machine, machine_type_sig_t* t) {
-	for(uint_fast16_t i = 0; i < machine->defined_sig_count; i++)
-		if (type_sigs_eq(machine->defined_signatures[i], *t)) {
-			free_defined_signature(t);
-			return &machine->defined_signatures[i];
-		}
+machine_type_sig_t* machine_get_typesig(machine_t* machine, machine_type_sig_t* t, int optimize_common) {
+	if (optimize_common) {
+		for (uint_fast16_t i = 0; i < machine->defined_sig_count; i++)
+			if (type_sigs_eq(machine->defined_signatures[i], *t)) {
+				free_defined_signature(t);
+				return &machine->defined_signatures[i];
+			}
+	}
 
 	machine_type_sig_t* new_sig = new_type_sig(machine);
 	PANIC_ON_FAIL(new_sig, machine, ERROR_MEMORY);
@@ -356,7 +374,7 @@ machine_type_sig_t* machine_get_typesig(machine_t* machine, machine_type_sig_t* 
 
 #define MACHINE_PANIC_COND(COND, ERR) {if(!(COND)) { machine->last_err_ip = ip - instructions; PANIC(machine, ERR); }}
 #define MACHINE_ESCAPE_COND(COND) {if(!(COND)) { machine->last_err_ip = ip - instructions; return 0; }}
-#define MACHINE_PANIC(ERR) {machine->last_err_ip = ip - instructions; PANIC(machine, ERR); };
+#define MACHINE_PANIC(ERR) {machine->last_err_ip = ip - instructions; PANIC(machine, ERR); }
 int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins_t* continue_instructions) {
 	machine_ins_t* ip = continue_instructions;
 	machine->last_err = ERROR_NONE;
@@ -374,6 +392,11 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins
 		}
 #endif // CISH_PAUSABLE
 		switch (ip->op_code) {
+		case MACHINE_OP_CODE_SET_EXTRA_ARGS:
+			machine->extra_a = ip->a;
+			machine->extra_b = ip->b;
+			machine->extra_c = ip->c;
+			break;
 		case MACHINE_OP_CODE_MOVE_LL:
 			machine->stack[ip->a + machine->global_offset] = machine->stack[ip->b + machine->global_offset];
 			break;
@@ -1512,9 +1535,8 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins
 			goto invoke_foreign;
 		invoke_foreign:
 			if (!ffi_invoke(&machine->ffi_table, machine, a, b, c)) {
-				if (machine->last_err == ERROR_NONE) {
+				if (machine->last_err == ERROR_NONE)
 					MACHINE_PANIC(ERROR_FOREIGN)
-				}
 				else
 					MACHINE_PANIC(machine->last_err);
 			}
@@ -1649,32 +1671,6 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins
 		case MACHINE_OP_CODE_DYNAMIC_TYPECAST_RD_G:
 			MACHINE_PANIC_COND(type_signature_match(machine, *machine->stack[ip->a].heap_alloc->type_sig, machine->defined_signatures[machine->stack[ip->b + machine->global_offset].long_int]), ERROR_UNEXPECTED_TYPE);
 			break;
-
-		//typeguard related opcodes
-		{
-			heap_alloc_t* array_register;
-		case MACHINE_OP_CODE_CONFIG_TYPEGUARD_L:
-			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
-			goto config_typeguard;
-		case MACHINE_OP_CODE_CONFIG_TYPEGUARD_G:
-			array_register = machine->stack[ip->a].heap_alloc;
-		config_typeguard:
-			MACHINE_PANIC_COND(array_register->type_guards = malloc(array_register->limit * sizeof(uint8_t)), ERROR_MEMORY);
-			for (uint_fast16_t i = 0; i < array_register->limit; i++)
-				array_register->type_guards[i] = UINT8_MAX;
-			break;
-		}
-		{
-			heap_alloc_t* array_register;
-		case MACHINE_OP_CODE_CONFIG_PROPERTY_TYPEGUARD_L:
-			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
-			goto config_property_typeguard;
-		case MACHINE_OP_CODE_CONFIG_PROPERTY_TYPEGUARD_G:
-			array_register = machine->stack[ip->a].heap_alloc;
-		config_property_typeguard:
-			array_register->type_guards[ip->b] = ip->c;
-			break;
-		}
 		{
 			heap_alloc_t* array_register;
 			heap_alloc_t* assign_value;
@@ -1694,33 +1690,125 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins
 			array_register = machine->stack[ip->a].heap_alloc;
 			assign_value = machine->stack[ip->b].heap_alloc;
 		typeguard_protect_array:
-			MACHINE_PANIC_COND(type_signature_match(machine, *assign_value->type_sig, *array_register->type_sig), ERROR_UNEXPECTED_TYPE);
+			if(array_register->type_sig->sub_types->super_signature >= TYPE_SUPER_ARRAY)
+				MACHINE_PANIC_COND(type_signature_match(machine, *assign_value->type_sig, *array_register->type_sig->sub_types), ERROR_UNEXPECTED_TYPE);
 			break;
 		}
 		{
-			heap_alloc_t* array_register;
+			heap_alloc_t* record_register;
 			heap_alloc_t* assign_value;
-			uint8_t match_sub_type;
-		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_PROPERTY_LL:
-			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_TYPEARG_PROPERTY_LL:
+			record_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
 			assign_value = machine->stack[ip->b + machine->global_offset].heap_alloc;
-			goto typeguard_protect_property;
-		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_PROPERTY_LG:
-			array_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			goto typeguard_protect_typearg_property;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_TYPEARG_PROPERTY_LG:
+			record_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
 			assign_value = machine->stack[ip->b].heap_alloc;
-			goto typeguard_protect_property;
-		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_PROPERTY_GL:
-			array_register = machine->stack[ip->a].heap_alloc;
+			goto typeguard_protect_typearg_property;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_TYPEARG_PROPERTY_GL:
+			record_register = machine->stack[ip->a].heap_alloc;
 			assign_value = machine->stack[ip->b + machine->global_offset].heap_alloc;
-			goto typeguard_protect_property;
-		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_PROPERTY_GG:
-			array_register = machine->stack[ip->a].heap_alloc;
+			goto typeguard_protect_typearg_property;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_TYPEARG_PROPERTY_GG:
+			record_register = machine->stack[ip->a].heap_alloc;
 			assign_value = machine->stack[ip->b].heap_alloc;
-		typeguard_protect_property:
-			match_sub_type = array_register->type_guards[ip->c];
-			if (match_sub_type == UINT8_MAX)
-				MACHINE_PANIC(ERROR_INTERNAL);
-			MACHINE_PANIC_COND(type_signature_match(machine, *assign_value->type_sig, array_register->type_sig->sub_types[match_sub_type]), ERROR_UNEXPECTED_TYPE);
+		typeguard_protect_typearg_property:
+			if(record_register->type_sig->sub_types[ip->c].super_signature >= TYPE_SUPER_ARRAY)
+				MACHINE_PANIC_COND(type_signature_match(machine, *assign_value->type_sig, record_register->type_sig->sub_types[ip->c]), ERROR_UNEXPECTED_TYPE);
+			break;
+		}
+		{
+			heap_alloc_t* record_register;
+			heap_alloc_t* assign_value;
+			machine_type_sig_t req_sig;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_TYPEARG_PROPERTY_DOWNCAST_LL:
+			record_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			assign_value = machine->stack[ip->b + machine->global_offset].heap_alloc;
+			goto typeguard_protect_typearg_property_downcast;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_TYPEARG_PROPERTY_DOWNCAST_LG:
+			record_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			assign_value = machine->stack[ip->b].heap_alloc;
+			goto typeguard_protect_typearg_property_downcast;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_TYPEARG_PROPERTY_DOWNCAST_GL:
+			record_register = machine->stack[ip->a].heap_alloc;
+			assign_value = machine->stack[ip->b + machine->global_offset].heap_alloc;
+			goto typeguard_protect_typearg_property_downcast;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_TYPEARG_PROPERTY_DOWNCAST_GG:
+			record_register = machine->stack[ip->a].heap_alloc;
+			assign_value = machine->stack[ip->b].heap_alloc;
+		typeguard_protect_typearg_property_downcast:
+			MACHINE_ESCAPE_COND(atomize_heap_type_sig(machine, *record_register->type_sig, &req_sig, 1));
+			MACHINE_ESCAPE_COND(downcast_type_signature(machine, &req_sig, machine->extra_a));
+
+			if (req_sig.sub_types[ip->c].super_signature >= TYPE_SUPER_ARRAY && !type_signature_match(machine, *assign_value->type_sig, req_sig.sub_types[ip->c])) {
+				free_defined_signature(&req_sig);
+				MACHINE_PANIC(ERROR_UNEXPECTED_TYPE);
+			}
+			free_defined_signature(&req_sig);
+			break;
+		}
+		{
+			heap_alloc_t* record_register;
+			heap_alloc_t* assign_value;
+			machine_type_sig_t property_type_sig;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_SUB_PROPERTY_LL:
+			record_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			assign_value = machine->stack[ip->b + machine->global_offset].heap_alloc;
+			goto typearg_protect_sub_property;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_SUB_PROPERTY_LG:
+			record_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			assign_value = machine->stack[ip->b].heap_alloc;
+			goto typearg_protect_sub_property;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_SUB_PROPERTY_GL:
+			record_register = machine->stack[ip->a].heap_alloc;
+			assign_value = machine->stack[ip->b + machine->global_offset].heap_alloc;
+			goto typearg_protect_sub_property;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_SUB_PROPERTY_GG:
+			record_register = machine->stack[ip->a].heap_alloc;
+			assign_value = machine->stack[ip->b].heap_alloc;
+		typearg_protect_sub_property:
+			MACHINE_ESCAPE_COND(atomize_heap_type_sig(machine, machine->defined_signatures[ip->c], &property_type_sig, 0));
+			MACHINE_ESCAPE_COND(get_super_type(machine, record_register->type_sig->sub_types, &property_type_sig));
+			if (!type_signature_match(machine, *assign_value->type_sig, property_type_sig)) {
+				free_defined_signature(&property_type_sig);
+				MACHINE_PANIC(ERROR_UNEXPECTED_TYPE);
+			}
+			free_defined_signature(&property_type_sig);
+			break;
+		}
+		{
+			heap_alloc_t* record_register;
+			heap_alloc_t* assign_value;
+			machine_type_sig_t property_type_sig;
+			machine_type_sig_t req_sig;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_SUB_PROPERTY_DOWNCAST_LL:
+			record_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			assign_value = machine->stack[ip->b + machine->global_offset].heap_alloc;
+			goto typearg_protect_sub_property_downcast;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_SUB_PROPERTY_DOWNCAST_LG:
+			record_register = machine->stack[ip->a + machine->global_offset].heap_alloc;
+			assign_value = machine->stack[ip->b].heap_alloc;
+			goto typearg_protect_sub_property_downcast;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_SUB_PROPERTY_DOWNCAST_GL:
+			record_register = machine->stack[ip->a].heap_alloc;
+			assign_value = machine->stack[ip->b + machine->global_offset].heap_alloc;
+			goto typearg_protect_sub_property_downcast;
+		case MACHINE_OP_CODE_TYPEGUARD_PROTECT_SUB_PROPERTY_DOWNCAST_GG:
+			record_register = machine->stack[ip->a].heap_alloc;
+			assign_value = machine->stack[ip->b].heap_alloc;
+		typearg_protect_sub_property_downcast:
+			MACHINE_ESCAPE_COND(atomize_heap_type_sig(machine, *record_register->type_sig, &req_sig, 1));
+			MACHINE_ESCAPE_COND(downcast_type_signature(machine, &req_sig, machine->extra_a));
+
+			MACHINE_ESCAPE_COND(atomize_heap_type_sig(machine, machine->defined_signatures[ip->c], &property_type_sig, 0));
+			MACHINE_ESCAPE_COND(get_super_type(machine, req_sig.sub_types, &property_type_sig));
+			if (!type_signature_match(machine, *assign_value->type_sig, property_type_sig)) {
+				free_defined_signature(&property_type_sig);
+				free_defined_signature(&req_sig);
+				MACHINE_PANIC(ERROR_UNEXPECTED_TYPE);
+			}
+			free_defined_signature(&property_type_sig);
+			free_defined_signature(&req_sig);
 			break;
 		}
 

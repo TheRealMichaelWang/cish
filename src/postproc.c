@@ -435,7 +435,6 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		PANIC_ON_FAIL(current_typeargs, ast_parser, ERROR_MEMORY);
 		memcpy(current_typeargs, value->type.sub_types, value->type.sub_type_count * sizeof(typecheck_type_t));
 
-		value->data.alloc_record.do_typeguard = 0;
 		ast_record_proto_t* current_proto = value->data.alloc_record.proto;
 		for (;;) {
 			for (uint_fast8_t i = 0; i < current_proto->property_count; i++) {
@@ -450,9 +449,6 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 				else
 					value->data.alloc_record.typearg_traces[current_proto->properties[i].id] = IS_REF_TYPE(actual_type);
 			}
-
-			if (current_proto->do_typeguard)
-				value->data.alloc_record.do_typeguard = 1;
 
 			if (current_proto->base_record) {
 				static typecheck_type_t new_typeargs[TYPE_MAX_SUBTYPES];
@@ -612,7 +608,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		value->gc_status = postproc_type_to_gc_stat(value->data.get_index->array.gc_status, value->data.get_index->array.type.sub_types[0].type);
 		value->from_var = value->data.get_index->array.from_var;
 		break;
-	case AST_VALUE_SET_PROP:
+	case AST_VALUE_SET_PROP: {
 		ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->record, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_IRRELEVANT, parent_proc, 0));
 		if (value->data.set_prop->record.gc_status == POSTPROC_GC_EXTERN_ALLOC)
 			ESCAPE_ON_FAIL(ast_postproc_value(ast_parser, &value->data.set_prop->value, typearg_traces, global_gc_stats, local_gc_stats, shared_globals, shared_locals, local_scope_size, POSTPROC_PARENT_EXTERN, parent_proc, 0))
@@ -629,7 +625,13 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 			share_var_from_value(ast_parser, value->data.set_prop->record, shared_globals, shared_locals, local_scope_size);
 		value->gc_status = value->data.set_prop->value.gc_status;
 		value->from_var = value->data.set_prop->record.from_var || value->data.set_prop->value.from_var;
+
+		ast_record_proto_t* record = ast_parser->ast->record_protos[value->data.set_prop->record.type.type_id];
+		value->data.set_prop->optimize_typeguard_downcast = (record->child_record_count == 0);
+		value->data.set_prop->do_typeguard = value->data.set_prop->property->do_typeguard && (IS_REF_TYPE(value->data.set_prop->value.type) || value->data.set_prop->value.type.type == TYPE_TYPEARG);
+		value->data.set_prop->do_sub_typeguard = value->data.set_prop->property->do_sub_typeguard && (IS_REF_TYPE(value->data.set_prop->value.type) || value->data.set_prop->value.type.type == TYPE_TYPEARG);
 		break;
+	}
 	case AST_VALUE_GET_PROP: {
 		typecheck_type_t prop_type;
 		ESCAPE_ON_FAIL(ast_record_sub_prop_type(ast_parser, value->data.get_prop->record.type, value->data.get_prop->property->hash_id, &prop_type));
@@ -760,12 +762,18 @@ int ast_postproc_link_record(ast_parser_t* ast_parser, ast_record_proto_t* recor
 		else
 			record->index_offset = 0;
 
-		record->do_typeguard = 0;
 		for (uint_fast8_t i = 0; i < record->property_count; i++) {
 			if (IS_REF_TYPE(record->properties[i].type) || record->properties[i].type.type == TYPE_TYPEARG)
 				record->do_gc = 1;
-			if ((record->properties[i].do_typeguard = (record->properties[i].type.type == TYPE_TYPEARG && !record->properties[i].is_readonly)))
-				record->do_typeguard = 1;
+			
+			record->properties[i].do_typeguard = 0;
+			record->properties[i].do_sub_typeguard = 0;
+			if (!record->properties[i].is_readonly) {
+				if (record->properties[i].type.type == TYPE_TYPEARG)
+					record->properties[i].do_typeguard = 1;
+				else if (typecheck_has_type(record->properties[i].type, TYPE_TYPEARG))
+					record->properties[i].do_sub_typeguard = 1;
+			}
 
 			record->properties[i].id += record->index_offset;
 		}

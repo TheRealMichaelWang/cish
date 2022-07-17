@@ -79,7 +79,7 @@ machine_ins_t* file_load_ins(const char* path, safe_gc_t* safe_gc, machine_t* ma
 	for (uint_fast8_t i = 0; i < defined_sigs; i++) {
 		machine_type_sig_t loaded_sig;
 		ESCAPE_ON_FAIL(read_type_sig(&loaded_sig, infile, safe_gc));
-		ESCAPE_ON_FAIL(machine_get_typesig(machine, &loaded_sig));
+		ESCAPE_ON_FAIL(machine_get_typesig(machine, &loaded_sig, 0));
 	}
 	
 	ESCAPE_ON_FAIL(fread(machine->type_table, sizeof(uint16_t), type_table_count, infile));

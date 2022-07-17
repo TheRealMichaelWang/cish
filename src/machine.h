@@ -92,10 +92,13 @@ typedef enum machine_op_code {
 	DECL1OP(DYNAMIC_TYPECAST_DR),
 	DECL1OP(DYNAMIC_TYPECAST_RD),
 
-	DECL1OP(CONFIG_TYPEGUARD),
-	DECL1OP(CONFIG_PROPERTY_TYPEGUARD),
 	DECL2OP(TYPEGUARD_PROTECT_ARRAY),
-	DECL2OP(TYPEGUARD_PROTECT_PROPERTY)
+	DECL2OP(TYPEGUARD_PROTECT_TYPEARG_PROPERTY),
+	DECL2OP(TYPEGUARD_PROTECT_TYPEARG_PROPERTY_DOWNCAST),
+	DECL2OP(TYPEGUARD_PROTECT_SUB_PROPERTY),
+	DECL2OP(TYPEGUARD_PROTECT_SUB_PROPERTY_DOWNCAST),
+
+	MACHINE_OP_CODE_SET_EXTRA_ARGS
 } machine_op_code_t;
 #undef DECL1OP
 #undef DECL2OP
@@ -128,7 +131,7 @@ typedef struct machine_heap_alloc {
 	gc_trace_mode_t trace_mode;
 
 	machine_type_sig_t* type_sig;
-	uint8_t* type_guards;
+	//uint8_t* type_guards;
 } heap_alloc_t;
 
 typedef union machine_register {
@@ -175,6 +178,7 @@ typedef struct machine {
 	int halt_flag, halted;
 #endif // CISH_PAUSABLE
 
+	uint16_t extra_a, extra_b, extra_c;
 } machine_t;
 
 int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit, uint16_t type_count);
@@ -183,5 +187,5 @@ void free_machine(machine_t* machine);
 int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins_t* continue_instructions);
 
 heap_alloc_t* machine_alloc(machine_t* machine, uint16_t req_size, gc_trace_mode_t trace_mode);
-machine_type_sig_t* machine_get_typesig(machine_t* machine, machine_type_sig_t* t);
+machine_type_sig_t* machine_get_typesig(machine_t* machine, machine_type_sig_t* t, int optimize_common);
 #endif // !OPCODE_H

@@ -7,6 +7,7 @@
 #include <time.h>
 #include <ctype.h>
 #include "error.h"
+#include "type.h"
 #include "ffi.h"
 #include "stdlibf.h"
 
@@ -52,7 +53,7 @@ static int std_ftos(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	sprintf(output, "%f", in->float_int);
 	uint8_t len = strlen(output);
 	ESCAPE_ON_FAIL(out->heap_alloc = machine_alloc(machine, len, GC_TRACE_MODE_NONE));
-	out->heap_alloc->type_sig = &machine->defined_signatures[0];
+	out->heap_alloc->type_sig = &machine->defined_signatures[TYPE_PRIMITIVE_CHAR - TYPE_PRIMITIVE_BOOL];
 
 	for (uint_fast8_t i = 0; i < len; i++) {
 		out->heap_alloc->registers[i].char_int = output[i];
@@ -79,7 +80,7 @@ static int std_itos(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	sprintf(output, "%" PRIi64, in->long_int);
 	uint8_t len = strlen(output);
 	ESCAPE_ON_FAIL(out->heap_alloc = machine_alloc(machine, len, GC_TRACE_MODE_NONE));
-	out->heap_alloc->type_sig = &machine->defined_signatures[0];
+	out->heap_alloc->type_sig = &machine->defined_signatures[TYPE_PRIMITIVE_CHAR - TYPE_PRIMITIVE_BOOL];
 
 	for (uint_fast8_t i = 0; i < len; i++) {
 		out->heap_alloc->registers[i].char_int = output[i];
@@ -184,7 +185,7 @@ static int std_import(machine_t* machine, machine_reg_t* in, machine_reg_t* out)
 
 static int std_calloc(machine_t* machine, machine_reg_t* in, machine_reg_t* out) {
 	ESCAPE_ON_FAIL(out->heap_alloc = machine_alloc(machine, in->long_int, GC_TRACE_MODE_NONE));
-	out->heap_alloc->type_sig = &machine->defined_signatures[1];
+	out->heap_alloc->type_sig = &machine->defined_signatures[TYPE_PRIMITIVE_LONG - TYPE_PRIMITIVE_BOOL];
 
 	for (uint_fast16_t i = 0; i < out->heap_alloc->limit; i++) {
 		out->heap_alloc->registers[i].long_int = 0;
