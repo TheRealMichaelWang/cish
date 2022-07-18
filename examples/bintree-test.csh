@@ -22,9 +22,7 @@ proc print_tree<elemType>(tree<elemType> e, proc<nothing, elemType> printElem) {
 }
 
 auto tree = new tree<int> {
-	compare = proc(int a, int b) return int {
-		return a - b;
-	};
+	compare = proc(int a, int b) => a - b;
 };
 
 for(int i = 0; i < 100; i++)
