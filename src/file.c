@@ -82,7 +82,8 @@ machine_ins_t* file_load_ins(const char* path, safe_gc_t* safe_gc, machine_t* ma
 		ESCAPE_ON_FAIL(machine_get_typesig(machine, &loaded_sig, 0));
 	}
 	
-	ESCAPE_ON_FAIL(fread(machine->type_table, sizeof(uint16_t), type_table_count, infile));
+	if(type_table_count)
+		ESCAPE_ON_FAIL(fread(machine->type_table, sizeof(uint16_t), type_table_count, infile));
 
 	for (uint_fast16_t i = 0; i < *instruction_count; i++)
 		ESCAPE_ON_FAIL(read_ins(&instructions[i], infile));
@@ -96,9 +97,10 @@ int file_save_compiled(const char* path, ast_t* ast, machine_t* machine, machine
 	ESCAPE_ON_FAIL(infile);
 
 	uint16_t magic_num = MAGIC_NUM;
+	uint16_t type_table_count = ast->record_count;
 	ESCAPE_ON_FAIL(fwrite(&magic_num, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fwrite(&ast->constant_count, sizeof(uint16_t), 1, infile));
-	ESCAPE_ON_FAIL(fwrite(&ast->record_count, sizeof(uint16_t), 1, infile));
+	ESCAPE_ON_FAIL(fwrite(&type_table_count, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fwrite(&machine->defined_sig_count, sizeof(uint16_t), 1, infile));
 	ESCAPE_ON_FAIL(fwrite(&instruction_count, sizeof(uint16_t), 1, infile));
 
@@ -106,7 +108,8 @@ int file_save_compiled(const char* path, ast_t* ast, machine_t* machine, machine
 		ESCAPE_ON_FAIL(fwrite(&machine->stack[i], sizeof(uint64_t), 1, infile));
 	for (uint_fast16_t i = 0; i < machine->defined_sig_count; i++)
 		ESCAPE_ON_FAIL(write_type_sig(machine->defined_signatures[i], infile));
-	ESCAPE_ON_FAIL(fwrite(machine->type_table, sizeof(uint16_t), ast->record_count, infile));
+	if(type_table_count)
+		ESCAPE_ON_FAIL(fwrite(machine->type_table, sizeof(uint16_t), ast->record_count, infile));
 
 	for (uint_fast16_t i = 0; i < instruction_count; i++)
 		ESCAPE_ON_FAIL(write_ins(instructions[i], infile));
