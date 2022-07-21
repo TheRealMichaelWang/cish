@@ -558,8 +558,10 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 	}
 	if (value.trace_status == POSTPROC_TRACE_CHILDREN && (proc && proc->do_gc))//|| value.trace_status == POSTPROC_SUPERTRACE_CHILDREN)
 		EMIT_INS(INS2(COMPILER_OP_CODE_GC_TRACE, compiler->eval_regs[value.id], GLOB_REG(0)))
-	else if (value.trace_status == POSTPROC_SUPERTRACE_CHILDREN)
+	else if (value.trace_status == POSTPROC_SUPERTRACE_CHILDREN) {
+		PANIC_ON_FAIL(proc->do_gc, compiler, ERROR_INTERNAL);
 		EMIT_INS(INS2(COMPILER_OP_CODE_GC_TRACE, compiler->eval_regs[value.id], GLOB_REG(1)))
+	}
 	else if (value.trace_status == POSTPROC_TRACE_DYNAMIC && (proc && proc->do_gc))
 		EMIT_INS(INS2(COMPILER_OP_CODE_DYNAMIC_TRACE, compiler->eval_regs[value.id], TYPEARG_INFO_REG(value.type)));
 
@@ -701,7 +703,8 @@ int compile(compiler_t* compiler, safe_gc_t* safe_gc, machine_t* target_machine,
 	//define standard type signatures (array<prim>)
 	for (typecheck_base_type_t prim = TYPE_PRIMITIVE_BOOL; prim <= TYPE_PRIMITIVE_FLOAT; prim++) {
 		machine_type_sig_t mybuf;
-		PANIC_ON_FAIL(mybuf.sub_types = malloc(sizeof(machine_type_sig_t)), compiler, ERROR_MEMORY); //define array<char> typesig
+		mybuf.super_signature = TYPE_SUPER_ARRAY;
+		PANIC_ON_FAIL(mybuf.sub_types = safe_transfer_malloc(compiler->safe_gc ,sizeof(machine_type_sig_t)), compiler, ERROR_MEMORY); //define array<char> typesig
 		mybuf.sub_types->super_signature = prim; mybuf.sub_types->sub_type_count = 0; mybuf.sub_type_count = 1;
 		PANIC_ON_FAIL(machine_get_typesig(compiler->target_machine, &mybuf, 0), compiler, compiler->target_machine->last_err);
 	}

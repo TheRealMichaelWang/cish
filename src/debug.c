@@ -425,14 +425,13 @@ void print_error_trace(multi_scanner_t multi_scanner) {
 			printf("in %s: row %" PRIu32 ", col %"PRIu32 "\n", multi_scanner.file_paths[i], multi_scanner.scanners[i].row, multi_scanner.scanners[i].col);
 		putchar('\t');
 	}
-	if (multi_scanner.last_tok.type == TOK_EOF) {
+	if (multi_scanner.last_tok.type == TOK_EOF)
 		printf("Error Occured at EOF");
-	}
 	else {
 		for (uint_fast32_t i = 0; i < multi_scanner.last_tok.length; i++)
-			printf("%c", multi_scanner.last_tok.str[i]);
+			putchar(multi_scanner.last_tok.str[i]);
 		for (uint_fast8_t i = multi_scanner.last_tok.length; multi_scanner.last_tok.str[i] && multi_scanner.last_tok.str[i] != '\n'; i++)
-			printf("%c", multi_scanner.last_tok.str[i]);
+			putchar(multi_scanner.last_tok.str[i]);
 	}
 	putchar('\n');
 }

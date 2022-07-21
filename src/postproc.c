@@ -531,8 +531,10 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 			}
 			else if ((value->gc_status == POSTPROC_GC_EXTERN_ALLOC || value->gc_status == POSTPROC_GC_LOCAL_ALLOC || value->gc_status == POSTPROC_GC_UNKOWN_ALLOC) && parent_stat == POSTPROC_PARENT_SUPEREXT) {
 				value->trace_status = GET_TYPE_TRACE(value->data.variable->type);
-				if (value->trace_status == POSTPROC_TRACE_CHILDREN)
+				if (value->trace_status == POSTPROC_TRACE_CHILDREN) {
 					value->trace_status = POSTPROC_SUPERTRACE_CHILDREN;
+					PROC_DO_GC;
+				}
 				local_gc_stats[SANITIZE_SCOPE_ID(*value->data.variable)] = value->gc_status = POSTPROC_GC_SUPEREXT_ALLOC;
 			}
 			else {
@@ -684,6 +686,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 				if ((arg->gc_status == POSTPROC_GC_SUPEREXT_ALLOC || arg->gc_status == POSTPROC_GC_UNKOWN_ALLOC) && parent_proc) {
 					arg->trace_status = POSTPROC_SUPERTRACE_CHILDREN;
 					arg->gc_status = POSTPROC_GC_SUPERTRACED_ALLOC;
+					PROC_DO_GC;
 				}
 				else if (arg->gc_status == POSTPROC_GC_EXTERN_ALLOC) {
 					arg->trace_status = POSTPROC_TRACE_CHILDREN;
@@ -735,6 +738,7 @@ static int ast_postproc_value(ast_parser_t* ast_parser, ast_value_t* value, post
 		if (value->gc_status == POSTPROC_GC_LOCAL_ALLOC || value->gc_status == POSTPROC_GC_UNKOWN_ALLOC || value->gc_status == POSTPROC_GC_EXTERN_ALLOC) {
 			value->trace_status = POSTPROC_SUPERTRACE_CHILDREN;
 			value->gc_status = POSTPROC_GC_SUPERTRACED_ALLOC;
+			PROC_DO_GC;
 		}
 		else
 			value->trace_status = POSTPROC_TRACE_NONE;
