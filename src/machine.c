@@ -395,9 +395,18 @@ machine_type_sig_t* machine_get_typesig(machine_t* machine, machine_type_sig_t* 
 #define MACHINE_PANIC_COND(COND, ERR) {if(!(COND)) { machine->last_err_ip = ip - instructions; PANIC(machine, ERR); }}
 #define MACHINE_ESCAPE_COND(COND) {if(!(COND)) { machine->last_err_ip = ip - instructions; return 0; }}
 #define MACHINE_PANIC(ERR) {machine->last_err_ip = ip - instructions; PANIC(machine, ERR); }
-int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins_t* continue_instructions) {
+int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins_t* continue_instructions, int first_run) {
 	machine_ins_t* ip = continue_instructions;
 	machine->last_err = ERROR_NONE;
+	
+	if(first_run) {
+		if (machine->alloced_sig_defs < machine->defined_sig_count + (machine->frame_limit / 4)) {
+			machine_type_sig_t* new_sigs = realloc(machine->defined_signatures,sizeof(machine_type_sig_t) * (machine->alloced_sig_defs = machine->defined_sig_count + (machine->frame_limit / 4)));
+			MACHINE_PANIC_COND(new_sigs, ERROR_MEMORY);
+			machine->defined_signatures = new_sigs;
+		}
+	}
+
 #ifdef CISH_PAUSABLE
 	machine->halt_flag = 0;
 	machine->halted = 0;
@@ -433,7 +442,7 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins
 			if (ip->c) {
 				machine->stack[ip->a + machine->global_offset].long_int = machine->defined_sig_count;
 				machine_type_sig_t* type_sig = new_type_sig(machine, 1);
-				MACHINE_PANIC_COND(type_sig, ERROR_MEMORY);
+				MACHINE_PANIC_COND(type_sig, ERROR_STACK_OVERFLOW);
 				MACHINE_ESCAPE_COND(atomize_heap_type_sig(machine, machine->defined_signatures[ip->b], type_sig, 1));
 			}
 			else
