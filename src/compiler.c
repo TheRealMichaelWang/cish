@@ -29,9 +29,10 @@ int ins_builder_append_ins(ins_builder_t* ins_builder, compiler_ins_t ins) {
 	return 1;
 }
 
-static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code_block, uint16_t current_reg);
+static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code_block, uint16_t current_reg, ast_proc_t* proc);
 
-static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uint16_t current_reg, compiler_reg_t* target_reg) {
+#define ALLOC_LOC(REG) LOC_REG((proc && (REG) > compiler->proc_call_max_locals[proc->id]) ? (compiler->proc_call_max_locals[proc->id] = (REG)) : (REG))
+static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uint16_t current_reg, compiler_reg_t* target_reg, ast_proc_t* proc) {
 	if (!value.affects_state)
 		return current_reg;
 	uint16_t extra_regs = current_reg;
@@ -43,15 +44,15 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		compiler->move_eval[value.id] = 1;
 		return current_reg;
 	case AST_VALUE_ALLOC_ARRAY:
-		allocate_value_regs(compiler, value.data.alloc_array->size, current_reg, NULL);
+		allocate_value_regs(compiler, value.data.alloc_array->size, current_reg, NULL, proc);
 		break;
 	case AST_VALUE_ARRAY_LITERAL:
 		for (uint_fast16_t i = 0; i < value.data.array_literal.element_count; i++)
-			allocate_value_regs(compiler, value.data.array_literal.elements[i], current_reg + 1, NULL);
+			allocate_value_regs(compiler, value.data.array_literal.elements[i], current_reg + 1, NULL, proc);
 		break;
 	case AST_VALUE_ALLOC_RECORD: {
 		for (uint_fast16_t i = 0; i < value.data.alloc_record.init_value_count; i++)
-			allocate_value_regs(compiler, value.data.alloc_record.init_values[i].value, current_reg + 1, NULL);
+			allocate_value_regs(compiler, value.data.alloc_record.init_values[i].value, current_reg + 1, NULL, proc);
 		break;
 	}
 	case AST_VALUE_PROC: {
@@ -60,14 +61,16 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 
 		uint16_t current_arg_reg = 1;
 
-		for (uint_fast16_t i = 0; i < value.data.procedure->param_count; i++)
-			compiler->var_regs[value.data.procedure->params[i].id] = LOC_REG(current_arg_reg++);
+		for (uint_fast16_t i = 0; i < value.data.procedure->param_count; i++) {
+			compiler->var_regs[value.data.procedure->params[i].id] = ALLOC_LOC(current_arg_reg);
+			current_arg_reg++;
+		}
 
 		//for (uint_fast8_t i = 0; i < value.type.type_id; i++)
 		//	if (value.data.procedure->generic_arg_traces[i] == POSTPROC_TRACE_DYNAMIC)
 		//		current_arg_reg++;
 
-		allocate_code_block_regs(compiler, value.data.procedure->exec_block, current_arg_reg + value.type.type_id);
+		allocate_code_block_regs(compiler, value.data.procedure->exec_block, current_arg_reg + value.type.type_id, value.data.procedure);
 		return current_reg;
 	}
 	case AST_VALUE_VAR:
@@ -77,78 +80,80 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 	case AST_VALUE_SET_VAR:
 		if (value.data.set_var->var_info->is_used) {
 			compiler->eval_regs[value.id] = compiler->var_regs[value.data.set_var->var_info->id];
-			allocate_value_regs(compiler, value.data.set_var->set_value, current_reg, &compiler->eval_regs[value.id]);
+			allocate_value_regs(compiler, value.data.set_var->set_value, current_reg, &compiler->eval_regs[value.id], proc);
 		}
 		else if (value.data.set_var->set_value.affects_state)
-			allocate_value_regs(compiler, value.data.set_var->set_value, current_reg, NULL);
+			allocate_value_regs(compiler, value.data.set_var->set_value, current_reg, NULL, proc);
 		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_var->set_value.id];
 		compiler->move_eval[value.id] = compiler->move_eval[value.data.set_var->set_value.id];
 		return current_reg;
 	case AST_VALUE_SET_INDEX:
 		if (value.data.set_index->array.affects_state) {
-			extra_regs = allocate_value_regs(compiler, value.data.set_index->array, extra_regs, NULL);
+			extra_regs = allocate_value_regs(compiler, value.data.set_index->array, extra_regs, NULL, proc);
 			if (value.data.set_index->index.value_type != AST_VALUE_PRIMITIVE)
-				extra_regs = allocate_value_regs(compiler, value.data.set_index->index, extra_regs, NULL);
-			allocate_value_regs(compiler, value.data.set_index->value, extra_regs, NULL);
+				extra_regs = allocate_value_regs(compiler, value.data.set_index->index, extra_regs, NULL, proc);
+			allocate_value_regs(compiler, value.data.set_index->value, extra_regs, NULL, proc);
 		}
 		else if (value.data.set_index->value.affects_state)
-			allocate_value_regs(compiler, value.data.set_index->value, current_reg, NULL);
+			allocate_value_regs(compiler, value.data.set_index->value, current_reg, NULL, proc);
 		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_index->value.id];
 		compiler->move_eval[value.id] = compiler->move_eval[value.data.set_index->value.id];
 		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_index->value.id];
 		return current_reg;
 	case AST_VALUE_SET_PROP:
 		if (value.data.set_prop->record.affects_state) {
-			extra_regs = allocate_value_regs(compiler, value.data.set_prop->record, extra_regs, NULL);
-			allocate_value_regs(compiler, value.data.set_prop->value, extra_regs, NULL);
+			extra_regs = allocate_value_regs(compiler, value.data.set_prop->record, extra_regs, NULL, proc);
+			allocate_value_regs(compiler, value.data.set_prop->value, extra_regs, NULL, proc);
 		}
 		else if (value.data.set_prop->value.affects_state)
-			allocate_value_regs(compiler, value.data.set_prop->value, current_reg, NULL);
+			allocate_value_regs(compiler, value.data.set_prop->value, current_reg, NULL, proc);
 		compiler->eval_regs[value.id] = compiler->eval_regs[value.data.set_prop->value.id];
 		compiler->move_eval[value.id] = compiler->move_eval[value.data.set_prop->value.id];
 		return current_reg;
 	case AST_VALUE_GET_INDEX:
-		extra_regs = allocate_value_regs(compiler, value.data.get_index->array, extra_regs, NULL);
+		extra_regs = allocate_value_regs(compiler, value.data.get_index->array, extra_regs, NULL, proc);
 		if (value.data.set_index->index.value_type != AST_VALUE_PRIMITIVE)
-			allocate_value_regs(compiler, value.data.get_index->index, extra_regs, NULL);
+			allocate_value_regs(compiler, value.data.get_index->index, extra_regs, NULL, proc);
 		break;
 	case AST_VALUE_GET_PROP:
-		allocate_value_regs(compiler, value.data.get_prop->record, extra_regs, NULL);
+		allocate_value_regs(compiler, value.data.get_prop->record, extra_regs, NULL, proc);
 		break;
 	case AST_VALUE_BINARY_OP:
-		extra_regs = allocate_value_regs(compiler, value.data.binary_op->lhs, extra_regs, NULL);
-		allocate_value_regs(compiler, value.data.binary_op->rhs, extra_regs, NULL);
+		extra_regs = allocate_value_regs(compiler, value.data.binary_op->lhs, extra_regs, NULL, proc);
+		allocate_value_regs(compiler, value.data.binary_op->rhs, extra_regs, NULL, proc);
 		break;
 	case AST_VALUE_UNARY_OP:
-		allocate_value_regs(compiler, value.data.unary_op->operand, current_reg, NULL);
+		allocate_value_regs(compiler, value.data.unary_op->operand, current_reg, NULL, proc);
 		if ((value.data.unary_op->operator == TOK_INCREMENT || value.data.unary_op->operator == TOK_DECREMENT) && !value.data.unary_op->is_postfix) {
 			compiler->eval_regs[value.id] = compiler->eval_regs[value.data.unary_op->operand.id];
 			compiler->move_eval[value.id] = compiler->move_eval[value.data.unary_op->operand.id];
 		}
 		else {
-			compiler->eval_regs[value.id] = target_reg ? *target_reg : LOC_REG(current_reg++);
+			compiler->eval_regs[value.id] = target_reg ? *target_reg : ALLOC_LOC(current_reg);
+			current_reg++;
 			compiler->move_eval[value.id] = 0;
 		}
 		return current_reg;
 	case AST_VALUE_TYPE_OP:
-		allocate_value_regs(compiler, value.data.type_op->operand, current_reg, NULL);
+		allocate_value_regs(compiler, value.data.type_op->operand, current_reg, NULL, proc);
 		break;
 	case AST_VALUE_PROC_CALL: {
-		compiler->eval_regs[value.id] = LOC_REG(compiler->proc_call_offsets[value.data.proc_call->id] = extra_regs++);
+		compiler->eval_regs[value.id] = ALLOC_LOC(extra_regs);
+		compiler->proc_call_offsets[value.data.proc_call->id] = extra_regs++;
 		compiler->move_eval[value.id] = !(value.type.type == TYPE_NOTHING || !target_reg || (target_reg->offset && target_reg->reg == current_reg));
 
 		for (uint_fast8_t i = 0; i < value.data.proc_call->argument_count; i++) {
-			compiler_reg_t arg_reg = LOC_REG(extra_regs);
-			allocate_value_regs(compiler, value.data.proc_call->arguments[i], extra_regs++, &arg_reg);
+			compiler_reg_t arg_reg = ALLOC_LOC(extra_regs);
+			allocate_value_regs(compiler, value.data.proc_call->arguments[i], extra_regs++, &arg_reg, proc);
 		}
-		allocate_value_regs(compiler, value.data.proc_call->procedure, extra_regs, NULL);
+		allocate_value_regs(compiler, value.data.proc_call->procedure, extra_regs, NULL, proc);
 
 		return current_reg + 1;
 	}
 	case AST_VALUE_FOREIGN:
-		extra_regs = allocate_value_regs(compiler, value.data.foreign->op_id, extra_regs, NULL);
+		extra_regs = allocate_value_regs(compiler, value.data.foreign->op_id, extra_regs, NULL, proc);
 		if (value.data.foreign->input)
-			extra_regs = allocate_value_regs(compiler, *value.data.foreign->input, extra_regs, NULL);
+			extra_regs = allocate_value_regs(compiler, *value.data.foreign->input, extra_regs, NULL, proc);
 		break;
 	}
 	if (target_reg) {
@@ -156,13 +161,14 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 		compiler->move_eval[value.id] = 0;
 	}
 	else {
-		compiler->eval_regs[value.id] = LOC_REG(current_reg++);
+		compiler->eval_regs[value.id] = ALLOC_LOC(current_reg);
+		current_reg++;
 		compiler->move_eval[value.id] = 1;
 	}
 	return current_reg;
 }
 
-static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code_block, uint16_t current_reg) {
+static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code_block, uint16_t current_reg, ast_proc_t* proc) {
 	for (uint_fast32_t i = 0; i < code_block.instruction_count; i++)
 		switch (code_block.instructions[i].type)
 		{
@@ -175,7 +181,7 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 				(var_decl.set_value.value_type == AST_VALUE_VAR && !var_decl.set_value.data.variable->has_mutated) &&
 					!(var_decl.var_info->is_global && !var_decl.set_value.data.variable->is_global))
 			) {
-				current_reg = allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL);
+				current_reg = allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL, proc);
 				if (var_decl.var_info->is_used) {
 					compiler->var_regs[var_decl.var_info->id] = compiler->eval_regs[var_decl.set_value.id];
 					compiler->move_eval[var_decl.set_value.id] = 0;
@@ -185,19 +191,19 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 				if (var_decl.var_info->is_global) {
 					if (var_decl.var_info->is_used) {
 						compiler->var_regs[var_decl.var_info->id] = GLOB_REG(compiler->ast->constant_count + compiler->current_global++);
-						allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info->id]);
+						allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info->id], proc);
 					}
 					else if (var_decl.set_value.affects_state)
-						allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL);
+						allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL, proc);
 				}
 				else {
 					if (var_decl.var_info->is_used) {
-						compiler->var_regs[var_decl.var_info->id] = LOC_REG(current_reg);
-						allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info->id]);
+						compiler->var_regs[var_decl.var_info->id] = ALLOC_LOC(current_reg);
+						allocate_value_regs(compiler, var_decl.set_value, current_reg, &compiler->var_regs[var_decl.var_info->id], proc);
 						current_reg++;
 					}
 					else if (var_decl.set_value.affects_state)
-						allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL);
+						allocate_value_regs(compiler, var_decl.set_value, current_reg, NULL, proc);
 				}
 			}
 			break;
@@ -207,24 +213,25 @@ static void allocate_code_block_regs(compiler_t* compiler, ast_code_block_t code
 			while (conditional)
 			{
 				if (conditional->condition)
-					allocate_value_regs(compiler, *conditional->condition, current_reg, NULL);
-				allocate_code_block_regs(compiler, conditional->exec_block, current_reg);
+					allocate_value_regs(compiler, *conditional->condition, current_reg, NULL, proc);
+				allocate_code_block_regs(compiler, conditional->exec_block, current_reg, proc);
 				conditional = conditional->next_if_false;
 			}
 			break;
 		}
 		case AST_STATEMENT_VALUE: {
 			compiler_reg_t local_scratchpad = LOC_REG(0);
-			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, &local_scratchpad);
+			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, &local_scratchpad, proc);
 			break;
 		}
 		case AST_STATEMENT_RETURN_VALUE: {
 			compiler_reg_t return_reg = LOC_REG(0);
-			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, &return_reg);
+			allocate_value_regs(compiler, code_block.instructions[i].data.value, current_reg, &return_reg, proc);
 			break;
 		}
 		}
 }
+#undef ALLOC_LOC
 
 #define TYPEARG_INFO_REG(TYPE) LOC_REG(proc->param_count + 1 + ((TYPE).type_id)) // compiler->proc_generic_regs[proc->id][(TYPE).type_id]
 
@@ -323,26 +330,16 @@ static int compile_value(compiler_t* compiler, ast_value_t value, ast_proc_t* pr
 	case AST_VALUE_PROC: {
 		uint16_t start_ip = compiler->ins_builder.instruction_count;
 
-		//if (value.type.type_id) {
-		//	PANIC_ON_FAIL(compiler->proc_generic_regs[value.data.procedure->id] = safe_malloc(compiler->safe_gc, value.type.type_id * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
-		//	uint16_t gen_reg_begin = value.data.procedure->param_count + 1;
-		//	for (uint_fast8_t i = 0; i < value.type.type_id; i++)
-		//		//if (value.data.procedure->generic_arg_traces[i] == POSTPROC_TRACE_DYNAMIC)
-		//			compiler->proc_generic_regs[value.data.procedure->id][i] = LOC_REG(gen_reg_begin + i);
-		//		//else
-		//			//compiler->proc_generic_regs[value.data.procedure->id][i].offset = 0;
-		//}
-
 		EMIT_INS(INS1(COMPILER_OP_CODE_LABEL, compiler->eval_regs[value.id]));
 		EMIT_INS(INS0(COMPILER_OP_CODE_JUMP));
+
 		compiler->ins_builder.instructions[start_ip].regs[1] = GLOB_REG(compiler->ins_builder.instruction_count);
+		EMIT_INS(INS1(COMPILER_OP_CODE_STACK_VALIDATE, GLOB_REG(compiler->proc_call_max_locals[value.data.procedure->id])));
 		if (value.data.procedure->do_gc)
 			EMIT_INS(INS0(COMPILER_OP_CODE_GC_NEW_FRAME));
+
 		compile_code_block(compiler, value.data.procedure->exec_block, value.data.procedure, 0, NULL, 0);
 		compiler->ins_builder.instructions[start_ip + 1].regs[0] = GLOB_REG(compiler->ins_builder.instruction_count);
-
-		/*if (value.type.type_id)
-			safe_free(compiler->safe_gc, compiler->proc_generic_regs[value.data.procedure->id]);*/
 		break;
 	}
 	case AST_VALUE_SET_VAR:
@@ -696,8 +693,7 @@ int compile(compiler_t* compiler, safe_gc_t* safe_gc, machine_t* target_machine,
 	PANIC_ON_FAIL(compiler->move_eval = safe_malloc(safe_gc, ast->value_count * sizeof(int)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(compiler->var_regs = safe_malloc(safe_gc, ast->var_decl_count * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(compiler->proc_call_offsets = safe_malloc(safe_gc, ast->proc_call_count * sizeof(uint16_t)), compiler, ERROR_MEMORY);
-	//PANIC_ON_FAIL(compiler->proc_generic_regs = safe_malloc(safe_gc, ast->proc_count * sizeof(compiler_reg_t*)), compiler, ERROR_MEMORY);
-
+	PANIC_ON_FAIL(compiler->proc_call_max_locals = safe_calloc(safe_gc, ast->proc_call_count, sizeof(uint16_t)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX / 8, 1000, ast->record_count), compiler, ERROR_MEMORY);
 
 	//define standard type signatures (array<prim>)
@@ -709,7 +705,7 @@ int compile(compiler_t* compiler, safe_gc_t* safe_gc, machine_t* target_machine,
 		PANIC_ON_FAIL(machine_get_typesig(compiler->target_machine, &mybuf, 0), compiler, compiler->target_machine->last_err);
 	}
 
-	allocate_code_block_regs(compiler, ast->exec_block, 0);
+	allocate_code_block_regs(compiler, ast->exec_block, 0, NULL);
 
 	PANIC_ON_FAIL(init_ins_builder(&compiler->ins_builder, safe_gc), compiler, ERROR_MEMORY);
 
@@ -723,7 +719,7 @@ int compile(compiler_t* compiler, safe_gc_t* safe_gc, machine_t* target_machine,
 	safe_free(safe_gc, compiler->move_eval);
 	safe_free(safe_gc, compiler->var_regs);
 	safe_free(safe_gc, compiler->proc_call_offsets);
-	//safe_free(safe_gc, compiler->proc_generic_regs);
+	safe_free(safe_gc, compiler->proc_call_max_locals);
 
 	return 1;
 }
@@ -793,6 +789,7 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 		MACHINE_OP_CODE_JUMP_CHECK_L,
 		MACHINE_OP_CODE_CALL_L,
 		MACHINE_OP_CODE_RETURN,
+		MACHINE_OP_CODE_STACK_VALIDATE,
 		MACHINE_OP_CODE_LABEL_L,
 		MACHINE_OP_CODE_LOAD_ALLOC_LLL,
 		MACHINE_OP_CODE_LOAD_ALLOC_I_LL,
@@ -876,6 +873,7 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 		1, //jump check
 		1, //call
 		0, //return 
+		0, //stack validate
 		1, //label
 		3, //load alloc
 		2, //load alloc (index)

@@ -32,6 +32,7 @@ static const char* opcode_names[] = {
 	"call(l)         ",
 	"call(g)         ",
 	"return          ",
+	"stack validate  ",
 	"lbl(l)          ",
 	"lbl(g)          ",
 	

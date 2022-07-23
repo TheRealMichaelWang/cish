@@ -25,6 +25,7 @@ typedef enum machine_op_code {
 	DECL1OP(JUMP_CHECK),
 	DECL1OP(CALL),
 	MACHINE_OP_CODE_RETURN,
+	MACHINE_OP_CODE_STACK_VALIDATE,
 	DECL1OP(LABEL),
 	DECL3OP(LOAD_ALLOC),
 	DECL2OP(LOAD_ALLOC_I),
@@ -178,6 +179,7 @@ typedef struct machine {
 #endif // CISH_PAUSABLE
 
 	uint16_t extra_a, extra_b, extra_c;
+	uint16_t stack_size;
 } machine_t;
 
 int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit, uint16_t type_count);

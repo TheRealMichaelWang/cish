@@ -307,6 +307,7 @@ static int type_signature_match(machine_t* machine, machine_type_sig_t match_sig
 
 int init_machine(machine_t* machine, uint16_t stack_size, uint16_t frame_limit, uint16_t type_count) {
 	machine->frame_limit = frame_limit;
+	machine->stack_size = stack_size;
 
 	machine->global_offset = 0;
 	machine->position_count = 0;
@@ -494,6 +495,10 @@ int machine_execute(machine_t* machine, machine_ins_t* instructions, machine_ins
 			break;
 		case MACHINE_OP_CODE_RETURN:
 			ip = machine->positions[--machine->position_count];
+			break;
+		case MACHINE_OP_CODE_STACK_VALIDATE:
+			if (machine->global_offset + ip->a >= machine->stack_size)
+				MACHINE_PANIC(ERROR_STACK_OVERFLOW);
 			break;
 		{
 			heap_alloc_t* array_register;

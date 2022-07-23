@@ -25,6 +25,7 @@ typedef enum compiler_op_code {
 
 	COMPILER_OP_CODE_CALL,
 	COMPILER_OP_CODE_RETURN,
+	COMPILER_OP_CODE_STACK_VALIDATE,
 	COMPILER_OP_CODE_LABEL,
 
 	COMPILER_OP_CODE_LOAD_ALLOC,
@@ -132,7 +133,7 @@ typedef struct compiler {
 	compiler_reg_t* var_regs;
 
 	uint16_t* proc_call_offsets;
-	//compiler_reg_t** proc_generic_regs;
+	uint16_t* proc_call_max_locals;
 
 	ast_t* ast;
 	machine_t* target_machine;
