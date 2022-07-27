@@ -1,4 +1,2 @@
-proc includedll(array<char> lib) {
-  auto liboffset = foreign[19](lib);
-  return liboffset;
-}
+proc importdll(array<char> lib) return int
+  return foreign[19];
