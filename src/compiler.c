@@ -66,10 +66,6 @@ static uint16_t allocate_value_regs(compiler_t* compiler, ast_value_t value, uin
 			current_arg_reg++;
 		}
 
-		//for (uint_fast8_t i = 0; i < value.type.type_id; i++)
-		//	if (value.data.procedure->generic_arg_traces[i] == POSTPROC_TRACE_DYNAMIC)
-		//		current_arg_reg++;
-
 		allocate_code_block_regs(compiler, value.data.procedure->exec_block, current_arg_reg + value.type.type_id, value.data.procedure);
 		return current_reg;
 	}
@@ -693,7 +689,7 @@ int compile(compiler_t* compiler, safe_gc_t* safe_gc, machine_t* target_machine,
 	PANIC_ON_FAIL(compiler->move_eval = safe_malloc(safe_gc, ast->value_count * sizeof(int)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(compiler->var_regs = safe_malloc(safe_gc, ast->var_decl_count * sizeof(compiler_reg_t)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(compiler->proc_call_offsets = safe_malloc(safe_gc, ast->proc_call_count * sizeof(uint16_t)), compiler, ERROR_MEMORY);
-	PANIC_ON_FAIL(compiler->proc_call_max_locals = safe_calloc(safe_gc, ast->proc_call_count, sizeof(uint16_t)), compiler, ERROR_MEMORY);
+	PANIC_ON_FAIL(compiler->proc_call_max_locals = safe_calloc(safe_gc, ast->proc_count, sizeof(uint16_t)), compiler, ERROR_MEMORY);
 	PANIC_ON_FAIL(init_machine(target_machine, UINT16_MAX / 8, 1000, ast->record_count), compiler, ERROR_MEMORY);
 
 	//define standard type signatures (array<prim>)
@@ -954,10 +950,6 @@ void compiler_ins_to_machine_ins(compiler_ins_t* compiler_ins, machine_ins_t* ma
 	};
 	
 	for (uint_fast64_t i = 0; i < ins_count; i++) {
-		if (compiler_ins[i].op_code == COMPILER_OP_CODE_LONG_DECREMENT) {
-			int asd = 123;
-		}
-
 		uint8_t ins_offset = 0;
 		uint8_t reg_ops = reg_operands[compiler_ins[i].op_code];
 		for (uint_fast8_t j = 0; j < reg_ops; j++)
