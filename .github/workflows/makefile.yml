@@ -1,4 +1,4 @@
-name: Produce Build
+name: Produce Build for Debian
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: cish
-        path: cish.*
+        path: cish
         retention-days: 5
     - name: DEBUG
       run: ls
