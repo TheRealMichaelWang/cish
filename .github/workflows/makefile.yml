@@ -18,6 +18,10 @@ jobs:
       run: make
     - name: Make Step 2
       run: make
-    - name: Download all workflow run artifacts
-      uses: actions/download-artifact@v3
+    - name: 'Upload Artifact'
+      uses: actions/upload-artifact@v3
+      with:
+        name: cish
+        path: cish.*
+        retention-days: 5
       
