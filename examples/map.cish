@@ -1,5 +1,5 @@
-include "stdlib/buffer.sf";
-include "stdlib/std.sf";
+include "stdlib/buffer.cish";
+include "stdlib/std.cish";
 
 abstract record mapBucket<K, V>;
 
