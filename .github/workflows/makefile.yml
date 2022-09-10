@@ -1,4 +1,4 @@
-name: Produce Build for Debian
+name: Produce Build for Linux
 
 on:
   push:
