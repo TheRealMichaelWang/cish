@@ -1,4 +1,4 @@
-include "stdlib/buffer.csh";
+include "stdlib/buffer.cish";
 
 proc millerRabin(int p, int iterations) {
 	$returns (a * b) % c
