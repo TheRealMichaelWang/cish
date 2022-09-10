@@ -1,5 +1,5 @@
-include "stdlib/io.sf";
-include "stdlib/std.sf";
+include "stdlib/io.cish";
+include "stdlib/std.cish";
 
 proc fib(int n) {
 	if(n <= 1)
