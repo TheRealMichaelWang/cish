@@ -1,7 +1,7 @@
-include "stdlib/std.csh";
-include "stdlib/io.csh";
-include "stdlib/random.csh";
-include "examples/binary_tree.csh";
+include "stdlib/std.cish";
+include "stdlib/io.cish";
+include "stdlib/random.cish";
+include "examples/binary_tree.cish";
 
 proc print_tree<elemType>(tree<elemType> e, proc<nothing, elemType> printElem) {
 	proc print_leaf<elemType>(leaf<elemType> l, proc<nothing, elemType> printElem, int depth) {
