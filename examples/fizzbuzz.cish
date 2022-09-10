@@ -1,5 +1,5 @@
-include "stdlib/io.csh";
-include "stdlib/std.csh";
+include "stdlib/io.cish";
+include "stdlib/std.cish";
 
 auto msgs = memset<array<char>>(new array<char>[15], 0, 15, "\n");
 msgs[3] = msgs[6] = msgs[9] = msgs[12] = "fizz";
