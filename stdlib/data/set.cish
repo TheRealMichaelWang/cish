@@ -1,4 +1,4 @@
-include "stdlib/buffer.csh";
+include "stdlib/buffer.cish";
 
 abstract record setBucket;
 	final record emptySetBucket extends setBucket;
