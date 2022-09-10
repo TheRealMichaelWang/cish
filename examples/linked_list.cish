@@ -1,4 +1,4 @@
-include "stdlib/std.csh";
+include "stdlib/std.cish";
 
 abstract record listBucket<T>;
 
