@@ -1,0 +1,29 @@
+name: Produce Build for Linux
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Make Step 1
+      continue-on-error: true
+      run: make
+    - name: Make Step 2
+      run: make
+    - name: 'Upload Artifact'
+      uses: actions/upload-artifact@v3
+      with:
+        name: cish
+        path: cish
+        retention-days: 5
+    - name: DEBUG
+      run: ls
+      
