@@ -1,5 +1,5 @@
-include "stdlib/std.csh";
-include "stdlib/buffer.csh";
+include "stdlib/std.cish";
+include "stdlib/buffer.cish";
 
 final record stack<T> {
 	array<T> elems = new T[15];

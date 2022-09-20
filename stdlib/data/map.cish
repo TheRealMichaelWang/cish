@@ -1,5 +1,5 @@
-include "stdlib/buffer.sf";
-include "stdlib/std.sf";
+include "stdlib/buffer.cish";
+include "stdlib/std.cish";
 
 abstract record mapBucket<K, V>;
 
@@ -20,23 +20,27 @@ record map<K, V> {
 proc mapEmplace<K, V>(map<K, V> m, K key, V value) {
 	proc emplace<K, V>(map<K, V> m, keyValuePair<K, V> pair) {
 		for(int i = pair.keyHash % #m.buckets; i < #m.buckets; i++)
-			if(m.buckets[i] is emptyMapBucket<any, any>)
-				return m.buckets[i] = pair;
+			if(m.buckets[i] is emptyMapBucket<any, any>) {
+				m.buckets[i] = pair;
+				return true;
+			}
 			else {
 				auto kvBucket = dynamic_cast<keyValuePair<K, V>>(m.buckets[i]);
-				if(kvBucket.keyHash == pair.keyHash)
-					return m.buckets[i] = pair;
+				if(kvBucket.keyHash == pair.keyHash) {
+					m.buckets[i] = pair; abort;
+					return false;
+				}
 			}
 
 		auto oldBuckets = m.buckets;
-		m.buckets = memset<mapBucket<K, V>>(new mapBucket<K, V>[#oldBuckets + 5], 0, #oldBuckets + 5, new emptyMapBucket<K, V>);
+		m.buckets = memset<mapBucket<K, V>>(new mapBucket<K, V>[#oldBuckets + 15], 0, #oldBuckets + 15, new emptyMapBucket<K, V>);
 		for(int i = 0; i < #oldBuckets; i++)
 			if(oldBuckets[i] is keyValuePair<K, V>)
 				thisproc<K, V>(m, dynamic_cast<keyValuePair<K, V>>(oldBuckets[i]));
 		return thisproc<K, V>(m, pair);
 	}
 
-	emplace<K, V>(m, new keyValuePair<K, V> {
+	return emplace<K, V>(m, new keyValuePair<K, V> {
 		key = key;
 		value = value;
 		keyHash = m.hasher(key);
@@ -51,15 +55,22 @@ final record keyNotFound<K, V> extends error<V> {
 proc mapFind<K, V>(map<K, V> m, K key) return fallible<V> {
 	int keyHash = m.hasher(key);
 	for(int i = keyHash % #m.buckets; i < #m.buckets; i++)
-		if(m.buckets[i] is keyValuePair<K, V>) {
+		if(m.buckets[i] is keyValuePair<any, any>) {
 			auto kvBucket = dynamic_cast<keyValuePair<K, V>>(m.buckets[i]);
 			if(kvBucket.keyHash == keyHash)
 				return new success<V> {
 					result = kvBucket.value;
 				};
 		}
+		else break;
 
 	return new keyNotFound<K, V> {
 		key = key;
 	};
+}
+
+proc mapForall<K, V>(map<K, V> m, proc<nothing, keyValuePair<K, V>> todo) {
+	for(int i = 0; i < #m.buckets; i++)
+		if(m.buckets[i] is keyValuePair<any, any>)
+			todo(dynamic_cast<keyValuePair<K, V>>(m.buckets[i]));
 }

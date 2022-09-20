@@ -1,4 +1,4 @@
-include "stdlib/data/list.csh";
+include "stdlib/data/list.cish";
 
 abstract record animal {
 	readonly array<char> name;

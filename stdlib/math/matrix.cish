@@ -1,4 +1,4 @@
-include "stdlib/std.csh";
+include "stdlib/std.cish";
 
 record domainError<domainT, rangeT> extends error<rangeT> {
 	readonly domainT domain;

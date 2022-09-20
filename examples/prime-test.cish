@@ -1,7 +1,7 @@
-include "stdlib/data/set.csh";
-include "stdlib/math/primes.csh";
-include "stdlib/std.csh";
-include "stdlib/io.csh";
+include "stdlib/data/set.cish";
+include "stdlib/math/primes.cish";
+include "stdlib/std.cish";
+include "stdlib/io.cish";
 
 set<int> a = new set<int> {
 	hasher = proc(int i) => i;
