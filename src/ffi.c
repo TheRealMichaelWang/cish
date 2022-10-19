@@ -62,7 +62,7 @@ int dynamic_library_load(dynamic_library_table_t* dynamic_library, machine_t* ma
 #ifdef _WIN32
 	static wchar_t libid_buf[100];
 	mbstowcs(libid_buf, name, 100);
-	ESCAPE_ON_FAIL(new_lib->handle = LoadLibrary(libid_buf));
+	ESCAPE_ON_FAIL(new_lib->handle = LoadLibraryW(libid_buf));
 	if (!(new_lib->entry_point = (cish_dll_entry)GetProcAddress(new_lib->handle, "cish_entry"))) {
 		free(name);
 		FreeLibrary(new_lib->handle);
