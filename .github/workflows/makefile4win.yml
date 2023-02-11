@@ -1,0 +1,26 @@
+name: Makefile CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: window-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: msys2/setup-msys2@v2
+    - name: compile
+      continue-on-error: true
+    - shell: msys2 {0}
+      run: |
+        pacman -S make
+        pacman -S gcc
+        make
+        make
+        ls
+
