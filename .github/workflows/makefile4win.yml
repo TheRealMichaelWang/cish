@@ -14,8 +14,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: msys2/setup-msys2@v2
-    - name: compile
-      continue-on-error: true
     - shell: msys2 {0}
       run: |
         pacman -S make
@@ -23,4 +21,5 @@ jobs:
         make
         make
         ls
+      continue-on-error: true
 
