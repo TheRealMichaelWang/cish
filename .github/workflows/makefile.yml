@@ -24,6 +24,5 @@ jobs:
         name: cish
         path: cish
         retention-days: 5
-    - name: DEBUG
-      run: ls
+
       
