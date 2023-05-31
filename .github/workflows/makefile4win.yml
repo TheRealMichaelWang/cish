@@ -1,4 +1,4 @@
-name: Compile for Windows
+name: Produce Build for Windows
 
 on:
   push:
