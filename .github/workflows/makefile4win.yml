@@ -18,8 +18,8 @@ jobs:
     - uses: msys2/setup-msys2@v2
     - shell: msys2 {0}
       run: |
-        pacman -S make
-        pacman -S gcc
+        yes | pacman -S make
+        yes | pacman -S gcc
         make
         make
         ls
