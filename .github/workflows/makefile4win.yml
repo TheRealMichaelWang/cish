@@ -17,11 +17,15 @@ jobs:
     - uses: actions/checkout@v3
     - uses: msys2/setup-msys2@v2
     - shell: msys2 {0}
-      run: |
-        pacman -S make --noconfirm
-        pacman -S gcc --noconfirm
-        make
-        make
-        ls
+      run: pacman -S make --noconfirm
+    - shell: msys2 {0}
+      run: pacman -S gcc --noconfirm
+    - shell: msys2 {0}
+      run: make
       continue-on-error: true
-
+    - shell: msys2 {0}
+      run: make
+      continue-on-error: true
+    - shell: msys2 {0}
+      run: ls
+      continue-on-error: true
