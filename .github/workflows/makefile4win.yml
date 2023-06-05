@@ -29,3 +29,8 @@ jobs:
     - shell: msys2 {0}
       run: ls
       continue-on-error: true
+    - name: Archive cish.exe
+      uses: actions/upload-artifact@v3
+      with:
+          name: cish.exe
+          path: cish.exe
