@@ -1,0 +1,36 @@
+name: Produce Build for Windows
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: msys2/setup-msys2@v2
+    - shell: msys2 {0}
+      run: pacman -S make --noconfirm
+    - shell: msys2 {0}
+      run: pacman -S gcc --noconfirm
+    - shell: msys2 {0}
+      run: make
+      continue-on-error: true
+    - shell: msys2 {0}
+      run: make
+      continue-on-error: true
+    - shell: msys2 {0}
+      run: ls
+      continue-on-error: true
+    - name: Archive cish.exe
+      uses: actions/upload-artifact@v3
+      with:
+          name: cish.exe
+          path: cish.exe

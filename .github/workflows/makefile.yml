@@ -5,6 +5,8 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+    branches: [ "main" ]
 
 jobs:
   build:
@@ -24,6 +26,5 @@ jobs:
         name: cish
         path: cish
         retention-days: 5
-    - name: DEBUG
-      run: ls
+
       
